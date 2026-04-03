@@ -9,6 +9,39 @@ observability:
   health_addr: 127.0.0.1:9101
   metrics_path: /metrics
 
+core:
+  reality:
+    enabled: true
+    listen_addr: 127.0.0.1:9443
+    public_host: vpn.example.com
+    public_port: 8443
+    target: www.cloudflare.com:443
+    server_names:
+      - www.cloudflare.com
+    flow: xtls-rprx-vision
+    user_email: reality@novpn
+    fingerprint: chrome
+    spider_x: /
+    sniffing:
+      enabled: true
+      dest_override:
+        - http
+        - tls
+        - quic
+    xray:
+      binary_path: /usr/local/bin/xray
+      config_path: /usr/local/etc/xray/config.json
+      state_path: /var/lib/novpn/reality/state.yaml
+      client_profile_path: /var/lib/novpn/reality/client-profile.yaml
+      service_name: xray
+      install:
+        method: official-script
+        script_url: https://github.com/XTLS/Xray-install/raw/main/install-release.sh
+      log:
+        level: warning
+        access_path: /var/log/xray/access.log
+        error_path: /var/log/xray/error.log
+
 listeners:
   tcp:
     - name: tcp-main
@@ -24,7 +57,7 @@ listeners:
 
   udp:
     - name: udp-main
-      enabled: true
+      enabled: false
       listen_addr: 0.0.0.0:8443
       upstream_addr: 127.0.0.1:9443
       session:
