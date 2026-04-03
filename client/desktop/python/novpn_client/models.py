@@ -39,6 +39,14 @@ class ClientProfile:
 
 
 @dataclass(slots=True)
+class ProfileOption:
+    key: str
+    name: str
+    address: str
+    server_name: str
+
+
+@dataclass(slots=True)
 class DesktopSettings:
     bypass_ru: bool
     excluded_apps: list[str]

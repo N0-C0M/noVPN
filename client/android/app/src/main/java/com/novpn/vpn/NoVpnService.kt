@@ -29,10 +29,12 @@ class NoVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
+                val profileAsset = intent.getStringExtra(EXTRA_PROFILE_ASSET)
+                    ?: profileRepository.defaultProfileAsset()
                 val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
                 val excludedPackages = intent.getStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES).orEmpty()
                 startForegroundRuntime("Starting VPN runtime")
-                startCore(bypassRu, excludedPackages)
+                startCore(profileAsset, bypassRu, excludedPackages)
             }
 
             ACTION_STOP -> {
@@ -67,10 +69,14 @@ class NoVpnService : VpnService() {
         return builder.establish()
     }
 
-    private fun startCore(bypassRu: Boolean, excludedPackages: List<String>) {
+    private fun startCore(
+        profileAsset: String,
+        bypassRu: Boolean,
+        excludedPackages: List<String>
+    ) {
         stopCore()
 
-        val profile = profileRepository.loadDefaultProfile()
+        val profile = profileRepository.loadProfile(profileAsset)
         seedStore.loadOrSaveDefault(profile.obfuscation.seed)
 
         val xrayConfig = xrayConfigWriter.write(profile, bypassRu)
@@ -78,7 +84,7 @@ class NoVpnService : VpnService() {
         tunnelInterface = establishTunnel(excludedPackages)
         runtimeManager.start(xrayConfig, obfuscatorConfig)
 
-        startForegroundRuntime("VPN runtime active")
+        startForegroundRuntime("VPN runtime active: ${profile.name}")
     }
 
     private fun stopCore() {
@@ -152,6 +158,7 @@ class NoVpnService : VpnService() {
     companion object {
         private const val ACTION_START = "com.novpn.vpn.START"
         private const val ACTION_STOP = "com.novpn.vpn.STOP"
+        private const val EXTRA_PROFILE_ASSET = "extra_profile_asset"
         private const val EXTRA_BYPASS_RU = "extra_bypass_ru"
         private const val EXTRA_EXCLUDED_PACKAGES = "extra_excluded_packages"
         private const val NOTIFICATION_CHANNEL_ID = "novpn_runtime"
@@ -159,11 +166,13 @@ class NoVpnService : VpnService() {
 
         fun startIntent(
             context: Context,
+            profileAsset: String,
             bypassRu: Boolean,
             excludedPackages: List<String>
         ): Intent {
             return Intent(context, NoVpnService::class.java).apply {
                 action = ACTION_START
+                putExtra(EXTRA_PROFILE_ASSET, profileAsset)
                 putExtra(EXTRA_BYPASS_RU, bypassRu)
                 putStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES, ArrayList(excludedPackages))
             }

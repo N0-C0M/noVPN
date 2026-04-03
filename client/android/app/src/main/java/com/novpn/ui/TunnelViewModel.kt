@@ -2,17 +2,19 @@ package com.novpn.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.novpn.data.ClientPreferences
 import com.novpn.data.ProfileRepository
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
-import com.novpn.xray.AndroidXrayConfigWriter
 import com.novpn.vpn.VpnRuntimeRequest
+import com.novpn.xray.AndroidXrayConfigWriter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 class TunnelViewModel(application: Application) : AndroidViewModel(application) {
     private val profileRepository = ProfileRepository(application)
+    private val preferences = ClientPreferences(application)
     private val configWriter = AndroidXrayConfigWriter(application)
     private val appsScanner = InstalledAppsScanner(application)
     private val seedStore = ObfuscationSeedStore(application)
@@ -21,21 +23,51 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     val state: StateFlow<TunnelState> = _state
 
     init {
-        _state.update { current ->
-            current.copy(installedApps = appsScanner.loadLaunchableApps())
+        refreshStateFromPreferences()
+    }
+
+    fun refreshStateFromPreferences() {
+        val availableProfiles = profileRepository.listProfiles()
+        val defaultAsset = profileRepository.defaultProfileAsset()
+        val selectedAsset = preferences.selectedProfileAsset(defaultAsset)
+        val normalizedAsset = availableProfiles
+            .firstOrNull { it.assetName == selectedAsset }
+            ?.assetName
+            ?: defaultAsset
+
+        if (normalizedAsset != selectedAsset) {
+            preferences.saveSelectedProfileAsset(normalizedAsset)
+        }
+
+        _state.update {
+            it.copy(
+                bypassRu = preferences.isBypassRuEnabled(),
+                excludedPackages = preferences.excludedPackages(),
+                installedApps = appsScanner.loadLaunchableApps(),
+                availableProfiles = availableProfiles,
+                selectedProfileAsset = normalizedAsset
+            )
         }
     }
 
     fun setBypassRu(value: Boolean) {
+        preferences.saveBypassRu(value)
         _state.update { it.copy(bypassRu = value) }
     }
 
     fun setExcludedPackages(value: List<String>) {
-        _state.update { it.copy(excludedPackages = value.distinct()) }
+        val normalized = value.distinct()
+        preferences.saveExcludedPackages(normalized)
+        _state.update { it.copy(excludedPackages = normalized) }
+    }
+
+    fun selectProfile(assetName: String) {
+        preferences.saveSelectedProfileAsset(assetName)
+        _state.update { it.copy(selectedProfileAsset = assetName) }
     }
 
     fun generateConfig() {
-        val profile = profileRepository.loadDefaultProfile()
+        val profile = profileRepository.loadProfile(currentProfileAsset())
         seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         val outputFile = configWriter.write(profile, _state.value.bypassRu)
         _state.update { it.copy(generatedConfigPath = outputFile.absolutePath) }
@@ -43,16 +75,18 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
 
     fun buildRuntimeRequest(): VpnRuntimeRequest {
         return VpnRuntimeRequest(
+            profileAsset = currentProfileAsset(),
             bypassRu = _state.value.bypassRu,
             excludedPackages = _state.value.excludedPackages
         )
     }
 
     fun markRuntimeStarted(configPath: String) {
+        val profileName = selectedProfileName()
         _state.update {
             it.copy(
                 runtimeRunning = true,
-                runtimeStatus = "Foreground VPN runtime started",
+                runtimeStatus = "Connected to $profileName",
                 generatedConfigPath = configPath
             )
         }
@@ -64,6 +98,22 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 runtimeRunning = false,
                 runtimeStatus = "Service stopped"
             )
+        }
+    }
+
+    fun selectedProfileName(): String {
+        return _state.value.availableProfiles
+            .firstOrNull { it.assetName == currentProfileAsset() }
+            ?.name
+            ?: "Default server"
+    }
+
+    private fun currentProfileAsset(): String {
+        val selected = _state.value.selectedProfileAsset
+        return if (selected.isNotBlank()) {
+            selected
+        } else {
+            profileRepository.defaultProfileAsset()
         }
     }
 }

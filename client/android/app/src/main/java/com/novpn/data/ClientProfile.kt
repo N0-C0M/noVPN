@@ -7,6 +7,13 @@ data class ClientProfile(
     val obfuscation: ObfuscationProfile
 )
 
+data class AvailableProfile(
+    val assetName: String,
+    val name: String,
+    val address: String,
+    val serverName: String
+)
+
 data class ServerProfile(
     val address: String,
     val port: Int,

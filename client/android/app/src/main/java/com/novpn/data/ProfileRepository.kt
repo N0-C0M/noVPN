@@ -5,8 +5,16 @@ import org.json.JSONObject
 
 class ProfileRepository(private val context: Context) {
 
+    fun defaultProfileAsset(): String {
+        return listProfileAssets().firstOrNull() ?: DEFAULT_ASSET
+    }
+
     fun loadDefaultProfile(): ClientProfile {
-        val payload = context.assets.open("profile.default.json").bufferedReader().use { it.readText() }
+        return loadProfile(defaultProfileAsset())
+    }
+
+    fun loadProfile(assetName: String): ClientProfile {
+        val payload = context.assets.open(assetName).bufferedReader().use { it.readText() }
         val root = JSONObject(payload)
         val server = root.getJSONObject("server")
         val local = root.getJSONObject("local")
@@ -35,5 +43,28 @@ class ProfileRepository(private val context: Context) {
                 seed = obfuscation.getString("seed")
             )
         )
+    }
+
+    fun listProfiles(): List<AvailableProfile> {
+        return listProfileAssets().map { assetName ->
+            val profile = loadProfile(assetName)
+            AvailableProfile(
+                assetName = assetName,
+                name = profile.name,
+                address = "${profile.server.address}:${profile.server.port}",
+                serverName = profile.server.serverName
+            )
+        }
+    }
+
+    private fun listProfileAssets(): List<String> {
+        return context.assets.list("")
+            .orEmpty()
+            .filter { it.startsWith("profile.") && it.endsWith(".json") }
+            .sorted()
+    }
+
+    companion object {
+        private const val DEFAULT_ASSET = "profile.default.json"
     }
 }
