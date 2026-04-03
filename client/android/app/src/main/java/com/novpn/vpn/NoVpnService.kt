@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import com.novpn.R
 import com.novpn.data.ProfileRepository
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.ui.MainActivity
@@ -33,7 +34,7 @@ class NoVpnService : VpnService() {
                     ?: profileRepository.defaultProfileAsset()
                 val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
                 val excludedPackages = intent.getStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES).orEmpty()
-                startForegroundRuntime("Starting VPN runtime")
+                startForegroundRuntime(getString(R.string.runtime_starting))
                 startCore(profileAsset, bypassRu, excludedPackages)
             }
 
@@ -58,7 +59,7 @@ class NoVpnService : VpnService() {
 
     fun establishTunnel(disallowedPackages: List<String>): ParcelFileDescriptor? {
         val builder = Builder()
-            .setSession("NoVPN")
+            .setSession(getString(R.string.tunnel_session_name))
             .addAddress("172.19.0.2", 32)
             .addRoute("0.0.0.0", 0)
             .addDnsServer("1.1.1.1")
@@ -84,7 +85,7 @@ class NoVpnService : VpnService() {
         tunnelInterface = establishTunnel(excludedPackages)
         runtimeManager.start(xrayConfig, obfuscatorConfig)
 
-        startForegroundRuntime("VPN runtime active: ${profile.name}")
+        startForegroundRuntime(getString(R.string.runtime_active_profile, profile.name))
     }
 
     private fun stopCore() {
@@ -127,7 +128,7 @@ class NoVpnService : VpnService() {
     private fun buildNotification(contentText: String) =
         NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle("NoVPN")
+            .setContentTitle(getString(R.string.notification_title))
             .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -149,7 +150,7 @@ class NoVpnService : VpnService() {
         val manager = getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_ID,
-            "NoVPN runtime",
+            getString(R.string.notification_channel_name),
             NotificationManager.IMPORTANCE_LOW
         )
         manager.createNotificationChannel(channel)

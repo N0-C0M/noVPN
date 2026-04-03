@@ -2,6 +2,7 @@ package com.novpn.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.novpn.R
 import com.novpn.data.ClientPreferences
 import com.novpn.data.ProfileRepository
 import com.novpn.obfs.ObfuscationSeedStore
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 class TunnelViewModel(application: Application) : AndroidViewModel(application) {
+    private val appContext = application
     private val profileRepository = ProfileRepository(application)
     private val preferences = ClientPreferences(application)
     private val configWriter = AndroidXrayConfigWriter(application)
@@ -45,7 +47,12 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 excludedPackages = preferences.excludedPackages(),
                 installedApps = appsScanner.loadLaunchableApps(),
                 availableProfiles = availableProfiles,
-                selectedProfileAsset = normalizedAsset
+                selectedProfileAsset = normalizedAsset,
+                runtimeStatus = if (it.runtimeRunning) {
+                    it.runtimeStatus
+                } else {
+                    appContext.getString(R.string.service_stopped)
+                }
             )
         }
     }
@@ -86,7 +93,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 runtimeRunning = true,
-                runtimeStatus = "Connected to $profileName",
+                runtimeStatus = appContext.getString(R.string.connected_to_profile, profileName),
                 generatedConfigPath = configPath
             )
         }
@@ -96,7 +103,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 runtimeRunning = false,
-                runtimeStatus = "Service stopped"
+                runtimeStatus = appContext.getString(R.string.service_stopped)
             )
         }
     }
@@ -105,7 +112,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         return _state.value.availableProfiles
             .firstOrNull { it.assetName == currentProfileAsset() }
             ?.name
-            ?: "Default server"
+            ?: appContext.getString(R.string.default_server)
     }
 
     private fun currentProfileAsset(): String {

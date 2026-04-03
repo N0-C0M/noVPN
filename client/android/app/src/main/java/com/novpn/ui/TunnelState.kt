@@ -11,5 +11,5 @@ data class TunnelState(
     val selectedProfileAsset: String = "",
     val generatedConfigPath: String = "",
     val runtimeRunning: Boolean = false,
-    val runtimeStatus: String = "Service stopped"
+    val runtimeStatus: String = ""
 )
