@@ -1,0 +1,93 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "vpn.example.com",
+            "port": 8443,
+            "users": [
+              {
+                "id": "00000000-0000-4000-8000-000000000000",
+                "encryption": "none",
+                "flow": "xtls-rprx-vision"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "www.cloudflare.com",
+          "fingerprint": "chrome",
+          "publicKey": "REPLACE_WITH_SERVER_PUBLIC_KEY",
+          "shortId": "REPLACE_WITH_SHORT_ID",
+          "spiderX": "/"
+        }
+      }
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "block",
+      "protocol": "blackhole"
+    },
+    {
+      "tag": "dns-out",
+      "protocol": "dns"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "ip": [
+          "geoip:private"
+        ],
+        "outboundTag": "direct",
+        "ruleTag": "private-direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "ext:geosite.dat:ru"
+        ],
+        "outboundTag": "direct",
+        "ruleTag": "ru-domain-direct"
+      },
+      {
+        "type": "field",
+        "ip": [
+          "ext:geoip.dat:ru"
+        ],
+        "outboundTag": "direct",
+        "ruleTag": "ru-ip-direct"
+      },
+      {
+        "type": "field",
+        "process": [
+          "C:/Program Files/Yandex/YandexBrowser/Application/browser.exe",
+          "C:/Program Files/Telegram Desktop/Telegram.exe"
+        ],
+        "outboundTag": "direct",
+        "ruleTag": "excluded-apps-direct"
+      },
+      {
+        "type": "field",
+        "network": "tcp,udp",
+        "outboundTag": "proxy",
+        "ruleTag": "default-proxy"
+      }
+    ]
+  }
+}
