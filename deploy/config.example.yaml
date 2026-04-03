@@ -1,0 +1,35 @@
+server:
+  shutdown_timeout: 15s
+  readiness_grace_period: 2s
+  upstream_dial_timeout: 5s
+
+observability:
+  log_level: info
+  json_logs: true
+  health_addr: 127.0.0.1:9101
+  metrics_path: /metrics
+
+listeners:
+  tcp:
+    - name: tcp-main
+      enabled: true
+      listen_addr: 0.0.0.0:8443
+      upstream_addr: 127.0.0.1:9443
+      timeouts:
+        dial: 5s
+        idle: 120s
+      limits:
+        max_connections: 10000
+        per_ip_connections: 200
+
+  udp:
+    - name: udp-main
+      enabled: true
+      listen_addr: 0.0.0.0:8443
+      upstream_addr: 127.0.0.1:9443
+      session:
+        idle_ttl: 60s
+        cleanup_interval: 15s
+        max_sessions: 50000
+      limits:
+        max_packet_size: 1500

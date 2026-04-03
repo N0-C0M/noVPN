@@ -1,0 +1,16 @@
+[Unit]
+Description=Transport Gateway for VPN core
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/transport-gateway
+ExecStart=/usr/local/bin/gateway -config /etc/gateway/config.yaml
+Restart=always
+RestartSec=2
+LimitNOFILE=200000
+
+[Install]
+WantedBy=multi-user.target
