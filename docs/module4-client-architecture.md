@@ -2,6 +2,8 @@
 
 Цель: собрать desktop/mobile обёртку, которая управляет Xray, кастомным обфускатором, split tunneling и runtime-конфигом.
 
+Текущий scaffold уже добавлен в [client/README.md](/d:/projekt/noVPN/client/README.md).
+
 ## Directory structure
 
 ```text
