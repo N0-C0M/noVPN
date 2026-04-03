@@ -59,6 +59,7 @@ class DesktopRuntimeManager:
             ["run", "-config", str(self._layout.xray_config)],
             self._layout.xray_log,
             extra_env={
+                "XRAY_LOCATION_ASSET": str(self._layout.xray_binary.parent),
                 "XRAY_LOCATION_CONFIG": str(self._layout.xray_config.parent),
                 "NOVPN_ROLE": "xray",
             },

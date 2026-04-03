@@ -17,6 +17,8 @@ class EmbeddedRuntimeManager(private val context: Context) {
         logsDir.mkdirs()
 
         val xrayBinary = installAssetBinary("bin/xray", "xray")
+        installAssetFile("bin/geoip.dat", "geoip.dat")
+        installAssetFile("bin/geosite.dat", "geosite.dat")
         val obfuscatorBinary = installAssetBinary("bin/obfuscator", "obfuscator")
 
         obfuscatorProcess = ProcessBuilder(
@@ -24,19 +26,24 @@ class EmbeddedRuntimeManager(private val context: Context) {
             "--config",
             obfuscatorConfig.absolutePath
         )
+            .directory(binDir)
             .redirectErrorStream(true)
             .redirectOutput(File(logsDir, "obfuscator.log"))
             .start()
 
-        xrayProcess = ProcessBuilder(
+        val xrayBuilder = ProcessBuilder(
             xrayBinary.absolutePath,
             "run",
             "-config",
             xrayConfig.absolutePath
         )
+            .directory(binDir)
             .redirectErrorStream(true)
             .redirectOutput(File(logsDir, "xray.log"))
-            .start()
+        xrayBuilder.environment()["XRAY_LOCATION_ASSET"] = binDir.absolutePath
+        xrayBuilder.environment()["XRAY_LOCATION_CONFIG"] =
+            xrayConfig.parentFile?.absolutePath ?: runtimeRoot.absolutePath
+        xrayProcess = xrayBuilder.start()
     }
 
     fun stop() {
@@ -75,6 +82,29 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
         targetFile.setReadable(true)
         targetFile.setExecutable(true)
+        return targetFile
+    }
+
+    private fun installAssetFile(assetPath: String, targetName: String): File {
+        val targetFile = File(binDir, targetName)
+        if (targetFile.exists()) {
+            return targetFile
+        }
+
+        try {
+            context.assets.open(assetPath).use { input ->
+                targetFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } catch (exception: IOException) {
+            throw IllegalStateException(
+                "Required Xray asset missing: $assetPath. Place geoip.dat and geosite.dat under app/src/main/assets/bin/.",
+                exception
+            )
+        }
+
+        targetFile.setReadable(true)
         return targetFile
     }
 }
