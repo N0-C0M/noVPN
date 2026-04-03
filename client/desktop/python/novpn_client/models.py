@@ -43,3 +43,13 @@ class DesktopSettings:
     bypass_ru: bool
     excluded_apps: list[str]
     output_path: Path
+
+
+@dataclass(slots=True)
+class RuntimeStatus:
+    running: bool
+    xray_binary: Path
+    obfuscator_binary: Path
+    xray_log: Path
+    obfuscator_log: Path
+    detail: str

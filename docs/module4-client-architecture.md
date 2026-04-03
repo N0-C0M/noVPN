@@ -2,7 +2,11 @@
 
 Цель: собрать desktop/mobile обёртку, которая управляет Xray, кастомным обфускатором, split tunneling и runtime-конфигом.
 
-Текущий scaffold уже добавлен в [client/README.md](/d:/projekt/noVPN/client/README.md).
+Текущий scaffold уже добавлен в [client/README.md](/d:/projekt/noVPN/client/README.md), и теперь он включает:
+
+- desktop runtime launcher для embedded `xray.exe` и `obfuscator.exe`;
+- Android foreground-service flow вокруг `VpnService`;
+- генерацию runtime-конфигов для Xray и sidecar-обфускатора.
 
 ## Directory structure
 

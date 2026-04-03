@@ -6,6 +6,7 @@ import com.novpn.data.ProfileRepository
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
 import com.novpn.xray.AndroidXrayConfigWriter
+import com.novpn.vpn.VpnRuntimeRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -38,5 +39,31 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         val outputFile = configWriter.write(profile, _state.value.bypassRu)
         _state.update { it.copy(generatedConfigPath = outputFile.absolutePath) }
+    }
+
+    fun buildRuntimeRequest(): VpnRuntimeRequest {
+        return VpnRuntimeRequest(
+            bypassRu = _state.value.bypassRu,
+            excludedPackages = _state.value.excludedPackages
+        )
+    }
+
+    fun markRuntimeStarted(configPath: String) {
+        _state.update {
+            it.copy(
+                runtimeRunning = true,
+                runtimeStatus = "Foreground VPN runtime started",
+                generatedConfigPath = configPath
+            )
+        }
+    }
+
+    fun markRuntimeStopped() {
+        _state.update {
+            it.copy(
+                runtimeRunning = false,
+                runtimeStatus = "Service stopped"
+            )
+        }
     }
 }

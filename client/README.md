@@ -1,9 +1,9 @@
 # Client Scaffolds
 
-В этой директории лежат стартовые каркасы клиентов:
+This directory now contains two concrete client scaffolds:
 
-- [desktop/python](d:/projekt/noVPN/client/desktop/python/README.md) для desktop orchestration и генерации локального `config.json`;
-- [android](d:/projekt/noVPN/client/android/README.md) для Android `VpnService`, split tunneling и генерации локального `config.json`;
-- [common/profiles/reality/default.profile.json](d:/projekt/noVPN/client/common/profiles/reality/default.profile.json) как общий базовый профиль Reality/VLESS.
+- [desktop/python](d:/projekt/noVPN/client/desktop/python/README.md) for desktop config generation and embedded runtime startup;
+- [android](d:/projekt/noVPN/client/android/README.md) for `VpnService`, foreground-service startup, and embedded runtime scaffolding;
+- [common/profiles/reality/default.profile.json](d:/projekt/noVPN/client/common/profiles/reality/default.profile.json) as the shared Reality/VLESS profile.
 
-Оба каркаса пока intentionally minimal: они дают точку входа для UI, routing и lifecycle, но ещё не включают embedded Xray binary, полноценный TUN backend на desktop и foreground-service orchestration на Android.
+Both scaffolds are still intentionally minimal, but they now include real process lifecycle entry points for embedded Xray and the module 1 obfuscator.

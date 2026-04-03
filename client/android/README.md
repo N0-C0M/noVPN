@@ -1,17 +1,22 @@
 # Android Scaffold
 
-Начальный Android-каркас находится в этой директории.
+This Android scaffold now includes:
 
-Что уже есть:
+- a `VpnService`-based foreground runtime;
+- config generation for embedded Xray;
+- obfuscator sidecar config generation;
+- embedded binary installation from `assets/bin/`;
+- start/stop controls in `MainActivity`;
+- package exclusions through `addDisallowedApplication(...)`.
 
-- `VpnService` с `addDisallowedApplication(...)`;
-- `ViewModel` для флага `Не проксировать РФ`;
-- генерация локального `filesDir/xray/config.json`;
-- загрузка базового Reality-профиля из `assets/profile.default.json`;
-- сканер установленных APK для будущего UI split tunneling.
+Expected asset layout:
 
-Следующий инженерный шаг после scaffold:
+```text
+app/src/main/assets/bin/xray
+app/src/main/assets/bin/obfuscator
+```
 
-- подключить embedded Xray binary;
-- добавить реальный экран выбора APK;
-- связать `TunnelViewModel` и `NoVpnService` через foreground-service flow.
+Current launcher assumptions:
+
+- Xray CLI: `xray run -config <path>`
+- obfuscator CLI: `obfuscator --config <path>`
