@@ -22,9 +22,7 @@
       "abi": "x86",
       "artifactName": "novpn_tun2proxy_jni",
       "output": "D:\\projekt\\noVPN\\client\\android\\app\\build\\intermediates\\cxx\\Debug\\6fk2p6k1\\obj\\x86\\libnovpn_tun2proxy_jni.so",
-      "runtimeFiles": [
-        "D:\\projekt\\noVPN\\client\\android\\app\\src\\main\\jniLibs\\x86\\libtun2proxy.so"
-      ]
+      "runtimeFiles": []
     }
   },
   "toolchains": {

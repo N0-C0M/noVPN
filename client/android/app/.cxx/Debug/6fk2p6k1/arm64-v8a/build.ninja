@@ -65,10 +65,10 @@ build CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o: CXX_COMPILER__novp
 #############################################
 # Link the shared library D:\projekt\noVPN\client\android\app\build\intermediates\cxx\Debug\6fk2p6k1\obj\arm64-v8a\libnovpn_tun2proxy_jni.so
 
-build D$:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so: CXX_SHARED_LIBRARY_LINKER__novpn_tun2proxy_jni_Debug CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o | D$:/projekt/noVPN/client/android/app/src/main/cpp/../jniLibs/arm64-v8a/libtun2proxy.so C$:/Users/n/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/26/liblog.so
+build D$:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so: CXX_SHARED_LIBRARY_LINKER__novpn_tun2proxy_jni_Debug CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o | C$:/Users/n/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/26/liblog.so C$:/Users/n/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libdl.so
   LANGUAGE_COMPILE_FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info
   LINK_FLAGS = -static-libstdc++ -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments
-  LINK_LIBRARIES = D:/projekt/noVPN/client/android/app/src/main/cpp/../jniLibs/arm64-v8a/libtun2proxy.so  C:/Users/n/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/26/liblog.so  -latomic -lm
+  LINK_LIBRARIES = C:/Users/n/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/26/liblog.so  C:/Users/n/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libdl.so  -latomic -lm
   OBJECT_DIR = CMakeFiles\novpn_tun2proxy_jni.dir
   POST_BUILD = cd .
   PRE_LINK = cd .

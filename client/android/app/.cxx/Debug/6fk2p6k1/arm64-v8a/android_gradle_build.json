@@ -22,9 +22,7 @@
       "abi": "arm64-v8a",
       "artifactName": "novpn_tun2proxy_jni",
       "output": "D:\\projekt\\noVPN\\client\\android\\app\\build\\intermediates\\cxx\\Debug\\6fk2p6k1\\obj\\arm64-v8a\\libnovpn_tun2proxy_jni.so",
-      "runtimeFiles": [
-        "D:\\projekt\\noVPN\\client\\android\\app\\src\\main\\jniLibs\\arm64-v8a\\libtun2proxy.so"
-      ]
+      "runtimeFiles": []
     }
   },
   "toolchains": {

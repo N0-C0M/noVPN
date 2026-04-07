@@ -1,4 +1,5 @@
 #include <android/log.h>
+#include <dlfcn.h>
 #include <jni.h>
 #include <mutex>
 #include <string>
@@ -10,6 +11,22 @@ constexpr const char *kTag = "NoVPNTun2Proxy";
 
 std::mutex gJvmMutex;
 JavaVM *gJvm = nullptr;
+void *gTun2ProxyHandle = nullptr;
+std::string gLoadError;
+
+using SetLogCallbackFn = void (*)(void (*)(enum Tun2proxyVerbosity, const char *, void *), void *);
+using RunWithFdFn = int (*)(const char *,
+                            int,
+                            bool,
+                            bool,
+                            unsigned short,
+                            enum Tun2proxyDns,
+                            enum Tun2proxyVerbosity);
+using StopFn = int (*)();
+
+SetLogCallbackFn gSetLogCallback = nullptr;
+RunWithFdFn gRunWithFd = nullptr;
+StopFn gStop = nullptr;
 
 void log_callback(Tun2proxyVerbosity verbosity, const char *message, void *) {
     int priority = ANDROID_LOG_INFO;
@@ -35,12 +52,43 @@ void log_callback(Tun2proxyVerbosity verbosity, const char *message, void *) {
 
     __android_log_print(priority, kTag, "%s", message == nullptr ? "" : message);
 }
+
+bool ensure_tun2proxy_loaded() {
+    if (gTun2ProxyHandle != nullptr && gSetLogCallback != nullptr && gRunWithFd != nullptr && gStop != nullptr) {
+        return true;
+    }
+
+    dlerror();
+    gTun2ProxyHandle = dlopen("libtun2proxy.so", RTLD_NOW | RTLD_GLOBAL);
+    if (gTun2ProxyHandle == nullptr) {
+        const char *error = dlerror();
+        gLoadError = error == nullptr ? "dlopen(libtun2proxy.so) failed" : error;
+        __android_log_print(ANDROID_LOG_ERROR, kTag, "%s", gLoadError.c_str());
+        return false;
+    }
+
+    gSetLogCallback = reinterpret_cast<SetLogCallbackFn>(dlsym(gTun2ProxyHandle, "tun2proxy_set_log_callback"));
+    gRunWithFd = reinterpret_cast<RunWithFdFn>(dlsym(gTun2ProxyHandle, "tun2proxy_with_fd_run"));
+    gStop = reinterpret_cast<StopFn>(dlsym(gTun2ProxyHandle, "tun2proxy_stop"));
+
+    if (gSetLogCallback == nullptr || gRunWithFd == nullptr || gStop == nullptr) {
+        const char *error = dlerror();
+        gLoadError = error == nullptr ? "dlsym(tun2proxy symbols) failed" : error;
+        __android_log_print(ANDROID_LOG_ERROR, kTag, "%s", gLoadError.c_str());
+        return false;
+    }
+
+    gLoadError.clear();
+    return true;
+}
 }  // namespace
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *) {
     std::lock_guard<std::mutex> lock(gJvmMutex);
     gJvm = vm;
-    tun2proxy_set_log_callback(log_callback, nullptr);
+    if (ensure_tun2proxy_loaded()) {
+        gSetLogCallback(log_callback, nullptr);
+    }
     return JNI_VERSION_1_6;
 }
 
@@ -52,8 +100,12 @@ Java_com_novpn_vpn_Tun2ProxyBridge_nativeRunWithFd(JNIEnv *env,
                                                    jint mtu,
                                                    jint dnsStrategy,
                                                    jint verbosity) {
+    if (!ensure_tun2proxy_loaded()) {
+        return -1;
+    }
+
     const char *proxy_url = env->GetStringUTFChars(proxyUrl, nullptr);
-    const int result = tun2proxy_with_fd_run(
+    const int result = gRunWithFd(
         proxy_url,
         tunFd,
         true,
@@ -68,5 +120,8 @@ Java_com_novpn_vpn_Tun2ProxyBridge_nativeRunWithFd(JNIEnv *env,
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_novpn_vpn_Tun2ProxyBridge_nativeStop(JNIEnv * /* env */, jobject /* this */) {
-    return tun2proxy_stop();
+    if (!ensure_tun2proxy_loaded()) {
+        return -1;
+    }
+    return gStop();
 }

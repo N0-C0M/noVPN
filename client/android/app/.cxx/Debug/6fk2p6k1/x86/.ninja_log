@@ -1,3 +1,8 @@
 # ninja log v5
-1	662	7972843347923887	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	ae3d65c5f0de136a
 668	763	7972843348964981	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/x86/libnovpn_tun2proxy_jni.so	5a28827d71d4ba30
+1	662	7972843347923887	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	ae3d65c5f0de136a
+6	735	7972896002601926	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	ae3d65c5f0de136a
+736	890	7972896004167278	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/x86/libnovpn_tun2proxy_jni.so	b452a9bbe34b3462
+0	10	0	clean	7b514fe0ab338318
+8	732	7972897455054379	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	ae3d65c5f0de136a
+733	843	7972897456184637	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/x86/libnovpn_tun2proxy_jni.so	b452a9bbe34b3462
