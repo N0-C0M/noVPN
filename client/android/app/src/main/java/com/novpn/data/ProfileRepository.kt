@@ -32,7 +32,10 @@ class ProfileRepository(private val context: Context) {
     fun importProfile(uri: Uri): AvailableProfile {
         val payload = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
             ?: throw IllegalArgumentException("Unable to read the selected profile file.")
-        val nameHint = uri.lastPathSegment.orEmpty()
+        return importProfilePayload(payload, uri.lastPathSegment.orEmpty())
+    }
+
+    fun importProfilePayload(payload: String, nameHint: String = ""): AvailableProfile {
         val profile = parseImportedPayload(payload)
         profile.requireRuntimeReady()
 

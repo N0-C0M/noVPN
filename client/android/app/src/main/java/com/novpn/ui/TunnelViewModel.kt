@@ -3,6 +3,8 @@ package com.novpn.ui
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
+import com.novpn.data.DeviceIdentityStore
+import com.novpn.data.InviteRedeemer
 import com.novpn.R
 import com.novpn.data.ClientPreferences
 import com.novpn.data.ProfileRepository
@@ -26,6 +28,8 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val appsScanner = InstalledAppsScanner(application)
     private val seedStore = ObfuscationSeedStore(application)
     private val preflightChecker = RuntimePreflightChecker(application)
+    private val deviceIdentityStore = DeviceIdentityStore(application)
+    private val inviteRedeemer = InviteRedeemer()
 
     private val _state = MutableStateFlow(TunnelState())
     val state: StateFlow<TunnelState> = _state
@@ -90,6 +94,30 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         val profile = profileRepository.importProfile(uri)
         preferences.saveSelectedProfileId(profile.profileId)
         refreshStateFromPreferences()
+    }
+
+    suspend fun activateInviteCode(): String {
+        val inviteCode = _state.value.inviteCode.trim()
+        require(inviteCode.isNotBlank()) {
+            appContext.getString(R.string.invite_code_missing)
+        }
+
+        val bootstrapProfile = profileRepository.loadProfile(currentProfileId())
+        val payload = inviteRedeemer.redeem(
+            serverAddress = bootstrapProfile.server.address,
+            inviteCode = inviteCode,
+            deviceId = deviceIdentityStore.deviceId(),
+            deviceName = deviceIdentityStore.deviceName()
+        )
+
+        val importedProfile = profileRepository.importProfilePayload(
+            payload = payload,
+            nameHint = "invite-$inviteCode"
+        )
+        preferences.saveSelectedProfileId(importedProfile.profileId)
+        preferences.saveInviteCode(inviteCode)
+        refreshStateFromPreferences()
+        return importedProfile.name
     }
 
     fun generateConfig() {

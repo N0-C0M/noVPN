@@ -22,9 +22,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.novpn.R
 import com.novpn.data.AvailableProfile
 import com.novpn.vpn.NoVpnService
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<TunnelViewModel>()
@@ -37,6 +39,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var preflightDetail: TextView
     private lateinit var powerButton: Button
     private lateinit var inviteCodeInput: EditText
+    private lateinit var activateCodeButton: Button
     private lateinit var serverStrip: LinearLayout
 
     private val vpnPermissionLauncher = registerForActivityResult(
@@ -315,32 +318,23 @@ class MainActivity : ComponentActivity() {
                 )
             )
 
-            addView(
-                Button(this@MainActivity).apply {
-                    text = getString(R.string.save_invite_code)
-                    isAllCaps = false
-                    setTextColor(Color.parseColor("#F3F6FB"))
-                    textSize = 13f
-                    typeface = Typeface.DEFAULT_BOLD
-                    background = roundedDrawable("#0E1520", "#243244", 22f, 2)
-                    setPadding(dp(18), dp(12), dp(18), dp(12))
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply {
-                        topMargin = dp(12)
-                    }
-                    setOnClickListener {
-                        viewModel.setInviteCode(inviteCodeInput.text.toString())
-                        renderState(viewModel.state.value)
-                        Toast.makeText(
-                            this@MainActivity,
-                            getString(R.string.invite_code_saved),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+            activateCodeButton = Button(this@MainActivity).apply {
+                text = getString(R.string.activate_invite_code)
+                isAllCaps = false
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 13f
+                typeface = Typeface.DEFAULT_BOLD
+                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                setPadding(dp(18), dp(12), dp(18), dp(12))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(12)
                 }
-            )
+                setOnClickListener { activateInviteCode() }
+            }
+            addView(activateCodeButton)
         }
     }
 
@@ -470,11 +464,47 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        beginVpnStartFlow()
+    }
+
+    private fun beginVpnStartFlow() {
         val prepareIntent = VpnService.prepare(this)
         if (prepareIntent != null) {
             vpnPermissionLauncher.launch(prepareIntent)
         } else {
             startVpnRuntime()
+        }
+    }
+
+    private fun activateInviteCode() {
+        val code = inviteCodeInput.text?.toString().orEmpty()
+        viewModel.setInviteCode(code)
+        activateCodeButton.isEnabled = false
+        statusTitle.text = getString(R.string.invite_code_activating)
+        statusDetail.text = getString(R.string.invite_code_loading_detail)
+
+        lifecycleScope.launch {
+            runCatching {
+                viewModel.activateInviteCode()
+            }.onSuccess { profileName ->
+                renderState(viewModel.state.value)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.invite_code_activated, profileName),
+                    Toast.LENGTH_SHORT
+                ).show()
+                beginVpnStartFlow()
+            }.onFailure { error ->
+                renderState(viewModel.state.value)
+                statusTitle.text = getString(R.string.invite_code_activation_failed)
+                statusDetail.text = error.message ?: getString(R.string.import_profile_failed)
+                Toast.makeText(
+                    this@MainActivity,
+                    error.message ?: getString(R.string.invite_code_activation_failed),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            activateCodeButton.isEnabled = true
         }
     }
 

@@ -14,8 +14,13 @@
     <string name="invite_code_title">Invite code</string>
     <string name="invite_code_hint">Paste the one-time code from the admin panel. It will be saved on this device.</string>
     <string name="invite_code_placeholder">Enter code</string>
-    <string name="save_invite_code">Save code</string>
+    <string name="activate_invite_code">Activate code</string>
     <string name="invite_code_saved">Invite code saved</string>
+    <string name="invite_code_missing">Enter an invite code first.</string>
+    <string name="invite_code_activating">Activating invite code</string>
+    <string name="invite_code_loading_detail">Requesting the client profile from the server and preparing VPN startup.</string>
+    <string name="invite_code_activated">Invite activated: %1$s</string>
+    <string name="invite_code_activation_failed">Invite activation failed</string>
     <string name="server_section_title">Available servers</string>
     <string name="server_section_hint">Pick a server below. Split routing is available from the top-right settings button.</string>
     <string name="profile_source_imported">Imported profile</string>

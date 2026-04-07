@@ -7,6 +7,10 @@ import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 class Tun2ProxyBridge {
+    init {
+        ensureNativeLoaded()
+    }
+
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "novpn-tun2proxy").apply { isDaemon = true }
     }
@@ -72,7 +76,17 @@ class Tun2ProxyBridge {
     }
 
     companion object {
-        init {
+        private val nativeLoadError: Throwable? by lazy {
+            runCatching {
+                ensureNativeLoaded()
+            }.exceptionOrNull()
+        }
+
+        fun isNativeReady(): Boolean = nativeLoadError == null
+
+        fun nativeLoadFailureMessage(): String? = nativeLoadError?.message
+
+        private fun ensureNativeLoaded() {
             System.loadLibrary("tun2proxy")
             System.loadLibrary("novpn_tun2proxy_jni")
         }

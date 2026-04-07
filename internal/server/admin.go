@@ -101,6 +101,10 @@ func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 		a.handleLogin(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/redeem/") {
+		a.handlePublicRedeem(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/logout") {
 		a.handleLogout(w, r)
 		return
@@ -387,6 +391,61 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
+	code := strings.Trim(strings.TrimPrefix(r.URL.Path, a.basePath+"/redeem/"), "/")
+	if code == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload redeemInviteRequest
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		if err := decodeJSON(r, &payload); err != nil && !errorsIsEmptyBody(err) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else if err := r.ParseForm(); err == nil {
+		payload.DeviceID = strings.TrimSpace(r.FormValue("device_id"))
+		payload.DeviceName = strings.TrimSpace(r.FormValue("device_name"))
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceID, payload.DeviceName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	clientProfile := a.reality.BuildClientProfileFor(refreshResult.State, redeemResult.Client)
+	yamlPayload, err := marshalClientProfileYAML(clientProfile)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if wantsYAML(r) {
+		w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
+		_, _ = w.Write(yamlPayload)
+		return
+	}
+
+	a.writeJSONPayload(w, http.StatusCreated, map[string]any{
+		"invite":              redeemResult.Invite,
+		"client":              redeemResult.Client,
+		"client_profile":      clientProfile,
+		"client_profile_yaml": string(yamlPayload),
+		"config_path":         refreshResult.ConfigPath,
+		"client_profile_path": refreshResult.ClientProfilePath,
+	})
 }
 
 type redeemInviteRequest struct {
