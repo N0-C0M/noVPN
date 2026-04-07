@@ -1,20 +1,19 @@
 package server
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
-	"path"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"gopkg.in/yaml.v3"
 
 	"novpn/internal/config"
 	"novpn/internal/core/reality"
@@ -26,7 +25,8 @@ type adminApp struct {
 	reality      *reality.Provisioner
 	metrics      *observability.Metrics
 	logger       *slog.Logger
-	template     *template.Template
+	dashboardTpl *template.Template
+	loginTpl     *template.Template
 	basePath     string
 	token        string
 	cookieName   string
@@ -40,13 +40,13 @@ type dashboardView struct {
 	Clients            []reality.ClientRecord
 	Invites            []reality.InviteRecord
 	Metrics            []metricRow
-	HealthAddr         string
-	RegistryPath       string
-	ClientProfilePath   string
-	ConfigPath         string
-	StatePath          string
-	Ready              bool
-	Notice             string
+	HealthAddr        string
+	RegistryPath      string
+	ClientProfilePath string
+	ConfigPath        string
+	StatePath         string
+	Ready             bool
+	Notice            string
 }
 
 type metricRow struct {
@@ -67,7 +67,8 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 	if app.basePath == "" {
 		app.basePath = "/admin"
 	}
-	app.template = template.Must(template.New("dashboard").Parse(adminDashboardTemplate))
+	app.dashboardTpl = template.Must(template.New("dashboard").Parse(adminDashboardTemplate))
+	app.loginTpl = template.Must(template.New("login").Parse(adminLoginTemplate))
 	app.httpServer = &http.Server{
 		Addr:    cfg.ListenAddr,
 		Handler: app.routes(),
@@ -123,14 +124,14 @@ func (a *adminApp) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		a.renderLogin(w, "")
+		a.renderLogin(w, r, "")
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
 		if strings.TrimSpace(r.FormValue("token")) != a.token {
-			a.renderLogin(w, "invalid token")
+			a.renderLogin(w, r, "invalid token")
 			return
 		}
 		http.SetCookie(w, &http.Cookie{
@@ -158,14 +159,23 @@ func (a *adminApp) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.basePath+"/login", http.StatusFound)
 }
 
-func (a *adminApp) renderLogin(w http.ResponseWriter, notice string) {
+func (a *adminApp) renderLogin(w http.ResponseWriter, r *http.Request, notice string) {
 	if a.token == "" {
-		http.Redirect(w, nil, a.basePath+"/dashboard", http.StatusFound)
+		http.Redirect(w, r, a.basePath+"/dashboard", http.StatusFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprint(w, strings.ReplaceAll(adminLoginTemplate, "{{NOTICE}}", template.HTMLEscapeString(notice)))
+	payload := struct {
+		BasePath string
+		Notice   string
+	}{
+		BasePath: a.basePath,
+		Notice:   notice,
+	}
+	if err := a.loginTpl.Execute(w, payload); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (a *adminApp) requireAuth(next http.Handler) http.Handler {
@@ -226,21 +236,22 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	realityCfg := a.reality.Config()
 
 	view := dashboardView{
-		BasePath:         a.basePath,
-		GeneratedAt:      time.Now().UTC(),
-		Summary:          summary,
-		Clients:          clients,
-		Invites:          invites,
-		Metrics:          a.metricSnapshot(),
-		HealthAddr:       a.metricsAddress(),
-		RegistryPath:     a.realityRegistryPath(),
-		ClientProfilePath: a.reality.cfg.Xray.ClientProfilePath,
-		ConfigPath:       a.reality.cfg.Xray.ConfigPath,
-		StatePath:        a.reality.cfg.Xray.StatePath,
-		Ready:            true,
-		Notice:           "",
+		BasePath:          a.basePath,
+		GeneratedAt:       time.Now().UTC(),
+		Summary:           summary,
+		Clients:           clients,
+		Invites:           invites,
+		Metrics:           a.metricSnapshot(),
+		HealthAddr:        a.metricsAddress(),
+		RegistryPath:      a.realityRegistryPath(),
+		ClientProfilePath: realityCfg.Xray.ClientProfilePath,
+		ConfigPath:        realityCfg.Xray.ConfigPath,
+		StatePath:         realityCfg.Xray.StatePath,
+		Ready:             true,
+		Notice:            "",
 	}
 
 	if len(state.ShortIDs) == 0 {
@@ -249,7 +260,7 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := a.template.Execute(w, view); err != nil {
+	if err := a.dashboardTpl.Execute(w, view); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -331,15 +342,21 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
-		var payload struct {
-			DeviceName string `json:"device_name"`
-		}
-		if err := decodeJSON(r, &payload); err != nil && !errorsIsEmptyBody(err) {
+		var payload redeemInviteRequest
+		if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+			if err := decodeJSON(r, &payload); err != nil && !errorsIsEmptyBody(err) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		} else if err := r.ParseForm(); err == nil {
+			payload.DeviceID = strings.TrimSpace(r.FormValue("device_id"))
+			payload.DeviceName = strings.TrimSpace(r.FormValue("device_name"))
+		} else {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceName)
+		redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceID, payload.DeviceName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -360,16 +377,21 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 		}
 
 		a.writeJSONPayload(w, http.StatusCreated, map[string]any{
-			"invite":             redeemResult.Invite,
-			"client":             redeemResult.Client,
-			"client_profile":     clientProfile,
+			"invite":              redeemResult.Invite,
+			"client":              redeemResult.Client,
+			"client_profile":      clientProfile,
 			"client_profile_yaml": string(yamlPayload),
-			"config_path":        refreshResult.ConfigPath,
+			"config_path":         refreshResult.ConfigPath,
 			"client_profile_path": refreshResult.ClientProfilePath,
 		})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+type redeemInviteRequest struct {
+	DeviceID   string `json:"device_id"`
+	DeviceName string `json:"device_name"`
 }
 
 func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
@@ -498,15 +520,7 @@ func (a *adminApp) metricsAddress() string {
 }
 
 func (a *adminApp) realityRegistryPath() string {
-	return a.realityLoadRegistryPath()
-}
-
-func (a *adminApp) realityLoadRegistryPath() string {
-	registry, err := a.reality.LoadRegistry()
-	if err != nil || len(registry.Invites) == 0 && len(registry.Clients) == 0 {
-		return a.reality.cfg.Xray.RegistryPath
-	}
-	return a.reality.cfg.Xray.RegistryPath
+	return a.reality.Config().Xray.RegistryPath
 }
 
 func wantsHTML(r *http.Request) bool {
@@ -561,10 +575,10 @@ func decodeJSON(r *http.Request, target any) error {
 }
 
 func errorsIsEmptyBody(err error) bool {
-	return err == nil
+	return errors.Is(err, io.EOF)
 }
 
-func lookupMetric(mfs []*prometheus.MetricFamily, name string) (string, bool) {
+func lookupMetric(mfs []*dto.MetricFamily, name string) (string, bool) {
 	for _, mf := range mfs {
 		if mf.GetName() != name {
 			continue
@@ -586,12 +600,11 @@ func lookupMetric(mfs []*prometheus.MetricFamily, name string) (string, bool) {
 }
 
 func marshalClientProfileYAML(profile reality.ClientProfile) ([]byte, error) {
-	payload, err := json.MarshalIndent(profile, "", "  ")
+	payload, err := yaml.Marshal(profile)
 	if err != nil {
 		return nil, err
 	}
-	// The client importers accept JSON or YAML; return a stable JSON payload for downloads.
-	return append(payload, '\n'), nil
+	return payload, nil
 }
 
 const adminDashboardTemplate = `
@@ -745,4 +758,3 @@ const adminLoginTemplate = `<!doctype html>
   </form>
 </body>
 </html>`
-

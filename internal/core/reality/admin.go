@@ -2,6 +2,8 @@ package reality
 
 import (
 	"context"
+
+	"novpn/internal/config"
 )
 
 func (p *Provisioner) LoadRegistry() (Registry, error) {
@@ -10,6 +12,10 @@ func (p *Provisioner) LoadRegistry() (Registry, error) {
 
 func (p *Provisioner) LoadState() (State, error) {
 	return p.loadState()
+}
+
+func (p *Provisioner) Config() config.RealityConfig {
+	return p.cfg
 }
 
 func (p *Provisioner) RegistrySummary() (RegistrySummary, error) {
@@ -28,8 +34,8 @@ func (p *Provisioner) CreateInvite(input InviteCreateRequest) (InviteRecord, err
 	return p.registryStore.CreateInvite(input)
 }
 
-func (p *Provisioner) RedeemInvite(ctx context.Context, code string, deviceName string) (InviteRedeemResult, Result, error) {
-	redeemResult, err := p.registryStore.RedeemInvite(code, deviceName)
+func (p *Provisioner) RedeemInvite(ctx context.Context, code string, deviceID string, deviceName string) (InviteRedeemResult, Result, error) {
+	redeemResult, err := p.registryStore.RedeemInvite(code, deviceID, deviceName)
 	if err != nil {
 		return InviteRedeemResult{}, Result{}, err
 	}

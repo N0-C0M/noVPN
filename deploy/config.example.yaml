@@ -9,6 +9,13 @@ observability:
   health_addr: 127.0.0.1:9101
   metrics_path: /metrics
 
+admin:
+  enabled: true
+  listen_addr: 127.0.0.1:9112
+  storage_path: /var/lib/novpn/admin
+  token: change-me-admin-token
+  base_path: /admin
+
 core:
   reality:
     enabled: true

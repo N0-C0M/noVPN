@@ -11,6 +11,7 @@ import (
 	"novpn/internal/acl"
 	"novpn/internal/auth"
 	"novpn/internal/config"
+	"novpn/internal/core/reality"
 	"novpn/internal/observability"
 	"novpn/internal/ratelimit"
 	tcpproxy "novpn/internal/transport/tcp"
@@ -23,10 +24,12 @@ type Gateway struct {
 	logger         *slog.Logger
 	metrics        *observability.Metrics
 	httpServer     *http.Server
+	adminServer    *http.Server
 	readinessTimer *time.Timer
 	ready          atomic.Bool
 	tcpProxies     []*tcpproxy.Proxy
 	udpProxies     []*udpproxy.Proxy
+	reality        *reality.Provisioner
 }
 
 func New(cfg config.Config, logger *slog.Logger) (*Gateway, error) {
@@ -39,6 +42,10 @@ func New(cfg config.Config, logger *slog.Logger) (*Gateway, error) {
 		cfg:     cfg,
 		logger:  logger,
 		metrics: metrics,
+	}
+
+	if cfg.Core.Reality.Enabled {
+		gateway.reality = reality.NewProvisioner(cfg.Core.Reality, logger)
 	}
 
 	gateway.httpServer = observability.NewHTTPServer(
@@ -78,6 +85,13 @@ func New(cfg config.Config, logger *slog.Logger) (*Gateway, error) {
 		}))
 	}
 
+	if cfg.Admin.Enabled {
+		if gateway.reality == nil {
+			return nil, fmt.Errorf("admin requires core.reality.enabled")
+		}
+		gateway.adminServer = newAdminServer(cfg.Admin, gateway.reality, metrics, logger)
+	}
+
 	if len(gateway.tcpProxies) == 0 && len(gateway.udpProxies) == 0 {
 		return nil, fmt.Errorf("no enabled listeners configured")
 	}
@@ -90,6 +104,13 @@ func (g *Gateway) Start(_ context.Context) (err error) {
 		go func() {
 			if serveErr := g.httpServer.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
 				g.logger.Error("health server stopped unexpectedly", "error", serveErr)
+			}
+		}()
+	}
+	if g.adminServer != nil {
+		go func() {
+			if serveErr := g.adminServer.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
+				g.logger.Error("admin server stopped unexpectedly", "error", serveErr)
 			}
 		}()
 	}
@@ -107,6 +128,9 @@ func (g *Gateway) Start(_ context.Context) (err error) {
 		}
 		for i := 0; i < startedUDP; i++ {
 			_ = g.udpProxies[i].Shutdown(stopCtx)
+		}
+		if g.adminServer != nil {
+			_ = g.adminServer.Shutdown(stopCtx)
 		}
 		if g.httpServer != nil {
 			_ = g.httpServer.Shutdown(stopCtx)
@@ -164,6 +188,11 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 
 	if g.httpServer != nil {
 		if err := g.httpServer.Shutdown(ctx); err != nil && err != http.ErrServerClosed && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if g.adminServer != nil {
+		if err := g.adminServer.Shutdown(ctx); err != nil && err != http.ErrServerClosed && firstErr == nil {
 			firstErr = err
 		}
 	}

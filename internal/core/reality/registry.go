@@ -259,7 +259,7 @@ func (s *RegistryStore) CreateInvite(input InviteCreateRequest) (InviteRecord, e
 	return created, err
 }
 
-func (s *RegistryStore) RedeemInvite(code string, deviceName string) (InviteRedeemResult, error) {
+func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName string) (InviteRedeemResult, error) {
 	var result InviteRedeemResult
 	_, err := s.Update(func(registry *Registry) error {
 		now := time.Now().UTC()
@@ -275,6 +275,17 @@ func (s *RegistryStore) RedeemInvite(code string, deviceName string) (InviteRede
 			return errors.New("invite expired")
 		}
 
+		normalizedDeviceID := strings.TrimSpace(deviceID)
+		if normalizedDeviceID != "" {
+			for _, existing := range registry.Clients {
+				if existing.DeviceID == normalizedDeviceID && existing.Active && existing.RevokedAt == nil {
+					return fmt.Errorf("device %q already has an active profile", normalizedDeviceID)
+				}
+			}
+		} else {
+			normalizedDeviceID = generateRegistryToken("device")
+		}
+
 		clientUUID, err := generateUUID()
 		if err != nil {
 			return err
@@ -283,7 +294,7 @@ func (s *RegistryStore) RedeemInvite(code string, deviceName string) (InviteRede
 		client := ClientRecord{
 			ID:         generateRegistryToken("client"),
 			Name:       firstNonEmpty(strings.TrimSpace(invite.Name), "Imported device"),
-			DeviceID:   generateRegistryToken("device"),
+			DeviceID:   normalizedDeviceID,
 			DeviceName: firstNonEmpty(strings.TrimSpace(deviceName), "Imported device"),
 			UUID:       clientUUID,
 			Email:      slugEmail(invite.Name, deviceName),

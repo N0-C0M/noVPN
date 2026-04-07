@@ -57,3 +57,40 @@ You can sync that file into the bundled desktop/Android client JSON profiles wit
 ```bash
 go run ./cmd/client-profile-sync -input /path/to/client-profile.yaml
 ```
+
+## Admin Panel
+
+The gateway can expose a small admin panel for Reality registry management and monitoring.
+
+Default example config:
+
+```yaml
+admin:
+  enabled: true
+  listen_addr: 127.0.0.1:9112
+  storage_path: /var/lib/novpn/admin
+  token: change-me-admin-token
+  base_path: /admin
+```
+
+Recommended access pattern is an SSH tunnel:
+
+```bash
+ssh -L 9112:127.0.0.1:9112 root@YOUR_SERVER_IP
+```
+
+Then open:
+
+```text
+http://127.0.0.1:9112/admin
+```
+
+The panel supports:
+
+- creating one-time invites;
+- redeeming invites into per-device client records;
+- downloading per-client profile YAML files;
+- revoking clients;
+- viewing gateway Prometheus counters on the dashboard.
+
+API auth works with the configured token via login form, `Authorization: Bearer ...`, or `X-Admin-Token`.

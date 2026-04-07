@@ -181,6 +181,9 @@ func (c *Config) setDefaults() {
 	if c.Admin.ListenAddr == "" {
 		c.Admin.ListenAddr = "127.0.0.1:9112"
 	}
+	if c.Admin.StoragePath == "" {
+		c.Admin.StoragePath = "/var/lib/novpn/admin"
+	}
 	if c.Admin.BasePath == "" {
 		c.Admin.BasePath = "/admin"
 	}

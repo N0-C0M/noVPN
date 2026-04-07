@@ -24,6 +24,9 @@ func (c Config) Validate() error {
 		return errors.New("observability.metrics_path must not be empty")
 	}
 	if c.Admin.Enabled {
+		if !c.Core.Reality.Enabled {
+			return errors.New("admin.enabled requires core.reality.enabled")
+		}
 		if c.Admin.ListenAddr == "" {
 			return errors.New("admin.listen_addr must not be empty")
 		}
