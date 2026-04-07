@@ -11,6 +11,11 @@
     <string name="hero_tap_to_connect">Tap to toggle the tunnel</string>
     <string name="status_ready">Ready</string>
     <string name="status_connected">Connected</string>
+    <string name="invite_code_title">Invite code</string>
+    <string name="invite_code_hint">Paste the one-time code from the admin panel. It will be saved on this device.</string>
+    <string name="invite_code_placeholder">Enter code</string>
+    <string name="save_invite_code">Save code</string>
+    <string name="invite_code_saved">Invite code saved</string>
     <string name="server_section_title">Available servers</string>
     <string name="server_section_hint">Pick a server below. Split routing is available from the top-right settings button.</string>
     <string name="profile_source_imported">Imported profile</string>

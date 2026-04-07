@@ -7,10 +7,12 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
 import android.os.Bundle
+import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -34,6 +36,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var preflightTitle: TextView
     private lateinit var preflightDetail: TextView
     private lateinit var powerButton: Button
+    private lateinit var inviteCodeInput: EditText
     private lateinit var serverStrip: LinearLayout
 
     private val vpnPermissionLauncher = registerForActivityResult(
@@ -116,6 +119,7 @@ class MainActivity : ComponentActivity() {
 
         content.addView(buildHeader())
         content.addView(buildHeroSection())
+        content.addView(buildInviteSection())
         content.addView(buildServerSection())
         return root
     }
@@ -275,6 +279,71 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun buildInviteSection(): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedDrawable("#0A1018", "#182432", 38f, 2)
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(18)
+            }
+
+            addView(label(getString(R.string.invite_code_title), 16f, "#F3F6FB", true))
+            addView(
+                label(getString(R.string.invite_code_hint), 12f, "#7B8DA3", false).apply {
+                    setPadding(0, dp(6), 0, dp(14))
+                }
+            )
+
+            inviteCodeInput = EditText(this@MainActivity).apply {
+                hint = getString(R.string.invite_code_placeholder)
+                setHintTextColor(Color.parseColor("#607287"))
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 15f
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                background = roundedDrawable("#0E1520", "#243244", 20f, 2)
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+            }
+            addView(
+                inviteCodeInput,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+
+            addView(
+                Button(this@MainActivity).apply {
+                    text = getString(R.string.save_invite_code)
+                    isAllCaps = false
+                    setTextColor(Color.parseColor("#F3F6FB"))
+                    textSize = 13f
+                    typeface = Typeface.DEFAULT_BOLD
+                    background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                    setPadding(dp(18), dp(12), dp(18), dp(12))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = dp(12)
+                    }
+                    setOnClickListener {
+                        viewModel.setInviteCode(inviteCodeInput.text.toString())
+                        renderState(viewModel.state.value)
+                        Toast.makeText(
+                            this@MainActivity,
+                            getString(R.string.invite_code_saved),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            )
+        }
+    }
+
     private fun renderState(state: TunnelState) {
         val selected = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
             ?: state.availableProfiles.firstOrNull()
@@ -320,6 +389,14 @@ class MainActivity : ComponentActivity() {
         preflightDetail.setTextColor(
             Color.parseColor(if (preflight.isReady) "#7B8DA3" else "#D8B27A")
         )
+
+        if (::inviteCodeInput.isInitialized) {
+            val currentCode = inviteCodeInput.text?.toString().orEmpty()
+            if (currentCode != state.inviteCode) {
+                inviteCodeInput.setText(state.inviteCode)
+                inviteCodeInput.setSelection(inviteCodeInput.text?.length ?: 0)
+            }
+        }
 
         rebuildServerCards(state.availableProfiles, state.selectedProfileId)
     }

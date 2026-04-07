@@ -50,6 +50,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 bypassRu = preferences.isBypassRuEnabled(),
+                inviteCode = preferences.inviteCode(),
                 excludedPackages = preferences.excludedPackages(),
                 installedApps = appsScanner.loadLaunchableApps(),
                 availableProfiles = availableProfiles,
@@ -72,6 +73,12 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         val normalized = value.distinct()
         preferences.saveExcludedPackages(normalized)
         _state.update { it.copy(excludedPackages = normalized) }
+    }
+
+    fun setInviteCode(value: String) {
+        val normalized = value.trim()
+        preferences.saveInviteCode(normalized)
+        _state.update { it.copy(inviteCode = normalized) }
     }
 
     fun selectProfile(profileId: String) {
