@@ -15,6 +15,7 @@
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
+        android:theme="@style/Theme.NoVPN"
         android:supportsRtl="true">
 
         <activity

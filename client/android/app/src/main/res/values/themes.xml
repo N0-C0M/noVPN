@@ -1,0 +1,3 @@
+<resources>
+    <style name="Theme.NoVPN" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>
