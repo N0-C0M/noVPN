@@ -7,6 +7,8 @@ This Android scaffold now includes:
 - obfuscator sidecar config generation;
 - ABI-aware embedded binary installation from `assets/bin/`;
 - runtime preflight diagnostics for profile completeness and embedded assets;
+- hardening for the local Xray SOCKS bridge: per-launch password auth, random loopback port,
+  and UDP disabled;
 - start/stop controls in `MainActivity`;
 - package exclusions through `addDisallowedApplication(...)`.
 
@@ -81,6 +83,9 @@ Current limitation:
   `TUN -> Xray` traffic pipeline is still incomplete in this scaffold. The runtime starts
   `VpnService`, `xray`, and the obfuscator sidecar, but a production-ready packet forwarding
   path still needs a dedicated Android integration layer.
+- the local loopback Xray SOCKS inbound is now hardened to reduce localhost scanning abuse from
+  untrusted apps, but it is still only one layer of defense; the long-term fix is a complete
+  Android-native `TUN -> Xray` datapath.
 
 Runtime preflight:
 

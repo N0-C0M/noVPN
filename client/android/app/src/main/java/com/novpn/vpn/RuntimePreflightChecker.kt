@@ -58,6 +58,8 @@ class RuntimePreflightChecker(private val context: Context) {
             details += "Missing geoip.dat or geosite.dat in embedded assets"
         }
 
+        details += context.getString(R.string.preflight_local_proxy_hardened)
+        details += context.getString(R.string.preflight_no_api_surface)
         details += context.getString(R.string.preflight_scaffold_warning)
 
         return RuntimePreflightReport(

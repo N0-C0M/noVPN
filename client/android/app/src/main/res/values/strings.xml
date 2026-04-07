@@ -37,7 +37,9 @@
     <string name="runtime_active_profile">VPN active: %1$s</string>
     <string name="preflight_ready">Runtime preflight passed</string>
     <string name="preflight_attention">Runtime preflight needs attention</string>
-    <string name="preflight_scaffold_warning">Scaffold notice: full TUN to Xray traffic forwarding is still not implemented.</string>
+    <string name="preflight_local_proxy_hardened">Local SOCKS runtime uses per-launch password auth, a random port, and UDP disabled.</string>
+    <string name="preflight_no_api_surface">No Xray management API is exposed by this Android client config.</string>
+    <string name="preflight_scaffold_warning">Scaffold notice: the full TUN to Xray traffic path still needs a dedicated Android integration layer.</string>
     <string name="notification_title">NoVPN</string>
     <string name="notification_channel_name">Background VPN runtime</string>
     <string name="service_stopped">Service stopped</string>

@@ -2,6 +2,7 @@ package com.novpn.xray
 
 import android.content.Context
 import com.novpn.data.ClientProfile
+import com.novpn.vpn.RuntimeLocalProxyFactory
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -9,6 +10,7 @@ import java.io.File
 class AndroidXrayConfigWriter(private val context: Context) {
 
     fun write(profile: ClientProfile, bypassRu: Boolean): File {
+        val localProxy = RuntimeLocalProxyFactory.create()
         val rules = JSONArray()
             .put(
                 JSONObject()
@@ -38,7 +40,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
         rules.put(
             JSONObject()
                 .put("type", "field")
-                .put("network", "tcp,udp")
+                .put("network", "tcp")
                 .put("outboundTag", "proxy")
                 .put("ruleTag", "default-proxy")
         )
@@ -49,10 +51,23 @@ class AndroidXrayConfigWriter(private val context: Context) {
                 .put(
                     JSONObject()
                         .put("tag", "socks-in")
-                        .put("listen", profile.local.socksListen)
-                        .put("port", profile.local.socksPort)
+                        .put("listen", localProxy.listenHost)
+                        .put("port", localProxy.socksPort)
                         .put("protocol", "socks")
-                        .put("settings", JSONObject().put("udp", true))
+                        .put(
+                            "settings",
+                            JSONObject()
+                                .put("auth", "password")
+                                .put("udp", localProxy.udpEnabled)
+                                .put(
+                                    "accounts",
+                                    JSONArray().put(
+                                        JSONObject()
+                                            .put("user", localProxy.username)
+                                            .put("pass", localProxy.password)
+                                    )
+                                )
+                        )
                         .put(
                             "sniffing",
                             JSONObject()
