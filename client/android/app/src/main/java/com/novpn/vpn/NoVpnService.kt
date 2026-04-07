@@ -14,6 +14,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novpn.R
 import com.novpn.data.ProfileRepository
+import com.novpn.data.requireRuntimeReady
+import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.ui.MainActivity
 import com.novpn.xray.AndroidXrayConfigWriter
@@ -30,12 +32,19 @@ class NoVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val profileAsset = intent.getStringExtra(EXTRA_PROFILE_ASSET)
-                    ?: profileRepository.defaultProfileAsset()
+                val profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
+                    ?: profileRepository.defaultProfileId()
                 val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
                 val excludedPackages = intent.getStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES).orEmpty()
                 startForegroundRuntime(getString(R.string.runtime_starting))
-                startCore(profileAsset, bypassRu, excludedPackages)
+                runCatching {
+                    startCore(profileId, bypassRu, excludedPackages)
+                }.getOrElse {
+                    stopCore()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
             }
 
             ACTION_STOP -> {
@@ -71,21 +80,24 @@ class NoVpnService : VpnService() {
     }
 
     private fun startCore(
-        profileAsset: String,
+        profileId: String,
         bypassRu: Boolean,
         excludedPackages: List<String>
     ) {
         stopCore()
 
-        val profile = profileRepository.loadProfile(profileAsset)
-        seedStore.loadOrSaveDefault(profile.obfuscation.seed)
+        val profile = profileRepository.loadProfile(profileId)
+        profile.requireRuntimeReady()
+        val effectiveProfile = profile.withObfuscationSeed(
+            seedStore.loadOrSaveDefault(profile.obfuscation.seed)
+        )
 
-        val xrayConfig = xrayConfigWriter.write(profile, bypassRu)
-        val obfuscatorConfig = obfuscatorConfigWriter.write(profile, xrayConfig)
+        val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu)
+        val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig)
         tunnelInterface = establishTunnel(excludedPackages)
         runtimeManager.start(xrayConfig, obfuscatorConfig)
 
-        startForegroundRuntime(getString(R.string.runtime_active_profile, profile.name))
+        startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
     }
 
     private fun stopCore() {
@@ -159,7 +171,7 @@ class NoVpnService : VpnService() {
     companion object {
         private const val ACTION_START = "com.novpn.vpn.START"
         private const val ACTION_STOP = "com.novpn.vpn.STOP"
-        private const val EXTRA_PROFILE_ASSET = "extra_profile_asset"
+        private const val EXTRA_PROFILE_ID = "extra_profile_id"
         private const val EXTRA_BYPASS_RU = "extra_bypass_ru"
         private const val EXTRA_EXCLUDED_PACKAGES = "extra_excluded_packages"
         private const val NOTIFICATION_CHANNEL_ID = "novpn_runtime"
@@ -167,13 +179,13 @@ class NoVpnService : VpnService() {
 
         fun startIntent(
             context: Context,
-            profileAsset: String,
+            profileId: String,
             bypassRu: Boolean,
             excludedPackages: List<String>
         ): Intent {
             return Intent(context, NoVpnService::class.java).apply {
                 action = ACTION_START
-                putExtra(EXTRA_PROFILE_ASSET, profileAsset)
+                putExtra(EXTRA_PROFILE_ID, profileId)
                 putExtra(EXTRA_BYPASS_RU, bypassRu)
                 putStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES, ArrayList(excludedPackages))
             }

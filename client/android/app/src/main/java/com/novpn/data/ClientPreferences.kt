@@ -16,8 +16,8 @@ class ClientPreferences(context: Context) {
             .sorted()
     }
 
-    fun selectedProfileAsset(defaultAsset: String): String {
-        return preferences.getString(KEY_SELECTED_PROFILE, defaultAsset) ?: defaultAsset
+    fun selectedProfileId(defaultProfileId: String): String {
+        return preferences.getString(KEY_SELECTED_PROFILE, defaultProfileId) ?: defaultProfileId
     }
 
     fun saveBypassRu(enabled: Boolean) {
@@ -30,8 +30,8 @@ class ClientPreferences(context: Context) {
             .apply()
     }
 
-    fun saveSelectedProfileAsset(assetName: String) {
-        preferences.edit().putString(KEY_SELECTED_PROFILE, assetName).apply()
+    fun saveSelectedProfileId(profileId: String) {
+        preferences.edit().putString(KEY_SELECTED_PROFILE, profileId).apply()
     }
 
     companion object {

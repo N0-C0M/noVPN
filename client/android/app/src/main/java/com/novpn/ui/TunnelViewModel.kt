@@ -1,10 +1,13 @@
 package com.novpn.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import com.novpn.R
 import com.novpn.data.ClientPreferences
 import com.novpn.data.ProfileRepository
+import com.novpn.data.requireRuntimeReady
+import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
 import com.novpn.vpn.VpnRuntimeRequest
@@ -30,15 +33,15 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
 
     fun refreshStateFromPreferences() {
         val availableProfiles = profileRepository.listProfiles()
-        val defaultAsset = profileRepository.defaultProfileAsset()
-        val selectedAsset = preferences.selectedProfileAsset(defaultAsset)
-        val normalizedAsset = availableProfiles
-            .firstOrNull { it.assetName == selectedAsset }
-            ?.assetName
-            ?: defaultAsset
+        val defaultProfileId = profileRepository.defaultProfileId()
+        val selectedProfileId = preferences.selectedProfileId(defaultProfileId)
+        val normalizedProfileId = availableProfiles
+            .firstOrNull { it.profileId == selectedProfileId }
+            ?.profileId
+            ?: defaultProfileId
 
-        if (normalizedAsset != selectedAsset) {
-            preferences.saveSelectedProfileAsset(normalizedAsset)
+        if (normalizedProfileId != selectedProfileId) {
+            preferences.saveSelectedProfileId(normalizedProfileId)
         }
 
         _state.update {
@@ -47,7 +50,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 excludedPackages = preferences.excludedPackages(),
                 installedApps = appsScanner.loadLaunchableApps(),
                 availableProfiles = availableProfiles,
-                selectedProfileAsset = normalizedAsset,
+                selectedProfileId = normalizedProfileId,
                 runtimeStatus = if (it.runtimeRunning) {
                     it.runtimeStatus
                 } else {
@@ -68,21 +71,30 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(excludedPackages = normalized) }
     }
 
-    fun selectProfile(assetName: String) {
-        preferences.saveSelectedProfileAsset(assetName)
-        _state.update { it.copy(selectedProfileAsset = assetName) }
+    fun selectProfile(profileId: String) {
+        preferences.saveSelectedProfileId(profileId)
+        _state.update { it.copy(selectedProfileId = profileId) }
+    }
+
+    fun importProfile(uri: Uri) {
+        val profile = profileRepository.importProfile(uri)
+        preferences.saveSelectedProfileId(profile.profileId)
+        refreshStateFromPreferences()
     }
 
     fun generateConfig() {
-        val profile = profileRepository.loadProfile(currentProfileAsset())
-        seedStore.loadOrSaveDefault(profile.obfuscation.seed)
-        val outputFile = configWriter.write(profile, _state.value.bypassRu)
+        val profile = profileRepository.loadProfile(currentProfileId())
+        profile.requireRuntimeReady()
+        val effectiveProfile = profile.withObfuscationSeed(
+            seedStore.loadOrSaveDefault(profile.obfuscation.seed)
+        )
+        val outputFile = configWriter.write(effectiveProfile, _state.value.bypassRu)
         _state.update { it.copy(generatedConfigPath = outputFile.absolutePath) }
     }
 
     fun buildRuntimeRequest(): VpnRuntimeRequest {
         return VpnRuntimeRequest(
-            profileAsset = currentProfileAsset(),
+            profileId = currentProfileId(),
             bypassRu = _state.value.bypassRu,
             excludedPackages = _state.value.excludedPackages
         )
@@ -110,17 +122,17 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectedProfileName(): String {
         return _state.value.availableProfiles
-            .firstOrNull { it.assetName == currentProfileAsset() }
+            .firstOrNull { it.profileId == currentProfileId() }
             ?.name
             ?: appContext.getString(R.string.default_server)
     }
 
-    private fun currentProfileAsset(): String {
-        val selected = _state.value.selectedProfileAsset
+    private fun currentProfileId(): String {
+        val selected = _state.value.selectedProfileId
         return if (selected.isNotBlank()) {
             selected
         } else {
-            profileRepository.defaultProfileAsset()
+            profileRepository.defaultProfileId()
         }
     }
 }

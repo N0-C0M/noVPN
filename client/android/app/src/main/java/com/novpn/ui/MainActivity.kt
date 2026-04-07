@@ -15,6 +15,7 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -49,6 +50,33 @@ class MainActivity : ComponentActivity() {
     ) {
         viewModel.refreshStateFromPreferences()
         renderState(viewModel.state.value)
+    }
+
+    private val importProfileLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) {
+            return@registerForActivityResult
+        }
+
+        runCatching {
+            viewModel.importProfile(uri)
+        }.onSuccess {
+            renderState(viewModel.state.value)
+            Toast.makeText(
+                this,
+                getString(R.string.import_profile_success, viewModel.selectedProfileName()),
+                Toast.LENGTH_SHORT
+            ).show()
+        }.onFailure { error ->
+            statusTitle.text = getString(R.string.import_profile_failed)
+            statusDetail.text = error.message ?: getString(R.string.runtime_profile_incomplete)
+            Toast.makeText(
+                this,
+                error.message ?: getString(R.string.import_profile_failed),
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,6 +139,24 @@ class MainActivity : ComponentActivity() {
         titleBlock.addView(headerLabel)
         titleBlock.addView(headerServer)
 
+        val actionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+        }
+
+        val importButton = Button(this).apply {
+            text = getString(R.string.import_profile)
+            isAllCaps = false
+            setTextColor(Color.parseColor("#F3F6FB"))
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            setOnClickListener {
+                importProfileLauncher.launch("*/*")
+            }
+        }
+
         val settingsButton = Button(this).apply {
             text = getString(R.string.settings)
             isAllCaps = false
@@ -119,13 +165,22 @@ class MainActivity : ComponentActivity() {
             typeface = Typeface.DEFAULT_BOLD
             background = roundedDrawable("#0E1520", "#243244", 22f, 2)
             setPadding(dp(18), dp(12), dp(18), dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginStart = dp(10)
+            }
             setOnClickListener {
                 settingsLauncher.launch(Intent(this@MainActivity, SettingsActivity::class.java))
             }
         }
 
+        actionRow.addView(importButton)
+        actionRow.addView(settingsButton)
+
         row.addView(titleBlock)
-        row.addView(settingsButton)
+        row.addView(actionRow)
         return row
     }
 
@@ -207,7 +262,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun renderState(state: TunnelState) {
-        val selected = state.availableProfiles.firstOrNull { it.assetName == state.selectedProfileAsset }
+        val selected = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
             ?: state.availableProfiles.firstOrNull()
 
         headerServer.text = selected?.name ?: getString(R.string.header_no_server)
@@ -242,10 +297,10 @@ class MainActivity : ComponentActivity() {
             append(appsLine)
         }
 
-        rebuildServerCards(state.availableProfiles, state.selectedProfileAsset)
+        rebuildServerCards(state.availableProfiles, state.selectedProfileId)
     }
 
-    private fun rebuildServerCards(profiles: List<AvailableProfile>, selectedAsset: String) {
+    private fun rebuildServerCards(profiles: List<AvailableProfile>, selectedProfileId: String) {
         serverStrip.removeAllViews()
 
         if (profiles.isEmpty()) {
@@ -256,7 +311,7 @@ class MainActivity : ComponentActivity() {
         }
 
         profiles.forEachIndexed { index, profile ->
-            val selected = profile.assetName == selectedAsset
+            val selected = profile.profileId == selectedProfileId
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 background = roundedDrawable(
@@ -269,8 +324,8 @@ class MainActivity : ComponentActivity() {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
-                    viewModel.selectProfile(profile.assetName)
-                    viewModel.generateConfig()
+                    viewModel.selectProfile(profile.profileId)
+                    runCatching { viewModel.generateConfig() }
                     renderState(viewModel.state.value)
                 }
                 layoutParams = LinearLayout.LayoutParams(dp(228), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -286,6 +341,18 @@ class MainActivity : ComponentActivity() {
             )
             card.addView(
                 label(getString(R.string.server_sni_format, profile.serverName), 12f, "#6E88A6", false).apply {
+                    setPadding(0, dp(10), 0, 0)
+                }
+            )
+            card.addView(
+                label(
+                    getString(
+                        if (profile.isImported) R.string.profile_source_imported else R.string.profile_source_bundled
+                    ),
+                    11f,
+                    if (selected) "#7ACAA7" else "#6B7F95",
+                    false
+                ).apply {
                     setPadding(0, dp(10), 0, 0)
                 }
             )
@@ -311,18 +378,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startVpnRuntime() {
-        val request = viewModel.buildRuntimeRequest()
-        viewModel.generateConfig()
-        val configPath = viewModel.state.value.generatedConfigPath
-        val intent = NoVpnService.startIntent(
-            context = this,
-            profileAsset = request.profileAsset,
-            bypassRu = request.bypassRu,
-            excludedPackages = request.excludedPackages
-        )
-        ContextCompat.startForegroundService(this, intent)
-        viewModel.markRuntimeStarted(configPath)
-        renderState(viewModel.state.value)
+        runCatching {
+            val request = viewModel.buildRuntimeRequest()
+            viewModel.generateConfig()
+            val configPath = viewModel.state.value.generatedConfigPath
+            val intent = NoVpnService.startIntent(
+                context = this,
+                profileId = request.profileId,
+                bypassRu = request.bypassRu,
+                excludedPackages = request.excludedPackages
+            )
+            ContextCompat.startForegroundService(this, intent)
+            viewModel.markRuntimeStarted(configPath)
+            renderState(viewModel.state.value)
+        }.onFailure { error ->
+            statusTitle.text = getString(R.string.runtime_profile_incomplete)
+            statusDetail.text = error.message ?: getString(R.string.import_profile_failed)
+            Toast.makeText(
+                this,
+                error.message ?: getString(R.string.runtime_profile_incomplete),
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun label(text: String, sizeSp: Float, color: String, bold: Boolean): TextView {

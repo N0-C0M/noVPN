@@ -46,3 +46,14 @@ Endpoints gateway:
 - `GET /healthz`
 - `GET /readyz`
 - `GET /metrics`
+
+## Client Profile Sync
+
+The server bootstrap exports a client profile YAML to
+`core.reality.xray.client_profile_path` (default: `/var/lib/novpn/reality/client-profile.yaml`).
+
+You can sync that file into the bundled desktop/Android client JSON profiles with:
+
+```bash
+go run ./cmd/client-profile-sync -input /path/to/client-profile.yaml
+```

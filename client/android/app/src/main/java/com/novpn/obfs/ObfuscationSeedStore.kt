@@ -7,7 +7,7 @@ class ObfuscationSeedStore(context: Context) {
 
     fun loadOrSaveDefault(defaultSeed: String): String {
         val existing = preferences.getString(KEY_SEED, null)
-        if (existing != null) {
+        if (!existing.isNullOrBlank() && !existing.contains("replace-with", ignoreCase = true)) {
             return existing
         }
 
