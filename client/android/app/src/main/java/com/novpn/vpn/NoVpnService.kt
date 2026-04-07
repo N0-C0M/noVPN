@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.IpPrefix
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -19,6 +20,7 @@ import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.ui.MainActivity
 import com.novpn.xray.AndroidXrayConfigWriter
+import java.net.InetAddress
 
 
 class NoVpnService : VpnService() {
@@ -68,17 +70,25 @@ class NoVpnService : VpnService() {
         stopSelf()
     }
 
-    fun establishTunnel(disallowedPackages: List<String>): ParcelFileDescriptor? {
+    fun establishTunnel(
+        disallowedPackages: List<String>,
+        upstreamAddress: String
+    ): ParcelFileDescriptor? {
         val mtu = TUN_MTU
         val builder = Builder()
             .setSession(getString(R.string.tunnel_session_name))
             .setMtu(mtu)
+            .setBlocking(true)
             .addAddress(TUN_IPV4_ADDRESS, TUN_IPV4_PREFIX_LENGTH)
+            .addAddress(TUN_IPV6_ADDRESS, TUN_IPV6_PREFIX_LENGTH)
             .addRoute("0.0.0.0", 0)
+            .addRoute("::", 0)
             .addDnsServer(TUN_DNS_SERVER)
             .allowFamily(android.system.OsConstants.AF_INET)
+            .allowFamily(android.system.OsConstants.AF_INET6)
             .allowBypass()
 
+        applyUpstreamBypassRoutes(builder, upstreamAddress)
         applyDisallowedApplications(builder, disallowedPackages)
         return builder.establish()
     }
@@ -101,7 +111,10 @@ class NoVpnService : VpnService() {
         val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy)
         val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig)
         runtimeManager.start(xrayConfig, obfuscatorConfig)
-        tunnelInterface = establishTunnel(excludedPackages)
+        tunnelInterface = establishTunnel(
+            disallowedPackages = excludedPackages,
+            upstreamAddress = effectiveProfile.server.address
+        )
         tunnelInterface?.let { tun2ProxyBridge.start(it, localProxy, TUN_MTU) }
             ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
 
@@ -132,6 +145,23 @@ class NoVpnService : VpnService() {
             true
         } catch (_: PackageManager.NameNotFoundException) {
             false
+        }
+    }
+
+    private fun applyUpstreamBypassRoutes(builder: Builder, upstreamAddress: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return
+        }
+
+        runCatching {
+            InetAddress.getAllByName(upstreamAddress)
+        }.getOrDefault(emptyArray()).forEach { address ->
+            val prefixLength = when (address.address.size) {
+                4 -> 32
+                16 -> 128
+                else -> return@forEach
+            }
+            builder.excludeRoute(IpPrefix(address, prefixLength))
         }
     }
 
@@ -188,6 +218,8 @@ class NoVpnService : VpnService() {
         private const val TUN_MTU = 1500
         private const val TUN_IPV4_ADDRESS = "198.18.0.1"
         private const val TUN_IPV4_PREFIX_LENGTH = 15
+        private const val TUN_IPV6_ADDRESS = "fdfe:dcba:9876::1"
+        private const val TUN_IPV6_PREFIX_LENGTH = 126
         private const val TUN_DNS_SERVER = "198.18.0.1"
 
         fun startIntent(
