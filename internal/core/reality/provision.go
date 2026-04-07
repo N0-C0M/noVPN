@@ -27,8 +27,9 @@ import (
 )
 
 type Provisioner struct {
-	cfg    config.RealityConfig
-	logger *slog.Logger
+	cfg          config.RealityConfig
+	logger       *slog.Logger
+	registryStore *RegistryStore
 }
 
 type Options struct {
@@ -40,6 +41,7 @@ type Options struct {
 type Result struct {
 	ConfigPath        string
 	StatePath         string
+	RegistryPath      string
 	ClientProfilePath string
 	State             State
 	ClientProfile     ClientProfile
@@ -78,8 +80,9 @@ func NewProvisioner(cfg config.RealityConfig, logger *slog.Logger) *Provisioner 
 	}
 
 	return &Provisioner{
-		cfg:    cfg,
-		logger: logger.With("component", "reality-bootstrap"),
+		cfg:           cfg,
+		logger:        logger.With("component", "reality-bootstrap"),
+		registryStore: NewRegistryStore(cfg.Xray.RegistryPath, logger),
 	}
 }
 
@@ -89,6 +92,11 @@ func (p *Provisioner) Bootstrap(ctx context.Context, opts Options) (Result, erro
 	}
 
 	state, err := p.ensureState()
+	if err != nil {
+		return Result{}, err
+	}
+
+	registry, err := p.registryStore.EnsureBootstrap(state, p.cfg)
 	if err != nil {
 		return Result{}, err
 	}
@@ -103,7 +111,7 @@ func (p *Provisioner) Bootstrap(ctx context.Context, opts Options) (Result, erro
 		return Result{}, err
 	}
 
-	configPayload, err := p.renderXrayConfig(state)
+	configPayload, err := p.renderXrayConfig(state, registry)
 	if err != nil {
 		return Result{}, err
 	}
@@ -111,7 +119,10 @@ func (p *Provisioner) Bootstrap(ctx context.Context, opts Options) (Result, erro
 		return Result{}, fmt.Errorf("write xray config: %w", err)
 	}
 
-	profile := p.buildClientProfile(state)
+	profile, err := registry.ActiveClientProfile(state, p.cfg)
+	if err != nil {
+		return Result{}, err
+	}
 	profilePayload, err := yaml.Marshal(profile)
 	if err != nil {
 		return Result{}, fmt.Errorf("marshal client profile: %w", err)
@@ -135,6 +146,7 @@ func (p *Provisioner) Bootstrap(ctx context.Context, opts Options) (Result, erro
 	return Result{
 		ConfigPath:        p.cfg.Xray.ConfigPath,
 		StatePath:         p.cfg.Xray.StatePath,
+		RegistryPath:      p.cfg.Xray.RegistryPath,
 		ClientProfilePath: p.cfg.Xray.ClientProfilePath,
 		State:             state,
 		ClientProfile:     profile,
@@ -222,7 +234,7 @@ func (p *Provisioner) loadState() (State, error) {
 	return state, nil
 }
 
-func (p *Provisioner) renderXrayConfig(state State) ([]byte, error) {
+func (p *Provisioner) renderXrayConfig(state State, registry Registry) ([]byte, error) {
 	document := map[string]any{
 		"log": map[string]any{
 			"loglevel": p.cfg.Xray.Log.Level,
@@ -237,13 +249,7 @@ func (p *Provisioner) renderXrayConfig(state State) ([]byte, error) {
 				"protocol": "vless",
 				"settings": map[string]any{
 					"decryption": "none",
-					"clients": []any{
-						map[string]any{
-							"id":    state.UUID,
-							"flow":  p.cfg.Flow,
-							"email": p.cfg.UserEmail,
-						},
-					},
+					"clients":   registry.ActiveXrayClients(p.cfg.Flow),
 				},
 				"streamSettings": map[string]any{
 					"network":  "tcp",
@@ -284,36 +290,6 @@ func (p *Provisioner) renderXrayConfig(state State) ([]byte, error) {
 	}
 
 	return append(payload, '\n'), nil
-}
-
-func (p *Provisioner) buildClientProfile(state State) ClientProfile {
-	shortID := ""
-	if len(state.ShortIDs) > 0 {
-		shortID = state.ShortIDs[0]
-	}
-
-	serverName := ""
-	if len(p.cfg.ServerNames) > 0 {
-		serverName = p.cfg.ServerNames[0]
-	}
-
-	return ClientProfile{
-		GeneratedAt: time.Now().UTC(),
-		Name:        "novpn-reality",
-		Type:        "vless-reality",
-		Address:     p.cfg.PublicHost,
-		Port:        p.cfg.PublicPort,
-		UUID:        state.UUID,
-		Flow:        p.cfg.Flow,
-		Network:     "tcp",
-		Security:    "reality",
-		ServerName:  serverName,
-		Fingerprint: p.cfg.Fingerprint,
-		PublicKey:   state.PublicKey,
-		ShortID:     shortID,
-		ShortIDs:    append([]string(nil), state.ShortIDs...),
-		SpiderX:     p.cfg.SpiderX,
-	}
 }
 
 func (p *Provisioner) ensureParentDirs() error {

@@ -56,9 +56,10 @@ func main() {
 	}
 
 	fmt.Fprintf(os.Stdout,
-		"reality core ready\nconfig: %s\nstate: %s\nclient_profile: %s\nuuid: %s\npublic_key: %s\nshort_id: %s\n",
+		"reality core ready\nconfig: %s\nstate: %s\nregistry: %s\nclient_profile: %s\nuuid: %s\npublic_key: %s\nshort_id: %s\n",
 		result.ConfigPath,
 		result.StatePath,
+		result.RegistryPath,
 		result.ClientProfilePath,
 		result.State.UUID,
 		result.State.PublicKey,

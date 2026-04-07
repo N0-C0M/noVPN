@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Server        ServerConfig        `yaml:"server"`
 	Observability ObservabilityConfig `yaml:"observability"`
+	Admin         AdminConfig         `yaml:"admin"`
 	Listeners     ListenerSet         `yaml:"listeners"`
 	Core          CoreConfig          `yaml:"core"`
 }
@@ -29,6 +30,14 @@ type ObservabilityConfig struct {
 	JSONLogs    bool   `yaml:"json_logs"`
 	HealthAddr  string `yaml:"health_addr"`
 	MetricsPath string `yaml:"metrics_path"`
+}
+
+type AdminConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	ListenAddr  string `yaml:"listen_addr"`
+	StoragePath string `yaml:"storage_path"`
+	Token       string `yaml:"token"`
+	BasePath    string `yaml:"base_path"`
 }
 
 type ListenerSet struct {
@@ -72,6 +81,7 @@ type XrayConfig struct {
 	BinaryPath        string            `yaml:"binary_path"`
 	ConfigPath        string            `yaml:"config_path"`
 	StatePath         string            `yaml:"state_path"`
+	RegistryPath      string            `yaml:"registry_path"`
 	ClientProfilePath string            `yaml:"client_profile_path"`
 	ServiceName       string            `yaml:"service_name"`
 	Install           XrayInstallConfig `yaml:"install"`
@@ -168,6 +178,13 @@ func (c *Config) setDefaults() {
 		c.Observability.MetricsPath = "/metrics"
 	}
 
+	if c.Admin.ListenAddr == "" {
+		c.Admin.ListenAddr = "127.0.0.1:9112"
+	}
+	if c.Admin.BasePath == "" {
+		c.Admin.BasePath = "/admin"
+	}
+
 	for i := range c.Listeners.TCP {
 		if c.Listeners.TCP[i].Timeouts.Dial <= 0 {
 			c.Listeners.TCP[i].Timeouts.Dial = 5 * time.Second
@@ -238,6 +255,9 @@ func (c *RealityConfig) setDefaults() {
 	}
 	if c.Xray.StatePath == "" {
 		c.Xray.StatePath = "/var/lib/novpn/reality/state.yaml"
+	}
+	if c.Xray.RegistryPath == "" {
+		c.Xray.RegistryPath = "/var/lib/novpn/reality/registry.json"
 	}
 	if c.Xray.ClientProfilePath == "" {
 		c.Xray.ClientProfilePath = "/var/lib/novpn/reality/client-profile.yaml"

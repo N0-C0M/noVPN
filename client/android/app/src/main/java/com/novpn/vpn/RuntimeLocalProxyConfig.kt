@@ -9,7 +9,11 @@ data class RuntimeLocalProxyConfig(
     val username: String,
     val password: String,
     val udpEnabled: Boolean
-)
+) {
+    fun socksUrl(): String {
+        return "socks5://$username:$password@$listenHost:$socksPort"
+    }
+}
 
 object RuntimeLocalProxyFactory {
     private const val LOOPBACK_HOST = "127.0.0.1"

@@ -2,6 +2,7 @@ package com.novpn.xray
 
 import android.content.Context
 import com.novpn.data.ClientProfile
+import com.novpn.vpn.RuntimeLocalProxyConfig
 import com.novpn.vpn.RuntimeLocalProxyFactory
 import org.json.JSONArray
 import org.json.JSONObject
@@ -9,8 +10,11 @@ import java.io.File
 
 class AndroidXrayConfigWriter(private val context: Context) {
 
-    fun write(profile: ClientProfile, bypassRu: Boolean): File {
-        val localProxy = RuntimeLocalProxyFactory.create()
+    fun write(
+        profile: ClientProfile,
+        bypassRu: Boolean,
+        localProxy: RuntimeLocalProxyConfig = RuntimeLocalProxyFactory.create()
+    ): File {
         val rules = JSONArray()
             .put(
                 JSONObject()

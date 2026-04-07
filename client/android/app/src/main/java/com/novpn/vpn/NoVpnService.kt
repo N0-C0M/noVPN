@@ -22,6 +22,7 @@ import com.novpn.xray.AndroidXrayConfigWriter
 
 
 class NoVpnService : VpnService() {
+    private val tun2ProxyBridge by lazy { Tun2ProxyBridge() }
     private val profileRepository by lazy { ProfileRepository(this) }
     private val seedStore by lazy { ObfuscationSeedStore(this) }
     private val xrayConfigWriter by lazy { AndroidXrayConfigWriter(this) }
@@ -68,11 +69,13 @@ class NoVpnService : VpnService() {
     }
 
     fun establishTunnel(disallowedPackages: List<String>): ParcelFileDescriptor? {
+        val mtu = TUN_MTU
         val builder = Builder()
             .setSession(getString(R.string.tunnel_session_name))
-            .addAddress("172.19.0.2", 32)
+            .setMtu(mtu)
+            .addAddress(TUN_IPV4_ADDRESS, TUN_IPV4_PREFIX_LENGTH)
             .addRoute("0.0.0.0", 0)
-            .addDnsServer("1.1.1.1")
+            .addDnsServer(TUN_DNS_SERVER)
             .allowFamily(android.system.OsConstants.AF_INET)
             .allowBypass()
 
@@ -93,16 +96,20 @@ class NoVpnService : VpnService() {
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         )
+        val localProxy = RuntimeLocalProxyFactory.create()
 
-        val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu)
+        val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy)
         val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig)
-        tunnelInterface = establishTunnel(excludedPackages)
         runtimeManager.start(xrayConfig, obfuscatorConfig)
+        tunnelInterface = establishTunnel(excludedPackages)
+        tunnelInterface?.let { tun2ProxyBridge.start(it, localProxy, TUN_MTU) }
+            ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
 
         startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
     }
 
     private fun stopCore() {
+        tun2ProxyBridge.stop()
         runtimeManager.stop()
         tunnelInterface?.close()
         tunnelInterface = null
@@ -112,7 +119,7 @@ class NoVpnService : VpnService() {
         builder: Builder,
         packageNames: List<String>
     ) {
-        packageNames.distinct().forEach { packageName ->
+        (packageNames + packageName).distinct().forEach { packageName ->
             if (isInstalled(packageName)) {
                 builder.addDisallowedApplication(packageName)
             }
@@ -178,6 +185,10 @@ class NoVpnService : VpnService() {
         private const val EXTRA_EXCLUDED_PACKAGES = "extra_excluded_packages"
         private const val NOTIFICATION_CHANNEL_ID = "novpn_runtime"
         private const val NOTIFICATION_ID = 1001
+        private const val TUN_MTU = 1500
+        private const val TUN_IPV4_ADDRESS = "198.18.0.1"
+        private const val TUN_IPV4_PREFIX_LENGTH = 15
+        private const val TUN_DNS_SERVER = "198.18.0.1"
 
         fun startIntent(
             context: Context,

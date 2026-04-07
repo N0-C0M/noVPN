@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.novpn"
     compileSdk = 35
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.novpn"
@@ -13,6 +14,15 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+            }
+        }
     }
 
     buildTypes {
@@ -32,6 +42,12 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
     }
 }
 

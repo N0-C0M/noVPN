@@ -23,6 +23,17 @@ func (c Config) Validate() error {
 	if c.Observability.MetricsPath == "" {
 		return errors.New("observability.metrics_path must not be empty")
 	}
+	if c.Admin.Enabled {
+		if c.Admin.ListenAddr == "" {
+			return errors.New("admin.listen_addr must not be empty")
+		}
+		if _, _, err := net.SplitHostPort(c.Admin.ListenAddr); err != nil {
+			return fmt.Errorf("admin.listen_addr: %w", err)
+		}
+		if c.Admin.StoragePath == "" {
+			return errors.New("admin.storage_path must not be empty")
+		}
+	}
 
 	enabled := 0
 	seenNames := make(map[string]struct{})
@@ -137,6 +148,9 @@ func validateReality(c RealityConfig) error {
 	}
 	if c.Xray.StatePath == "" {
 		return errors.New("core.reality.xray.state_path must not be empty")
+	}
+	if c.Xray.RegistryPath == "" {
+		return errors.New("core.reality.xray.registry_path must not be empty")
 	}
 	if c.Xray.ClientProfilePath == "" {
 		return errors.New("core.reality.xray.client_profile_path must not be empty")

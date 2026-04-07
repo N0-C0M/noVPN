@@ -19,6 +19,12 @@ data class RuntimePreflightReport(
 
 class RuntimePreflightChecker(private val context: Context) {
     private val profileRepository = ProfileRepository(context)
+    private val tun2ProxyReady by lazy {
+        runCatching {
+            Class.forName("com.novpn.vpn.Tun2ProxyBridge")
+            true
+        }.getOrDefault(false)
+    }
 
     fun evaluate(profileId: String): RuntimePreflightReport {
         val details = mutableListOf<String>()
@@ -58,9 +64,16 @@ class RuntimePreflightChecker(private val context: Context) {
             details += "Missing geoip.dat or geosite.dat in embedded assets"
         }
 
+        if (tun2ProxyReady) {
+            details += context.getString(R.string.preflight_tun2proxy_ready)
+        } else {
+            ready = false
+            details += "Tun2proxy native bridge is unavailable for this build."
+        }
+
         details += context.getString(R.string.preflight_local_proxy_hardened)
         details += context.getString(R.string.preflight_no_api_surface)
-        details += context.getString(R.string.preflight_scaffold_warning)
+        details += context.getString(R.string.preflight_tunnel_live)
 
         return RuntimePreflightReport(
             isReady = ready,
