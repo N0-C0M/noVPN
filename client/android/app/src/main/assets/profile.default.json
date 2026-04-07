@@ -1,7 +1,7 @@
 {
   "name": "Default Reality Profile",
   "server": {
-    "address": "vpn.example.com",
+    "address": "2.26.85.47",
     "port": 8443,
     "uuid": "00000000-0000-4000-8000-000000000000",
     "flow": "xtls-rprx-vision",

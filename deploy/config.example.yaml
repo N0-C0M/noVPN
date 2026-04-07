@@ -13,7 +13,7 @@ core:
   reality:
     enabled: true
     listen_addr: 127.0.0.1:9443
-    public_host: vpn.example.com
+    public_host: 2.26.85.47
     public_port: 8443
     target: www.cloudflare.com:443
     server_names:

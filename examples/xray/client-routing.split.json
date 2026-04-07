@@ -9,7 +9,7 @@
       "settings": {
         "vnext": [
           {
-            "address": "vpn.example.com",
+            "address": "2.26.85.47",
             "port": 8443,
             "users": [
               {
