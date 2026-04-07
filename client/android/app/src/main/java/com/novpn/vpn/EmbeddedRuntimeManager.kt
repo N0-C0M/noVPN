@@ -1,9 +1,7 @@
 package com.novpn.vpn
 
 import android.content.Context
-import android.os.Build
 import java.io.File
-import java.io.IOException
 
 class EmbeddedRuntimeManager(private val context: Context) {
     private val runtimeRoot = File(context.filesDir, "runtime")
@@ -63,53 +61,9 @@ class EmbeddedRuntimeManager(private val context: Context) {
     fun logsDirectory(): File = logsDir
 
     private fun installAbiAwareBinary(binaryName: String): File {
-        val assetPath = resolveBinaryAssetPath(binaryName)
+        val assetPath = EmbeddedRuntimeAssets.resolveBinaryAssetPath(context, binaryName)
         val targetFile = File(binDir, binaryName)
         return installAssetBinary(assetPath, targetFile)
-    }
-
-    private fun resolveBinaryAssetPath(binaryName: String): String {
-        val candidates = buildAbiAssetCandidates(binaryName)
-        for (candidate in candidates) {
-            if (assetExists(candidate)) {
-                return candidate
-            }
-        }
-
-        throw IllegalStateException(
-            "Embedded binary asset missing for $binaryName. " +
-                "Expected one of: ${candidates.joinToString()}."
-        )
-    }
-
-    private fun buildAbiAssetCandidates(binaryName: String): List<String> {
-        val supported = Build.SUPPORTED_ABIS
-            .flatMap { abi -> abiAliases(abi) }
-            .distinct()
-
-        val candidates = supported.map { abi -> "bin/$abi/$binaryName" }.toMutableList()
-        candidates += "bin/$binaryName"
-        return candidates
-    }
-
-    private fun abiAliases(abi: String): List<String> {
-        val aliases = mutableListOf(abi)
-        when (abi) {
-            "arm64-v8a" -> aliases += listOf("arm64", "aarch64")
-            "armeabi-v7a" -> aliases += listOf("armeabi", "armv7")
-            "x86_64" -> aliases += listOf("amd64")
-            "x86" -> aliases += listOf("i686", "i386")
-        }
-        return aliases
-    }
-
-    private fun assetExists(assetPath: String): Boolean {
-        return try {
-            context.assets.open(assetPath).close()
-            true
-        } catch (_: IOException) {
-            false
-        }
     }
 
     private fun installAssetBinary(assetPath: String, targetFile: File): File {
@@ -127,17 +81,10 @@ class EmbeddedRuntimeManager(private val context: Context) {
     }
 
     private fun copyAssetToFile(assetPath: String, targetFile: File) {
-        try {
-            context.assets.open(assetPath).use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
+        context.assets.open(assetPath).use { input ->
+            targetFile.outputStream().use { output ->
+                input.copyTo(output)
             }
-        } catch (exception: IOException) {
-            throw IllegalStateException(
-                "Required embedded asset missing: $assetPath.",
-                exception
-            )
         }
     }
 }

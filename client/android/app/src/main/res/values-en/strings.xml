@@ -35,6 +35,9 @@
     <string name="runtime_starting">Starting VPN runtime</string>
     <string name="runtime_profile_incomplete">Import a real server profile before connecting.</string>
     <string name="runtime_active_profile">VPN active: %1$s</string>
+    <string name="preflight_ready">Runtime preflight passed</string>
+    <string name="preflight_attention">Runtime preflight needs attention</string>
+    <string name="preflight_scaffold_warning">Scaffold notice: full TUN to Xray traffic forwarding is still not implemented.</string>
     <string name="notification_title">NoVPN</string>
     <string name="notification_channel_name">Background VPN runtime</string>
     <string name="service_stopped">Service stopped</string>

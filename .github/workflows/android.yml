@@ -1,0 +1,11 @@
+name: Android CI Legacy Stub
+
+on:
+  workflow_dispatch:
+
+jobs:
+  notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Legacy notice
+        run: echo "Use .github/workflows/android-apk.yml for the active Android build pipeline."

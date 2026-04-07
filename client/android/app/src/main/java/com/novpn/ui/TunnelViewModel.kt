@@ -10,6 +10,8 @@ import com.novpn.data.requireRuntimeReady
 import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
+import com.novpn.vpn.RuntimePreflightChecker
+import com.novpn.vpn.RuntimePreflightReport
 import com.novpn.vpn.VpnRuntimeRequest
 import com.novpn.xray.AndroidXrayConfigWriter
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +25,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val configWriter = AndroidXrayConfigWriter(application)
     private val appsScanner = InstalledAppsScanner(application)
     private val seedStore = ObfuscationSeedStore(application)
+    private val preflightChecker = RuntimePreflightChecker(application)
 
     private val _state = MutableStateFlow(TunnelState())
     val state: StateFlow<TunnelState> = _state
@@ -73,7 +76,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectProfile(profileId: String) {
         preferences.saveSelectedProfileId(profileId)
-        _state.update { it.copy(selectedProfileId = profileId) }
+        refreshStateFromPreferences()
     }
 
     fun importProfile(uri: Uri) {
@@ -83,6 +86,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun generateConfig() {
+        runtimePreflight().requireReady()
         val profile = profileRepository.loadProfile(currentProfileId())
         profile.requireRuntimeReady()
         val effectiveProfile = profile.withObfuscationSeed(
@@ -125,6 +129,10 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             .firstOrNull { it.profileId == currentProfileId() }
             ?.name
             ?: appContext.getString(R.string.default_server)
+    }
+
+    fun runtimePreflight(): RuntimePreflightReport {
+        return preflightChecker.evaluate(currentProfileId())
     }
 
     private fun currentProfileId(): String {

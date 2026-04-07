@@ -27,6 +27,7 @@ class NoVpnService : VpnService() {
     private val xrayConfigWriter by lazy { AndroidXrayConfigWriter(this) }
     private val obfuscatorConfigWriter by lazy { ObfuscatorConfigWriter(this) }
     private val runtimeManager by lazy { EmbeddedRuntimeManager(this) }
+    private val preflightChecker by lazy { RuntimePreflightChecker(this) }
     private var tunnelInterface: ParcelFileDescriptor? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -85,6 +86,7 @@ class NoVpnService : VpnService() {
         excludedPackages: List<String>
     ) {
         stopCore()
+        preflightChecker.evaluate(profileId).requireReady()
 
         val profile = profileRepository.loadProfile(profileId)
         profile.requireRuntimeReady()

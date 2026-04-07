@@ -31,6 +31,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var headerServer: TextView
     private lateinit var statusTitle: TextView
     private lateinit var statusDetail: TextView
+    private lateinit var preflightTitle: TextView
+    private lateinit var preflightDetail: TextView
     private lateinit var powerButton: Button
     private lateinit var serverStrip: LinearLayout
 
@@ -228,6 +230,18 @@ class MainActivity : ComponentActivity() {
                 setPadding(dp(10), dp(12), dp(10), 0)
             }
             addView(statusDetail)
+
+            preflightTitle = label("", 12f, "#7ACAA7", true).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(10), dp(16), dp(10), 0)
+            }
+            addView(preflightTitle)
+
+            preflightDetail = label("", 12f, "#7B8DA3", false).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(10), dp(8), dp(10), 0)
+            }
+            addView(preflightDetail)
         }
     }
 
@@ -296,6 +310,16 @@ class MainActivity : ComponentActivity() {
             appendLine(modeLine)
             append(appsLine)
         }
+
+        val preflight = viewModel.runtimePreflight()
+        preflightTitle.text = preflight.headline
+        preflightTitle.setTextColor(
+            Color.parseColor(if (preflight.isReady) "#7ACAA7" else "#F0C27B")
+        )
+        preflightDetail.text = preflight.details.joinToString("\n")
+        preflightDetail.setTextColor(
+            Color.parseColor(if (preflight.isReady) "#7B8DA3" else "#D8B27A")
+        )
 
         rebuildServerCards(state.availableProfiles, state.selectedProfileId)
     }
