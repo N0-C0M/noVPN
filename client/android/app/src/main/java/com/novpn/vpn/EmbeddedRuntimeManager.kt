@@ -1,6 +1,7 @@
 package com.novpn.vpn
 
 import android.content.Context
+import android.os.Build
 import java.io.File
 import java.io.IOException
 
@@ -16,10 +17,10 @@ class EmbeddedRuntimeManager(private val context: Context) {
         binDir.mkdirs()
         logsDir.mkdirs()
 
-        val xrayBinary = installAssetBinary("bin/xray", "xray")
+        val xrayBinary = installAbiAwareBinary("xray")
         installAssetFile("bin/geoip.dat", "geoip.dat")
         installAssetFile("bin/geosite.dat", "geosite.dat")
-        val obfuscatorBinary = installAssetBinary("bin/obfuscator", "obfuscator")
+        val obfuscatorBinary = installAbiAwareBinary("obfuscator")
 
         obfuscatorProcess = ProcessBuilder(
             obfuscatorBinary.absolutePath,
@@ -61,25 +62,58 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
     fun logsDirectory(): File = logsDir
 
-    private fun installAssetBinary(assetPath: String, targetName: String): File {
-        val targetFile = File(binDir, targetName)
-        if (targetFile.exists() && targetFile.canExecute()) {
-            return targetFile
-        }
+    private fun installAbiAwareBinary(binaryName: String): File {
+        val assetPath = resolveBinaryAssetPath(binaryName)
+        val targetFile = File(binDir, binaryName)
+        return installAssetBinary(assetPath, targetFile)
+    }
 
-        try {
-            context.assets.open(assetPath).use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
+    private fun resolveBinaryAssetPath(binaryName: String): String {
+        val candidates = buildAbiAssetCandidates(binaryName)
+        for (candidate in candidates) {
+            if (assetExists(candidate)) {
+                return candidate
             }
-        } catch (exception: IOException) {
-            throw IllegalStateException(
-                "Embedded binary asset missing: $assetPath. Place binaries under app/src/main/assets/bin/.",
-                exception
-            )
         }
 
+        throw IllegalStateException(
+            "Embedded binary asset missing for $binaryName. " +
+                "Expected one of: ${candidates.joinToString()}."
+        )
+    }
+
+    private fun buildAbiAssetCandidates(binaryName: String): List<String> {
+        val supported = Build.SUPPORTED_ABIS
+            .flatMap { abi -> abiAliases(abi) }
+            .distinct()
+
+        val candidates = supported.map { abi -> "bin/$abi/$binaryName" }.toMutableList()
+        candidates += "bin/$binaryName"
+        return candidates
+    }
+
+    private fun abiAliases(abi: String): List<String> {
+        val aliases = mutableListOf(abi)
+        when (abi) {
+            "arm64-v8a" -> aliases += listOf("arm64", "aarch64")
+            "armeabi-v7a" -> aliases += listOf("armeabi", "armv7")
+            "x86_64" -> aliases += listOf("amd64")
+            "x86" -> aliases += listOf("i686", "i386")
+        }
+        return aliases
+    }
+
+    private fun assetExists(assetPath: String): Boolean {
+        return try {
+            context.assets.open(assetPath).close()
+            true
+        } catch (_: IOException) {
+            false
+        }
+    }
+
+    private fun installAssetBinary(assetPath: String, targetFile: File): File {
+        copyAssetToFile(assetPath, targetFile)
         targetFile.setReadable(true)
         targetFile.setExecutable(true)
         return targetFile
@@ -87,10 +121,12 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
     private fun installAssetFile(assetPath: String, targetName: String): File {
         val targetFile = File(binDir, targetName)
-        if (targetFile.exists()) {
-            return targetFile
-        }
+        copyAssetToFile(assetPath, targetFile)
+        targetFile.setReadable(true)
+        return targetFile
+    }
 
+    private fun copyAssetToFile(assetPath: String, targetFile: File) {
         try {
             context.assets.open(assetPath).use { input ->
                 targetFile.outputStream().use { output ->
@@ -99,12 +135,9 @@ class EmbeddedRuntimeManager(private val context: Context) {
             }
         } catch (exception: IOException) {
             throw IllegalStateException(
-                "Required Xray asset missing: $assetPath. Place geoip.dat and geosite.dat under app/src/main/assets/bin/.",
+                "Required embedded asset missing: $assetPath.",
                 exception
             )
         }
-
-        targetFile.setReadable(true)
-        return targetFile
     }
 }
