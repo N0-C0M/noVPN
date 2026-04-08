@@ -12,5 +12,6 @@ data class TunnelState(
     val selectedProfileId: String = "",
     val generatedConfigPath: String = "",
     val runtimeRunning: Boolean = false,
-    val runtimeStatus: String = ""
+    val runtimeStatus: String = "",
+    val runtimeDetail: String = ""
 )

@@ -30,6 +30,7 @@ class NoVpnService : VpnService() {
     private val xrayConfigWriter by lazy { AndroidXrayConfigWriter(this) }
     private val obfuscatorConfigWriter by lazy { ObfuscatorConfigWriter(this) }
     private val runtimeManager by lazy { EmbeddedRuntimeManager(this) }
+    private val runtimeStatusStore by lazy { VpnRuntimeStatusStore(this) }
     private val preflightChecker by lazy { RuntimePreflightChecker(this) }
     private var tunnelInterface: ParcelFileDescriptor? = null
 
@@ -41,9 +42,17 @@ class NoVpnService : VpnService() {
                 val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
                 val excludedPackages = intent.getStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES).orEmpty()
                 startForegroundRuntime(getString(R.string.runtime_starting))
+                runtimeStatusStore.markStarting(
+                    status = getString(R.string.runtime_starting),
+                    detail = getString(R.string.runtime_starting_detail)
+                )
                 runCatching {
                     startCore(profileId, bypassRu, excludedPackages)
                 }.getOrElse {
+                    runtimeStatusStore.markFailed(
+                        status = getString(R.string.runtime_start_failed),
+                        detail = buildFailureDetail(it)
+                    )
                     stopCore()
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -52,6 +61,7 @@ class NoVpnService : VpnService() {
             }
 
             ACTION_STOP -> {
+                runtimeStatusStore.markStopped(getString(R.string.service_stopped))
                 stopCore()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -62,11 +72,16 @@ class NoVpnService : VpnService() {
 
     override fun onDestroy() {
         stopCore()
+        runtimeStatusStore.markStopped(getString(R.string.service_stopped))
         super.onDestroy()
     }
 
     override fun onRevoke() {
         stopCore()
+        runtimeStatusStore.markStopped(
+            status = getString(R.string.status_permission_required),
+            detail = getString(R.string.status_permission_denied_detail)
+        )
         stopSelf()
     }
 
@@ -108,16 +123,24 @@ class NoVpnService : VpnService() {
         )
         val localProxy = RuntimeLocalProxyFactory.create()
 
-        val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy)
-        val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig)
-        runtimeManager.start(xrayConfig, obfuscatorConfig)
-        tunnelInterface = establishTunnel(
-            disallowedPackages = excludedPackages,
-            upstreamAddress = effectiveProfile.server.address
-        )
-        tunnelInterface?.let { tun2ProxyBridge.start(it, localProxy, TUN_MTU) }
-            ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
+        try {
+            val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy)
+            val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig)
+            runtimeManager.start(xrayConfig, obfuscatorConfig)
+            tunnelInterface = establishTunnel(
+                disallowedPackages = excludedPackages,
+                upstreamAddress = effectiveProfile.server.address
+            )
+            tunnelInterface?.let { tun2ProxyBridge.start(it, localProxy, TUN_MTU) }
+                ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
+        } catch (error: Exception) {
+            throw IllegalStateException(buildFailureDetail(error), error)
+        }
 
+        runtimeStatusStore.markRunning(
+            status = getString(R.string.runtime_active_profile, effectiveProfile.name),
+            detail = getString(R.string.runtime_running_detail, effectiveProfile.server.address, effectiveProfile.server.port)
+        )
         startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
     }
 
@@ -174,6 +197,16 @@ class NoVpnService : VpnService() {
             notification,
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         )
+    }
+
+    private fun buildFailureDetail(error: Throwable): String {
+        val baseMessage = error.message ?: error.javaClass.simpleName
+        val diagnostics = runtimeManager.diagnosticsSummary()
+        return if (diagnostics.isBlank()) {
+            baseMessage
+        } else {
+            "$baseMessage\n$diagnostics"
+        }
     }
 
     private fun buildNotification(contentText: String) =

@@ -43,8 +43,11 @@
     <string name="apps_subtitle">Checked apps stay direct through addDisallowedApplication().</string>
     <string name="save_settings">Save settings</string>
     <string name="runtime_starting">Starting VPN runtime</string>
+    <string name="runtime_starting_detail">Launching the Android VPN service, Xray, and the local tun2proxy bridge.</string>
+    <string name="runtime_start_failed">VPN startup failed</string>
     <string name="runtime_profile_incomplete">Import a real server profile before connecting.</string>
     <string name="runtime_active_profile">VPN active: %1$s</string>
+    <string name="runtime_running_detail">Tunnel established. Upstream %1$s:%2$d is active.</string>
     <string name="preflight_ready">Runtime preflight passed</string>
     <string name="preflight_attention">Runtime preflight needs attention</string>
     <string name="preflight_tun2proxy_ready">Tun2proxy bridge is bundled for live TUN to Xray forwarding.</string>

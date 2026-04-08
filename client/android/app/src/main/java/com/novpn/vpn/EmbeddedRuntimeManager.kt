@@ -7,6 +7,8 @@ class EmbeddedRuntimeManager(private val context: Context) {
     private val runtimeRoot = File(context.filesDir, "runtime")
     private val binDir = File(runtimeRoot, "bin")
     private val logsDir = File(runtimeRoot, "logs")
+    private val xrayLogFile = File(logsDir, "xray.log")
+    private val obfuscatorLogFile = File(logsDir, "obfuscator.log")
     private var xrayProcess: Process? = null
     private var obfuscatorProcess: Process? = null
 
@@ -27,8 +29,9 @@ class EmbeddedRuntimeManager(private val context: Context) {
         )
             .directory(binDir)
             .redirectErrorStream(true)
-            .redirectOutput(File(logsDir, "obfuscator.log"))
+            .redirectOutput(obfuscatorLogFile)
             .start()
+        verifyProcessStartup(obfuscatorProcess, "obfuscator", obfuscatorLogFile)
 
         val xrayBuilder = ProcessBuilder(
             xrayBinary.absolutePath,
@@ -38,11 +41,12 @@ class EmbeddedRuntimeManager(private val context: Context) {
         )
             .directory(binDir)
             .redirectErrorStream(true)
-            .redirectOutput(File(logsDir, "xray.log"))
+            .redirectOutput(xrayLogFile)
         xrayBuilder.environment()["XRAY_LOCATION_ASSET"] = binDir.absolutePath
         xrayBuilder.environment()["XRAY_LOCATION_CONFIG"] =
             xrayConfig.parentFile?.absolutePath ?: runtimeRoot.absolutePath
         xrayProcess = xrayBuilder.start()
+        verifyProcessStartup(xrayProcess, "xray", xrayLogFile)
     }
 
     fun stop() {
@@ -59,6 +63,16 @@ class EmbeddedRuntimeManager(private val context: Context) {
     }
 
     fun logsDirectory(): File = logsDir
+
+    fun diagnosticsSummary(): String {
+        val sections = buildList {
+            processSummary("xray", xrayProcess)?.let(::add)
+            processSummary("obfuscator", obfuscatorProcess)?.let(::add)
+            logTailSummary("xray", xrayLogFile)?.let(::add)
+            logTailSummary("obfuscator", obfuscatorLogFile)?.let(::add)
+        }
+        return sections.joinToString("\n")
+    }
 
     private fun installAbiAwareBinary(binaryName: String): File {
         val assetPath = EmbeddedRuntimeAssets.resolveBinaryAssetPath(context, binaryName)
@@ -86,5 +100,54 @@ class EmbeddedRuntimeManager(private val context: Context) {
                 input.copyTo(output)
             }
         }
+    }
+
+    private fun verifyProcessStartup(process: Process?, label: String, logFile: File) {
+        if (process == null) {
+            throw IllegalStateException("$label process was not created.")
+        }
+
+        Thread.sleep(250)
+        if (process.isAlive) {
+            return
+        }
+
+        val exitCode = runCatching { process.exitValue() }.getOrNull()
+        val tail = readLogTail(logFile)
+        val detail = if (tail.isBlank()) {
+            "$label exited immediately with code ${exitCode ?: -1}."
+        } else {
+            "$label exited immediately with code ${exitCode ?: -1}. Log tail: $tail"
+        }
+        throw IllegalStateException(detail)
+    }
+
+    private fun processSummary(label: String, process: Process?): String? {
+        process ?: return null
+        return if (process.isAlive) {
+            "$label process is alive."
+        } else {
+            "$label process exited with code ${runCatching { process.exitValue() }.getOrElse { -1 }}."
+        }
+    }
+
+    private fun logTailSummary(label: String, logFile: File): String? {
+        val tail = readLogTail(logFile)
+        if (tail.isBlank()) {
+            return null
+        }
+        return "$label log: $tail"
+    }
+
+    private fun readLogTail(logFile: File, lineCount: Int = 12): String {
+        if (!logFile.exists()) {
+            return ""
+        }
+        return runCatching {
+            logFile.readLines()
+                .takeLast(lineCount)
+                .joinToString(" | ")
+                .trim()
+        }.getOrDefault("")
     }
 }

@@ -14,6 +14,7 @@ import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
 import com.novpn.vpn.RuntimePreflightChecker
 import com.novpn.vpn.RuntimePreflightReport
+import com.novpn.vpn.VpnRuntimeStatusStore
 import com.novpn.vpn.VpnRuntimeRequest
 import com.novpn.xray.AndroidXrayConfigWriter
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val preflightChecker = RuntimePreflightChecker(application)
     private val deviceIdentityStore = DeviceIdentityStore(application)
     private val inviteRedeemer = InviteRedeemer()
+    private val runtimeStatusStore = VpnRuntimeStatusStore(application)
 
     private val _state = MutableStateFlow(TunnelState())
     val state: StateFlow<TunnelState> = _state
@@ -51,6 +53,8 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             preferences.saveSelectedProfileId(normalizedProfileId)
         }
 
+        val runtimeStatus = runtimeStatusStore.load()
+
         _state.update {
             it.copy(
                 bypassRu = preferences.isBypassRuEnabled(),
@@ -59,11 +63,11 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 installedApps = appsScanner.loadLaunchableApps(),
                 availableProfiles = availableProfiles,
                 selectedProfileId = normalizedProfileId,
-                runtimeStatus = if (it.runtimeRunning) {
-                    it.runtimeStatus
-                } else {
+                runtimeRunning = runtimeStatus.running,
+                runtimeStatus = runtimeStatus.status.ifBlank {
                     appContext.getString(R.string.service_stopped)
-                }
+                },
+                runtimeDetail = runtimeStatus.detail
             )
         }
     }
@@ -140,11 +144,8 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun markRuntimeStarted(configPath: String) {
-        val profileName = selectedProfileName()
         _state.update {
             it.copy(
-                runtimeRunning = true,
-                runtimeStatus = appContext.getString(R.string.connected_to_profile, profileName),
                 generatedConfigPath = configPath
             )
         }
@@ -154,7 +155,8 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         _state.update {
             it.copy(
                 runtimeRunning = false,
-                runtimeStatus = appContext.getString(R.string.service_stopped)
+                runtimeStatus = appContext.getString(R.string.service_stopped),
+                runtimeDetail = ""
             )
         }
     }

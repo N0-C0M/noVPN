@@ -26,6 +26,7 @@ import androidx.lifecycle.lifecycleScope
 import com.novpn.R
 import com.novpn.data.AvailableProfile
 import com.novpn.vpn.NoVpnService
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -372,10 +373,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        statusDetail.text = buildString {
+        val baselineDetail = buildString {
             appendLine(serverLine)
             appendLine(modeLine)
             append(appsLine)
+        }
+        statusDetail.text = if (state.runtimeDetail.isBlank()) {
+            baselineDetail
+        } else {
+            state.runtimeDetail + "\n\n" + baselineDetail
         }
 
         val preflight = viewModel.runtimePreflight()
@@ -526,6 +532,13 @@ class MainActivity : ComponentActivity() {
             ContextCompat.startForegroundService(this, intent)
             viewModel.markRuntimeStarted(configPath)
             renderState(viewModel.state.value)
+            lifecycleScope.launch {
+                repeat(8) {
+                    delay(500)
+                    viewModel.refreshStateFromPreferences()
+                    renderState(viewModel.state.value)
+                }
+            }
         }.onFailure { error ->
             statusTitle.text = getString(R.string.runtime_profile_incomplete)
             statusDetail.text = error.message ?: getString(R.string.import_profile_failed)
