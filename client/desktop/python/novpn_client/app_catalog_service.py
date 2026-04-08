@@ -13,10 +13,18 @@ class AppCatalogService:
         r"C:\Users\%USERNAME%\AppData\Local\Programs\Opera\opera.exe",
     ]
 
-    def list_candidates(self) -> list[str]:
+    def list_candidates(self, extra_paths: list[str] | None = None) -> list[str]:
         result: list[str] = []
-        for raw_path in self._KNOWN_EXECUTABLES:
-            path = Path(os.path.expandvars(raw_path))
-            if path.exists():
-                result.append(str(path))
+        for raw_path in [*self._KNOWN_EXECUTABLES, *(extra_paths or [])]:
+            normalized = self.normalize_executable(raw_path)
+            if normalized and normalized not in result:
+                result.append(normalized)
         return result
+
+    def normalize_executable(self, raw_path: str | Path) -> str:
+        path = Path(os.path.expandvars(str(raw_path))).expanduser()
+        if path.suffix.lower() != ".exe":
+            return ""
+        if not path.exists():
+            return ""
+        return str(path.resolve())

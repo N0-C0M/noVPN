@@ -7,18 +7,28 @@ from pathlib import Path
 
 from .app_catalog_service import AppCatalogService
 from .config_builder import XrayConfigBuilder
-from .models import DesktopSettings
+from .device_identity_store import DeviceIdentityStore
+from .invite_redeemer import InviteRedeemer
+from .models import AppRoutingMode, DesktopSettings, PatternMaskingStrategy, TrafficObfuscationStrategy
+from .network_diagnostics import NetworkDiagnosticsRunner
 from .profile_store import ProfileStore
 from .runtime_manager import DesktopRuntimeManager
+from .runtime_preflight import RuntimePreflightChecker
+from .state_store import ClientStateStore
 from .ui.main_window import MainWindow
 
 
 def main() -> int:
     root = Path(__file__).resolve().parents[4]
     default_profile = root / "client" / "common" / "profiles" / "reality" / "default.profile.json"
+    bootstrap_profile = root / "client" / "android" / "app" / "src" / "main" / "assets" / "bootstrap.json"
+    generated_root = root / "client" / "desktop" / "python" / "generated"
+    imported_profiles_dir = generated_root / "profiles"
+    state_path = generated_root / "client_state.json"
+    device_identity_path = generated_root / "device_identity.json"
     default_output = root / "client" / "desktop" / "python" / "generated" / "config.json"
 
-    parser = argparse.ArgumentParser(description="NoVPN desktop scaffold")
+    parser = argparse.ArgumentParser(description="NoVPN desktop client")
     parser.add_argument("--profile", type=Path, default=default_profile)
     parser.add_argument("--output", type=Path, default=default_output)
     parser.add_argument("--bypass-ru", action="store_true")
@@ -29,7 +39,7 @@ def main() -> int:
     parser.add_argument("--obfuscator-bin", type=Path)
     args = parser.parse_args()
 
-    store = ProfileStore(args.profile)
+    store = ProfileStore(args.profile, imported_profiles_dir, bootstrap_profile)
     builder = XrayConfigBuilder()
     catalog = AppCatalogService()
     runtime_manager = DesktopRuntimeManager(
@@ -37,12 +47,20 @@ def main() -> int:
         xray_binary=args.xray_bin,
         obfuscator_binary=args.obfuscator_bin,
     )
+    state_store = ClientStateStore(state_path)
+    device_identity_store = DeviceIdentityStore(device_identity_path)
+    invite_redeemer = InviteRedeemer()
+    diagnostics_runner = NetworkDiagnosticsRunner()
+    preflight_checker = RuntimePreflightChecker(store, runtime_manager.layout)
 
     if args.headless:
-        profile = store.load()
+        profile = store.load(args.profile)
         settings = DesktopSettings(
             bypass_ru=args.bypass_ru,
-            excluded_apps=args.exclude_app,
+            app_routing_mode=AppRoutingMode.EXCLUDE_SELECTED,
+            selected_apps=args.exclude_app,
+            traffic_strategy=TrafficObfuscationStrategy.BALANCED,
+            pattern_strategy=PatternMaskingStrategy.STEADY,
             output_path=args.output,
         )
         output_path = builder.write(profile, settings)
@@ -73,9 +91,14 @@ def main() -> int:
 
     window = MainWindow(
         profile_store=store,
+        state_store=state_store,
+        device_identity_store=device_identity_store,
         builder=builder,
         catalog=catalog,
         output_path=args.output,
         runtime_manager=runtime_manager,
+        invite_redeemer=invite_redeemer,
+        diagnostics_runner=diagnostics_runner,
+        preflight_checker=preflight_checker,
     )
     return window.run()

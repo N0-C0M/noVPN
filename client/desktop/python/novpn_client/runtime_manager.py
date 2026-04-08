@@ -29,6 +29,10 @@ class DesktopRuntimeManager:
         self._obfuscator_log_handle: TextIOWrapper | None = None
         atexit.register(self._shutdown_quietly)
 
+    @property
+    def layout(self) -> RuntimeLayout:
+        return self._layout
+
     def start(self, profile: ClientProfile, settings: DesktopSettings) -> RuntimeStatus:
         if self._is_running():
             return self.status("Runtime already running")
@@ -36,7 +40,10 @@ class DesktopRuntimeManager:
         self._layout.ensure_directories()
         runtime_settings = DesktopSettings(
             bypass_ru=settings.bypass_ru,
-            excluded_apps=list(settings.excluded_apps),
+            app_routing_mode=settings.app_routing_mode,
+            selected_apps=list(settings.selected_apps),
+            traffic_strategy=settings.traffic_strategy,
+            pattern_strategy=settings.pattern_strategy,
             output_path=self._layout.xray_config,
         )
         self._xray_builder.write(profile, runtime_settings)
@@ -65,7 +72,16 @@ class DesktopRuntimeManager:
             },
         )
 
-        time.sleep(0.2)
+        time.sleep(0.35)
+        failed_runtime = self._failed_runtime_process()
+        if failed_runtime is not None:
+            failed_runtime_name, log_path = failed_runtime
+            self.stop()
+            log_excerpt = self._read_log_excerpt(log_path)
+            detail = f"{failed_runtime_name} exited immediately."
+            if log_excerpt:
+                detail += f" Last log lines: {log_excerpt}"
+            raise RuntimeError(detail)
         return self.status("Runtime started")
 
     def stop(self) -> RuntimeStatus:
@@ -129,6 +145,16 @@ class DesktopRuntimeManager:
             for process in (self._xray_process, self._obfuscator_process)
         )
 
+    def _failed_runtime_process(self) -> tuple[str, Path] | None:
+        candidates = [
+            ("Xray", self._xray_process, self._layout.xray_log),
+            ("Obfuscator", self._obfuscator_process, self._layout.obfuscator_log),
+        ]
+        for name, process, log_path in candidates:
+            if process is not None and process.poll() is not None:
+                return name, log_path
+        return None
+
     def _stop_process(self, process: subprocess.Popen[str] | None) -> None:
         if process is None or process.poll() is not None:
             return
@@ -150,3 +176,10 @@ class DesktopRuntimeManager:
         if handle is None or handle.closed:
             return
         handle.close()
+
+    def _read_log_excerpt(self, log_path: Path, max_lines: int = 4) -> str:
+        if not log_path.exists():
+            return ""
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        excerpt = " | ".join(line.strip() for line in lines[-max_lines:] if line.strip())
+        return excerpt[:500]

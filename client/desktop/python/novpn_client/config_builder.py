@@ -8,13 +8,21 @@ from .models import ClientProfile, DesktopSettings
 
 class XrayConfigBuilder:
     def build(self, profile: ClientProfile, settings: DesktopSettings) -> dict:
+        selected_fingerprint = self._selected_fingerprint(profile, settings)
+        selected_spider_x = self._selected_spider_x(profile, settings, selected_fingerprint)
         rules: list[dict] = [
             {
                 "type": "field",
                 "ip": ["geoip:private"],
                 "outboundTag": "direct",
                 "ruleTag": "private-direct",
-            }
+            },
+            {
+                "type": "field",
+                "process": ["self/", "xray/"],
+                "outboundTag": "direct",
+                "ruleTag": "runtime-self-direct",
+            },
         ]
 
         if settings.bypass_ru:
@@ -22,35 +30,48 @@ class XrayConfigBuilder:
                 [
                     {
                         "type": "field",
-                        "domain": ["ext:geosite.dat:ru"],
+                        "domain": ["domain:ru", "domain:su", "domain:xn--p1ai"],
                         "outboundTag": "direct",
                         "ruleTag": "ru-domain-direct",
                     },
                     {
                         "type": "field",
-                        "ip": ["ext:geoip.dat:ru"],
+                        "ip": ["geoip:ru"],
                         "outboundTag": "direct",
                         "ruleTag": "ru-ip-direct",
                     },
                 ]
             )
 
-        if settings.excluded_apps:
+        selected_processes = self._selected_processes(settings.selected_apps)
+        if selected_processes:
             rules.append(
                 {
                     "type": "field",
-                    "process": settings.excluded_apps,
-                    "outboundTag": "direct",
-                    "ruleTag": "desktop-excluded-apps-direct",
+                    "process": selected_processes,
+                    "outboundTag": (
+                        "direct"
+                        if settings.app_routing_mode.value == "exclude_selected"
+                        else "proxy"
+                    ),
+                    "ruleTag": (
+                        "desktop-excluded-apps-direct"
+                        if settings.app_routing_mode.value == "exclude_selected"
+                        else "desktop-selected-apps-proxy"
+                    ),
                 }
             )
+
+        default_outbound = "proxy"
+        if selected_processes and settings.app_routing_mode.value == "only_selected":
+            default_outbound = "direct"
 
         rules.append(
             {
                 "type": "field",
                 "network": "tcp,udp",
-                "outboundTag": "proxy",
-                "ruleTag": "default-proxy",
+                "outboundTag": default_outbound,
+                "ruleTag": f"default-{default_outbound}",
             }
         )
 
@@ -106,10 +127,10 @@ class XrayConfigBuilder:
                         "security": "reality",
                         "realitySettings": {
                             "serverName": profile.server.server_name,
-                            "fingerprint": profile.server.fingerprint,
+                            "fingerprint": selected_fingerprint,
                             "publicKey": profile.server.public_key,
                             "shortId": profile.server.short_id,
-                            "spiderX": profile.server.spider_x,
+                            "spiderX": selected_spider_x,
                         },
                     },
                 },
@@ -136,3 +157,41 @@ class XrayConfigBuilder:
             encoding="utf-8",
         )
         return settings.output_path
+
+    def _selected_fingerprint(self, profile: ClientProfile, settings: DesktopSettings) -> str:
+        if settings.traffic_strategy.value == "balanced":
+            return profile.server.fingerprint
+        return settings.traffic_strategy.fingerprint
+
+    def _selected_spider_x(
+        self,
+        profile: ClientProfile,
+        settings: DesktopSettings,
+        selected_fingerprint: str,
+    ) -> str:
+        pattern_strategy = settings.pattern_strategy
+        if pattern_strategy.value == "steady":
+            return profile.server.spider_x
+        if pattern_strategy.value == "pulse":
+            return pattern_strategy.spider_xpath
+        if pattern_strategy.value == "randomized":
+            suffix = profile.server.short_id[-4:] or "edge"
+            return f"{pattern_strategy.spider_xpath}/{suffix}"
+        if pattern_strategy.value == "quiet_sweep":
+            fingerprint_hint = selected_fingerprint[:3].lower()
+            return f"{pattern_strategy.spider_xpath}?fp={fingerprint_hint}"
+        return pattern_strategy.spider_xpath
+
+    def _selected_processes(self, selected_apps: list[str]) -> list[str]:
+        result: list[str] = []
+        for raw_path in selected_apps:
+            normalized = str(raw_path).strip()
+            if not normalized:
+                continue
+            process_name = Path(normalized).stem.strip()
+            if process_name and process_name not in result:
+                result.append(process_name)
+            normalized_path = normalized.replace("\\", "/")
+            if "/" in normalized_path and normalized_path not in result:
+                result.append(normalized_path)
+        return result
