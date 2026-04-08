@@ -28,14 +28,20 @@ class AndroidXrayConfigWriter(private val context: Context) {
             rules.put(
                 JSONObject()
                     .put("type", "field")
-                    .put("domain", JSONArray().put("ext:geosite.dat:ru"))
+                    .put(
+                        "domain",
+                        JSONArray()
+                            .put("domain:ru")
+                            .put("domain:su")
+                            .put("domain:xn--p1ai")
+                    )
                     .put("outboundTag", "direct")
                     .put("ruleTag", "ru-domain-direct")
             )
             rules.put(
                 JSONObject()
                     .put("type", "field")
-                    .put("ip", JSONArray().put("ext:geoip.dat:ru"))
+                    .put("ip", JSONArray().put("geoip:ru"))
                     .put("outboundTag", "direct")
                     .put("ruleTag", "ru-ip-direct")
             )
