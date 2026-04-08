@@ -11,6 +11,8 @@ import com.novpn.data.ClientPreferences
 import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.ProfileRepository
 import com.novpn.data.NetworkDiagnosticsRunner
+import com.novpn.data.CodeRedeemKind
+import com.novpn.data.CodeRedeemResult
 import com.novpn.data.requireRuntimeReady
 import com.novpn.data.withRuntimeStrategies
 import com.novpn.data.withObfuscationSeed
@@ -131,27 +133,50 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         refreshStateFromPreferences()
     }
 
-    suspend fun activateInviteCode(): String {
+    suspend fun activateInviteCode(): CodeRedeemResult {
         val inviteCode = _state.value.inviteCode.trim()
         require(inviteCode.isNotBlank()) {
             appContext.getString(R.string.invite_code_missing)
         }
 
-        val payload = inviteRedeemer.redeem(
-            serverAddress = profileRepository.bootstrapServerAddress(),
+        val serverAddress = runCatching {
+            profileRepository.loadProfile(currentProfileId()).server.address
+        }.getOrDefault(profileRepository.bootstrapServerAddress())
+
+        val redeemResult = inviteRedeemer.redeem(
+            serverAddress = serverAddress,
             inviteCode = inviteCode,
             deviceId = deviceIdentityStore.deviceId(),
             deviceName = deviceIdentityStore.deviceName()
         )
 
-        val importedProfile = profileRepository.importProfilePayload(
-            payload = payload,
-            nameHint = "invite-$inviteCode"
-        )
-        preferences.saveSelectedProfileId(importedProfile.profileId)
         preferences.saveInviteCode(inviteCode)
+        if (redeemResult.kind == CodeRedeemKind.INVITE) {
+            val importedProfile = profileRepository.importProfilePayload(
+                payload = redeemResult.profilePayload,
+                nameHint = "invite-$inviteCode"
+            )
+            preferences.saveSelectedProfileId(importedProfile.profileId)
+        }
         refreshStateFromPreferences()
-        return importedProfile.name
+        return redeemResult
+    }
+
+    suspend fun disconnectCurrentDevice() {
+        val profileId = requireCurrentProfileId()
+        require(profileRepository.isImportedProfile(profileId)) {
+            "This device is not linked to an imported activation code."
+        }
+        val profile = profileRepository.loadProfile(profileId)
+        inviteRedeemer.disconnect(
+            serverAddress = profile.server.address,
+            deviceId = deviceIdentityStore.deviceId(),
+            deviceName = deviceIdentityStore.deviceName(),
+            clientUuid = profile.server.uuid
+        )
+        profileRepository.deleteProfile(profileId)
+        preferences.saveSelectedProfileId(profileRepository.defaultProfileId())
+        refreshStateFromPreferences()
     }
 
     fun generateConfig() {

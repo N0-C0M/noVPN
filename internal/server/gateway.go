@@ -20,16 +20,18 @@ import (
 )
 
 type Gateway struct {
-	cfg            config.Config
-	logger         *slog.Logger
-	metrics        *observability.Metrics
-	httpServer     *http.Server
-	adminServer    *http.Server
-	readinessTimer *time.Timer
-	ready          atomic.Bool
-	tcpProxies     []*tcpproxy.Proxy
-	udpProxies     []*udpproxy.Proxy
-	reality        *reality.Provisioner
+	cfg             config.Config
+	logger          *slog.Logger
+	metrics         *observability.Metrics
+	httpServer      *http.Server
+	adminServer     *http.Server
+	readinessTimer  *time.Timer
+	ready           atomic.Bool
+	tcpProxies      []*tcpproxy.Proxy
+	udpProxies      []*udpproxy.Proxy
+	reality         *reality.Provisioner
+	trafficSyncStop chan struct{}
+	trafficSyncDone chan struct{}
 }
 
 func New(cfg config.Config, logger *slog.Logger) (*Gateway, error) {
@@ -46,6 +48,8 @@ func New(cfg config.Config, logger *slog.Logger) (*Gateway, error) {
 
 	if cfg.Core.Reality.Enabled {
 		gateway.reality = reality.NewProvisioner(cfg.Core.Reality, logger)
+		gateway.trafficSyncStop = make(chan struct{})
+		gateway.trafficSyncDone = make(chan struct{})
 	}
 
 	gateway.httpServer = observability.NewHTTPServer(
@@ -159,6 +163,10 @@ func (g *Gateway) Start(_ context.Context) (err error) {
 		g.ready.Store(true)
 	}
 
+	if g.reality != nil {
+		go g.runTrafficSyncLoop()
+	}
+
 	g.logger.Info("gateway started", "tcp_listeners", len(g.tcpProxies), "udp_listeners", len(g.udpProxies))
 	return nil
 }
@@ -167,12 +175,25 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 	g.metrics.ShutdownInProgress.Set(1)
 	defer g.metrics.ShutdownInProgress.Set(0)
 
+	var firstErr error
+
 	if g.readinessTimer != nil {
 		g.readinessTimer.Stop()
 	}
 	g.ready.Store(false)
-
-	var firstErr error
+	if g.trafficSyncStop != nil {
+		close(g.trafficSyncStop)
+		g.trafficSyncStop = nil
+	}
+	if g.trafficSyncDone != nil {
+		select {
+		case <-g.trafficSyncDone:
+		case <-ctx.Done():
+			if firstErr == nil {
+				firstErr = ctx.Err()
+			}
+		}
+	}
 
 	for _, proxy := range g.tcpProxies {
 		if err := proxy.Shutdown(ctx); err != nil && firstErr == nil {
@@ -199,6 +220,26 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 
 	g.logger.Info("gateway stopped")
 	return firstErr
+}
+
+func (g *Gateway) runTrafficSyncLoop() {
+	defer close(g.trafficSyncDone)
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			syncCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_, err := g.reality.SyncTraffic(syncCtx)
+			cancel()
+			if err != nil {
+				g.logger.Warn("traffic sync failed", "error", err)
+			}
+		case <-g.trafficSyncStop:
+			return
+		}
+	}
 }
 
 func (g *Gateway) Ready() bool {

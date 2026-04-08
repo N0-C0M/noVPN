@@ -189,7 +189,10 @@ class NoVpnService : VpnService() {
                 packageNames = selectedPackages,
                 upstreamAddress = effectiveProfile.server.address
             )
-            tunnelInterface?.let { tun2ProxyBridge.start(it, localProxy, TUN_MTU) }
+            tunnelInterface?.let {
+                tun2ProxyBridge.start(it, localProxy, TUN_MTU)
+                tun2ProxyBridge.confirmStarted()
+            }
                 ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
         } catch (error: Exception) {
             throw IllegalStateException(buildFailureDetail(error), error)

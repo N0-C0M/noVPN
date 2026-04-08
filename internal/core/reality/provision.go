@@ -27,8 +27,8 @@ import (
 )
 
 type Provisioner struct {
-	cfg          config.RealityConfig
-	logger       *slog.Logger
+	cfg           config.RealityConfig
+	logger        *slog.Logger
 	registryStore *RegistryStore
 }
 
@@ -241,6 +241,26 @@ func (p *Provisioner) renderXrayConfig(state State, registry Registry) ([]byte, 
 			"access":   p.cfg.Xray.Log.AccessPath,
 			"error":    p.cfg.Xray.Log.ErrorPath,
 		},
+		"api": map[string]any{
+			"tag":      "api",
+			"listen":   defaultXrayStatsAPIListen,
+			"services": []string{"StatsService"},
+		},
+		"stats": map[string]any{},
+		"policy": map[string]any{
+			"levels": map[string]any{
+				"0": map[string]any{
+					"statsUserUplink":   true,
+					"statsUserDownlink": true,
+				},
+			},
+			"system": map[string]any{
+				"statsInboundUplink":    true,
+				"statsInboundDownlink":  true,
+				"statsOutboundUplink":   true,
+				"statsOutboundDownlink": true,
+			},
+		},
 		"inbounds": []any{
 			map[string]any{
 				"tag":      "vless-reality-in",
@@ -249,7 +269,7 @@ func (p *Provisioner) renderXrayConfig(state State, registry Registry) ([]byte, 
 				"protocol": "vless",
 				"settings": map[string]any{
 					"decryption": "none",
-					"clients":   registry.ActiveXrayClients(p.cfg.Flow),
+					"clients":    registry.ActiveXrayClients(p.cfg.Flow),
 				},
 				"streamSettings": map[string]any{
 					"network":  "tcp",

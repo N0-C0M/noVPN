@@ -2,11 +2,24 @@ package com.novpn.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+
+enum class CodeRedeemKind {
+    INVITE,
+    PROMO
+}
+
+data class CodeRedeemResult(
+    val kind: CodeRedeemKind,
+    val profilePayload: String = "",
+    val profileName: String = "",
+    val bonusBytes: Long = 0L
+)
 
 class InviteRedeemer {
     suspend fun redeem(
@@ -14,7 +27,7 @@ class InviteRedeemer {
         inviteCode: String,
         deviceId: String,
         deviceName: String
-    ): String = withContext(Dispatchers.IO) {
+    ): CodeRedeemResult = withContext(Dispatchers.IO) {
         val normalizedAddress = serverAddress.trim().trimEnd('/')
         val normalizedCode = inviteCode.trim()
         require(normalizedAddress.isNotBlank()) { "No server address available for invite activation." }
@@ -27,7 +40,7 @@ class InviteRedeemer {
             readTimeout = 15_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            setRequestProperty("Accept", "application/x-yaml")
+            setRequestProperty("Accept", "application/json")
         }
 
         val payload = """
@@ -49,8 +62,75 @@ class InviteRedeemer {
             )
         }
 
-        body.ifBlank {
-            throw IllegalStateException("Invite activation returned an empty profile payload.")
+        val root = runCatching { JSONObject(body) }.getOrElse {
+            throw IllegalStateException(
+                body.ifBlank { "Code activation returned an empty response." }
+            )
+        }
+
+        when (root.optString("kind")) {
+            "invite" -> {
+                val payloadText = root.optString("client_profile_yaml").trim()
+                if (payloadText.isBlank()) {
+                    throw IllegalStateException("Server did not return a client profile.")
+                }
+                CodeRedeemResult(
+                    kind = CodeRedeemKind.INVITE,
+                    profilePayload = payloadText,
+                    profileName = root.optJSONObject("client_profile")?.optString("name").orEmpty()
+                )
+            }
+            "promo" -> {
+                CodeRedeemResult(
+                    kind = CodeRedeemKind.PROMO,
+                    bonusBytes = root.optLong("bonus_bytes", 0L)
+                )
+            }
+            else -> throw IllegalStateException(
+                body.ifBlank { "Code activation returned an empty response." }
+            )
+        }
+    }
+
+    suspend fun disconnect(
+        serverAddress: String,
+        deviceId: String,
+        deviceName: String,
+        clientUuid: String
+    ) = withContext(Dispatchers.IO) {
+        val normalizedAddress = serverAddress.trim().trimEnd('/')
+        require(normalizedAddress.isNotBlank()) { "No server address available for disconnect." }
+        require(deviceId.isNotBlank()) { "Device ID is missing." }
+        require(clientUuid.isNotBlank()) { "Client UUID is missing." }
+
+        val endpoint = URL("http://$normalizedAddress/admin/disconnect")
+        val connection = (endpoint.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            setRequestProperty("Accept", "application/json")
+        }
+
+        val payload = """
+            {
+              "device_id": ${quoteJson(deviceId)},
+              "device_name": ${quoteJson(deviceName)},
+              "client_uuid": ${quoteJson(clientUuid)}
+            }
+        """.trimIndent()
+
+        connection.outputStream.use { output ->
+            output.write(payload.toByteArray(StandardCharsets.UTF_8))
+        }
+
+        val status = connection.responseCode
+        val body = readAll(connection)
+        if (status !in 200..299) {
+            throw IllegalStateException(
+                body.ifBlank { "Device disconnect failed with HTTP $status." }
+            )
         }
     }
 

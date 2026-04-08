@@ -11,10 +11,10 @@
     <string name="hero_tap_to_connect">Нажмите, чтобы подключить или отключить туннель</string>
     <string name="status_ready">Готово</string>
     <string name="status_connected">Подключено</string>
-    <string name="invite_code_title">Код приглашения</string>
-    <string name="invite_code_hint">Вставьте одноразовый код из админ-панели. Он сохранится только на этом устройстве.</string>
-    <string name="invite_code_placeholder">Введите код</string>
-    <string name="activate_invite_code">Активировать код</string>
+    <string name="invite_code_title">Код или промокод</string>
+    <string name="invite_code_hint">Введите ключ активации или промокод в это же поле.</string>
+    <string name="invite_code_placeholder">Введите код или промокод</string>
+    <string name="activate_invite_code">Активировать</string>
     <string name="invite_code_saved">Код сохранён</string>
     <string name="invite_code_missing">Сначала введите код приглашения.</string>
     <string name="invite_code_activating">Активируем код</string>

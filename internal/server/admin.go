@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -22,26 +25,29 @@ import (
 )
 
 type adminApp struct {
-	cfg          config.AdminConfig
-	reality      *reality.Provisioner
-	metrics      *observability.Metrics
-	logger       *slog.Logger
-	dashboardTpl *template.Template
-	loginTpl     *template.Template
-	basePath     string
-	token        string
-	cookieName   string
-	httpServer   *http.Server
+	cfg           config.AdminConfig
+	reality       *reality.Provisioner
+	metrics       *observability.Metrics
+	logger        *slog.Logger
+	dashboardTpl  *template.Template
+	loginTpl      *template.Template
+	basePath      string
+	token         string
+	cookieName    string
+	httpServer    *http.Server
+	siteImagePath string
 }
 
 type dashboardView struct {
-	BasePath           string
-	GeneratedAt        time.Time
-	Summary            reality.RegistrySummary
-	Clients            []reality.ClientRecord
-	Invites            []reality.InviteRecord
-	Metrics            []metricRow
-	ServerStats        []metricRow
+	BasePath          string
+	GeneratedAt       time.Time
+	Summary           reality.RegistrySummary
+	Clients           []reality.ClientRecord
+	Invites           []reality.InviteRecord
+	Promos            []reality.PromoRecord
+	ClientSort        string
+	Metrics           []metricRow
+	ServerStats       []metricRow
 	HealthAddr        string
 	RegistryPath      string
 	ClientProfilePath string
@@ -50,6 +56,7 @@ type dashboardView struct {
 	PingURL           string
 	DownloadURL       string
 	UploadURL         string
+	SiteImageURL      string
 	Ready             bool
 	Notice            string
 }
@@ -61,19 +68,25 @@ type metricRow struct {
 
 func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisioner, metrics *observability.Metrics, logger *slog.Logger) *http.Server {
 	app := &adminApp{
-		cfg:        cfg,
-		reality:    realityProvisioner,
-		metrics:    metrics,
-		logger:     logger.With("component", "admin"),
-		basePath:   strings.TrimRight(cfg.BasePath, "/"),
-		token:      strings.TrimSpace(cfg.Token),
-		cookieName: "novpn_admin_token",
+		cfg:           cfg,
+		reality:       realityProvisioner,
+		metrics:       metrics,
+		logger:        logger.With("component", "admin"),
+		basePath:      strings.TrimRight(cfg.BasePath, "/"),
+		token:         strings.TrimSpace(cfg.Token),
+		cookieName:    "novpn_admin_token",
+		siteImagePath: locateSiteImagePath(cfg.StoragePath),
 	}
 	if app.basePath == "" {
 		app.basePath = "/admin"
 	}
-	app.dashboardTpl = template.Must(template.New("dashboard").Parse(adminDashboardTemplate))
-	app.loginTpl = template.Must(template.New("login").Parse(adminLoginTemplate))
+	funcs := template.FuncMap{
+		"formatBytes":         formatTrafficBytes,
+		"formatTrafficLimit":  formatTrafficLimit,
+		"formatTrafficRemain": formatTrafficRemain,
+	}
+	app.dashboardTpl = template.Must(template.New("dashboard").Funcs(funcs).Parse(adminDashboardTemplate))
+	app.loginTpl = template.Must(template.New("login").Funcs(funcs).Parse(adminLoginTemplate))
 	app.httpServer = &http.Server{
 		Addr:    cfg.ListenAddr,
 		Handler: app.routes(),
@@ -83,6 +96,7 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 
 func (a *adminApp) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/image.png", a.handleSiteImage)
 	mux.HandleFunc("/", a.redirectDashboard)
 	mux.HandleFunc(a.basePath+"/", a.routeBySuffix)
 	mux.HandleFunc(a.basePath, a.redirectDashboard)
@@ -112,6 +126,10 @@ func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/redeem/") {
 		a.handlePublicRedeem(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/disconnect") {
+		a.handlePublicDisconnect(w, r)
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/logout") {
@@ -229,6 +247,8 @@ func (a *adminApp) isAuthorized(r *http.Request) bool {
 }
 
 func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	a.syncTraffic(r.Context())
+
 	summary, err := a.reality.RegistrySummary()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -244,12 +264,19 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	promos, err := a.reality.ListPromos()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	state, err := a.reality.LoadState()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	realityCfg := a.reality.Config()
+	clientSort := normalizeClientSort(r.URL.Query().Get("clients_sort"))
+	sortClients(clients, clientSort)
 
 	view := dashboardView{
 		BasePath:          a.basePath,
@@ -257,6 +284,8 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Summary:           summary,
 		Clients:           clients,
 		Invites:           invites,
+		Promos:            promos,
+		ClientSort:        clientSort,
 		Metrics:           a.metricSnapshot(),
 		ServerStats:       a.serverStatSnapshot(),
 		HealthAddr:        a.metricsAddress(),
@@ -267,6 +296,7 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		PingURL:           a.basePath + "/diag/ping",
 		DownloadURL:       a.basePath + "/diag/download?bytes=4194304",
 		UploadURL:         a.basePath + "/diag/upload",
+		SiteImageURL:      "/image.png",
 		Ready:             true,
 		Notice:            "",
 	}
@@ -283,6 +313,8 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
+	a.syncTraffic(r.Context())
+
 	switch {
 	case r.URL.Path == a.basePath+"/api/summary":
 		a.writeJSON(w, r, func() (any, error) {
@@ -299,7 +331,12 @@ func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			a.writeJSON(w, r, func() (any, error) {
-				return a.reality.ListClients()
+				clients, err := a.reality.ListClients()
+				if err != nil {
+					return nil, err
+				}
+				sortClients(clients, normalizeClientSort(r.URL.Query().Get("sort")))
+				return clients, nil
 			})
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -312,6 +349,17 @@ func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
 			})
 		case http.MethodPost:
 			a.handleCreateInvite(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	case r.URL.Path == a.basePath+"/api/promos":
+		switch r.Method {
+		case http.MethodGet:
+			a.writeJSON(w, r, func() (any, error) {
+				return a.reality.ListPromos()
+			})
+		case http.MethodPost:
+			a.handleCreatePromo(w, r)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -348,6 +396,31 @@ func (a *adminApp) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 		"api_redeem_url": a.basePath + "/api/invites/" + invite.Code + "/redeem",
 		"dashboard":      a.basePath + "/dashboard",
 		"status":         "created",
+	})
+}
+
+func (a *adminApp) handleCreatePromo(w http.ResponseWriter, r *http.Request) {
+	req, err := decodePromoCreateRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	promo, err := a.reality.CreatePromo(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if wantsHTML(r) {
+		http.Redirect(w, r, a.basePath+"/dashboard", http.StatusSeeOther)
+		return
+	}
+
+	a.writeJSONPayload(w, http.StatusCreated, map[string]any{
+		"promo":     promo,
+		"dashboard": a.basePath + "/dashboard",
+		"status":    "created",
 	})
 }
 
@@ -426,7 +499,70 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var payload redeemInviteRequest
+	payload, err := decodeRedeemInviteRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceID, payload.DeviceName)
+	if err == nil {
+		clientProfile := a.reality.BuildClientProfileFor(refreshResult.State, redeemResult.Client)
+		yamlPayload, yamlErr := marshalClientProfileYAML(clientProfile)
+		if yamlErr != nil {
+			http.Error(w, yamlErr.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if wantsYAML(r) {
+			w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
+			_, _ = w.Write(yamlPayload)
+			return
+		}
+
+		a.writeJSONPayload(w, http.StatusCreated, map[string]any{
+			"kind":                "invite",
+			"invite":              redeemResult.Invite,
+			"client":              redeemResult.Client,
+			"client_profile":      clientProfile,
+			"client_profile_yaml": string(yamlPayload),
+			"config_path":         refreshResult.ConfigPath,
+			"client_profile_path": refreshResult.ClientProfilePath,
+		})
+		return
+	}
+
+	promoResult, promoRefreshResult, promoErr := a.reality.RedeemPromo(r.Context(), code, payload.DeviceID, payload.DeviceName)
+	if promoErr != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	a.writeJSONPayload(w, http.StatusCreated, map[string]any{
+		"kind":                "promo",
+		"promo":               promoResult.Promo,
+		"client":              promoResult.Client,
+		"bonus_bytes":         promoResult.Promo.BonusBytes,
+		"traffic_used_bytes":  promoResult.Client.TrafficUsedBytes,
+		"traffic_limit_bytes": promoResult.Client.TrafficLimitBytes,
+		"config_path":         promoRefreshResult.ConfigPath,
+		"client_profile_path": promoRefreshResult.ClientProfilePath,
+	})
+}
+
+type disconnectDeviceRequest struct {
+	DeviceID   string `json:"device_id"`
+	DeviceName string `json:"device_name"`
+	ClientUUID string `json:"client_uuid"`
+}
+
+func (a *adminApp) handlePublicDisconnect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload disconnectDeviceRequest
 	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		if err := decodeJSON(r, &payload); err != nil && !errorsIsEmptyBody(err) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -434,36 +570,22 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if err := r.ParseForm(); err == nil {
 		payload.DeviceID = strings.TrimSpace(r.FormValue("device_id"))
+		payload.ClientUUID = strings.TrimSpace(r.FormValue("client_uuid"))
 		payload.DeviceName = strings.TrimSpace(r.FormValue("device_name"))
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceID, payload.DeviceName)
+	client, refreshResult, err := a.reality.DisconnectDevice(r.Context(), payload.DeviceID, payload.ClientUUID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	clientProfile := a.reality.BuildClientProfileFor(refreshResult.State, redeemResult.Client)
-	yamlPayload, err := marshalClientProfileYAML(clientProfile)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if wantsYAML(r) {
-		w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
-		_, _ = w.Write(yamlPayload)
-		return
-	}
-
-	a.writeJSONPayload(w, http.StatusCreated, map[string]any{
-		"invite":              redeemResult.Invite,
-		"client":              redeemResult.Client,
-		"client_profile":      clientProfile,
-		"client_profile_yaml": string(yamlPayload),
+	a.writeJSONPayload(w, http.StatusOK, map[string]any{
+		"status":              "disconnected",
+		"client":              client,
 		"config_path":         refreshResult.ConfigPath,
 		"client_profile_path": refreshResult.ClientProfilePath,
 	})
@@ -513,8 +635,8 @@ func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
 		a.writeJSONPayload(w, http.StatusOK, map[string]any{
 			"client":              client,
 			"config_path":         refreshResult.ConfigPath,
-			"client_profile_path":  refreshResult.ClientProfilePath,
-			"registry_path":        refreshResult.RegistryPath,
+			"client_profile_path": refreshResult.ClientProfilePath,
+			"registry_path":       refreshResult.RegistryPath,
 		})
 	case "profile.yaml":
 		if r.Method != http.MethodGet {
@@ -705,22 +827,40 @@ func wantsYAML(r *http.Request) bool {
 	return strings.Contains(accept, "application/x-yaml") || strings.Contains(accept, "text/yaml")
 }
 
+func decodeRedeemInviteRequest(r *http.Request) (redeemInviteRequest, error) {
+	var payload redeemInviteRequest
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		if err := decodeJSON(r, &payload); err != nil && !errorsIsEmptyBody(err) {
+			return redeemInviteRequest{}, err
+		}
+		return payload, nil
+	}
+	if err := r.ParseForm(); err != nil {
+		return redeemInviteRequest{}, err
+	}
+	payload.DeviceID = strings.TrimSpace(r.FormValue("device_id"))
+	payload.DeviceName = strings.TrimSpace(r.FormValue("device_name"))
+	return payload, nil
+}
+
 func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, error) {
 	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		var payload struct {
-			Name           string `json:"name"`
-			Note           string `json:"note"`
-			MaxUses        int    `json:"max_uses"`
-			ExpiresMinutes int    `json:"expires_minutes"`
+			Name           string  `json:"name"`
+			Note           string  `json:"note"`
+			MaxUses        int     `json:"max_uses"`
+			TrafficLimitGB float64 `json:"traffic_limit_gb"`
+			ExpiresMinutes int     `json:"expires_minutes"`
 		}
 		if err := decodeJSON(r, &payload); err != nil {
 			return reality.InviteCreateRequest{}, err
 		}
 		return reality.InviteCreateRequest{
-			Name:         payload.Name,
-			Note:         payload.Note,
-			MaxUses:      payload.MaxUses,
-			ExpiresAfter: time.Duration(payload.ExpiresMinutes) * time.Minute,
+			Name:              payload.Name,
+			Note:              payload.Note,
+			MaxUses:           payload.MaxUses,
+			TrafficLimitBytes: trafficGBToBytes(payload.TrafficLimitGB),
+			ExpiresAfter:      time.Duration(payload.ExpiresMinutes) * time.Minute,
 		}, nil
 	}
 
@@ -729,10 +869,50 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 	}
 	minutes, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("expires_minutes")))
 	maxUses, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("max_uses")))
+	trafficLimitGB, err := parseOptionalFloat(r.FormValue("traffic_limit_gb"))
+	if err != nil {
+		return reality.InviteCreateRequest{}, err
+	}
 	return reality.InviteCreateRequest{
+		Name:              r.FormValue("name"),
+		Note:              r.FormValue("note"),
+		MaxUses:           maxUses,
+		TrafficLimitBytes: trafficGBToBytes(trafficLimitGB),
+		ExpiresAfter:      time.Duration(minutes) * time.Minute,
+	}, nil
+}
+
+func decodePromoCreateRequest(r *http.Request) (reality.PromoCreateRequest, error) {
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var payload struct {
+			Name           string  `json:"name"`
+			Note           string  `json:"note"`
+			BonusGB        float64 `json:"bonus_gb"`
+			ExpiresMinutes int     `json:"expires_minutes"`
+		}
+		if err := decodeJSON(r, &payload); err != nil {
+			return reality.PromoCreateRequest{}, err
+		}
+		return reality.PromoCreateRequest{
+			Name:         payload.Name,
+			Note:         payload.Note,
+			BonusBytes:   trafficGBToBytes(payload.BonusGB),
+			ExpiresAfter: time.Duration(payload.ExpiresMinutes) * time.Minute,
+		}, nil
+	}
+
+	if err := r.ParseForm(); err != nil {
+		return reality.PromoCreateRequest{}, err
+	}
+	minutes, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("expires_minutes")))
+	bonusGB, err := parseOptionalFloat(r.FormValue("bonus_gb"))
+	if err != nil {
+		return reality.PromoCreateRequest{}, err
+	}
+	return reality.PromoCreateRequest{
 		Name:         r.FormValue("name"),
 		Note:         r.FormValue("note"),
-		MaxUses:      maxUses,
+		BonusBytes:   trafficGBToBytes(bonusGB),
 		ExpiresAfter: time.Duration(minutes) * time.Minute,
 	}, nil
 }
@@ -797,6 +977,118 @@ func clampByteCount(raw string, fallback int64, min int64, max int64) int64 {
 	return value
 }
 
+func parseOptionalFloat(raw string) (float64, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number %q", raw)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("value must not be negative")
+	}
+	return value, nil
+}
+
+func trafficGBToBytes(value float64) int64 {
+	if value <= 0 {
+		return 0
+	}
+	return int64(value * 1024 * 1024 * 1024)
+}
+
+func formatTrafficBytes(value int64) string {
+	const unit = 1024
+	if value <= 0 {
+		return "0 B"
+	}
+	if value < unit {
+		return fmt.Sprintf("%d B", value)
+	}
+	div, exp := int64(unit), 0
+	for n := value / unit; n >= unit && exp < 5; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(value)/float64(div), "KMGTPE"[exp])
+}
+
+func formatTrafficLimit(value int64) string {
+	if value <= 0 {
+		return "unlimited"
+	}
+	return formatTrafficBytes(value)
+}
+
+func formatTrafficRemain(client reality.ClientRecord) string {
+	if client.TrafficLimitBytes <= 0 {
+		return "unlimited"
+	}
+	return formatTrafficBytes(client.TrafficRemainingBytes())
+}
+
+func normalizeClientSort(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "traffic_asc":
+		return "traffic_asc"
+	case "created_desc":
+		return "created_desc"
+	default:
+		return "traffic_desc"
+	}
+}
+
+func sortClients(clients []reality.ClientRecord, sortBy string) {
+	switch sortBy {
+	case "traffic_asc":
+		sort.SliceStable(clients, func(i, j int) bool {
+			if clients[i].TrafficUsedBytes == clients[j].TrafficUsedBytes {
+				return clients[i].CreatedAt.Before(clients[j].CreatedAt)
+			}
+			return clients[i].TrafficUsedBytes < clients[j].TrafficUsedBytes
+		})
+	default:
+		sort.SliceStable(clients, func(i, j int) bool {
+			if clients[i].TrafficUsedBytes == clients[j].TrafficUsedBytes {
+				return clients[i].CreatedAt.Before(clients[j].CreatedAt)
+			}
+			return clients[i].TrafficUsedBytes > clients[j].TrafficUsedBytes
+		})
+	}
+}
+
+func locateSiteImagePath(storagePath string) string {
+	candidates := []string{
+		filepath.Join(".", "image.png"),
+		filepath.Join(storagePath, "image.png"),
+	}
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func (a *adminApp) handleSiteImage(w http.ResponseWriter, r *http.Request) {
+	if a.siteImagePath == "" {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, a.siteImagePath)
+}
+
+func (a *adminApp) syncTraffic(ctx context.Context) {
+	if _, err := a.reality.SyncTraffic(ctx); err != nil {
+		a.logger.Debug("traffic sync skipped", "error", err)
+	}
+}
+
 const adminDashboardTemplate = `
 <!doctype html>
 <html lang="en">
@@ -809,6 +1101,9 @@ const adminDashboardTemplate = `
     body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; background: radial-gradient(circle at top, #10203a 0, #070b12 60%); color: var(--text); }
     .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 20px 56px; }
     .hero { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .hero-copy { flex: 1 1 420px; }
+    .hero-media { flex: 0 1 320px; display: flex; justify-content: flex-end; }
+    .hero-art { width: min(320px, 100%); border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 18px 55px rgba(0,0,0,0.28); }
     .title { font-size: 30px; font-weight: 800; letter-spacing: -0.04em; margin: 0; }
     .sub { color: var(--muted); margin-top: 6px; }
     .chip { display: inline-block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,0.03); color: var(--muted); font-size: 12px; }
@@ -829,15 +1124,23 @@ const adminDashboardTemplate = `
     form.inline > * { flex: 1 1 180px; }
     .small { font-size: 12px; }
     .topline { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .actions { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom: 10px; }
     a { color: var(--accent); text-decoration: none; }
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
-    <div>
+    <div class="hero-copy">
       <h1 class="title">NoVPN Admin</h1>
-      <div class="sub">Registry, reusable invite codes, device-bound client records, and runtime monitoring.</div>
+      <div class="sub">Registry, reusable invite codes, promo traffic bonuses, device-bound client records, and runtime monitoring.</div>
+      <div class="topline" style="margin-top:12px;">
+        <span class="chip">Traffic sync: approximate</span>
+        <span class="chip">Client sort: {{.ClientSort}}</span>
+      </div>
+    </div>
+    <div class="hero-media">
+      <img class="hero-art" src="{{.SiteImageURL}}" alt="NoVPN visual">
     </div>
     <div class="topline">
       <span class="chip">Registry: {{.RegistryPath}}</span>
@@ -852,6 +1155,8 @@ const adminDashboardTemplate = `
   <div class="grid">
     <div class="card"><div class="muted">Active clients</div><div class="kpi">{{.Summary.ActiveClients}}</div></div>
     <div class="card"><div class="muted">Pending invites</div><div class="kpi">{{.Summary.PendingInvites}}</div></div>
+    <div class="card"><div class="muted">Approx traffic</div><div class="kpi">{{formatBytes .Summary.TotalTrafficBytes}}</div></div>
+    <div class="card"><div class="muted">Traffic-limited clients</div><div class="kpi">{{.Summary.TrafficBlockedClients}}</div></div>
     <div class="card"><div class="muted">Gateway ready</div><div class="kpi">{{if .Ready}}yes{{else}}check{{end}}</div></div>
     <div class="card"><div class="muted">Xray profile</div><div class="kpi">{{.Summary.Server.PublicHost}}:{{.Summary.Server.PublicPort}}</div></div>
   </div>
@@ -863,8 +1168,19 @@ const adminDashboardTemplate = `
         <input name="name" placeholder="Invite name, e.g. Alice phone">
         <textarea name="note" rows="3" placeholder="Note"></textarea>
         <input name="max_uses" type="number" min="1" value="1" placeholder="Allowed activations, 1 = single-device">
+        <input name="traffic_limit_gb" type="number" min="0" step="0.1" value="0" placeholder="Traffic limit in GiB, 0 = unlimited">
         <input name="expires_minutes" type="number" min="0" placeholder="Expires in minutes, 0 = no expiry">
         <button type="submit">Create invite</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Create promo code</h2>
+      <form method="post" action="{{.BasePath}}/api/promos" class="stack">
+        <input name="name" placeholder="Promo name, e.g. Spring bonus">
+        <textarea name="note" rows="3" placeholder="Note"></textarea>
+        <input name="bonus_gb" type="number" min="0" step="0.1" value="1" placeholder="Bonus traffic in GiB">
+        <input name="expires_minutes" type="number" min="0" placeholder="Expires in minutes, 0 = no expiry">
+        <button type="submit">Create promo</button>
       </form>
     </div>
     <div class="card">
@@ -892,19 +1208,28 @@ const adminDashboardTemplate = `
   </div>
 
   <div class="card">
-    <h2>Clients</h2>
+    <div class="actions">
+      <h2>Clients</h2>
+      <div class="topline">
+        <a href="{{.BasePath}}/dashboard?clients_sort=traffic_desc">Sort by traffic desc</a>
+        <a href="{{.BasePath}}/dashboard?clients_sort=traffic_asc">Sort by traffic asc</a>
+      </div>
+    </div>
     <table class="table">
-      <thead><tr><th>Name</th><th>Device</th><th>UUID</th><th>Status</th><th>Profile</th><th>Action</th></tr></thead>
+      <thead><tr><th>Name</th><th>Device</th><th>UUID</th><th>Key</th><th>Traffic</th><th>Remaining</th><th>Status</th><th>Profile</th><th>Action</th></tr></thead>
       <tbody>
       {{range .Clients}}
         <tr>
           <td>{{.Name}}</td>
           <td>{{.DeviceName}}<div class="muted small">{{.DeviceID}}</div></td>
           <td class="small">{{.UUID}}</td>
-          <td>{{if .Active}}<span class="badge">active</span>{{else}}<span class="chip">revoked</span>{{end}}</td>
+          <td class="small">{{if .InviteCode}}{{.InviteCode}}{{else}}bootstrap{{end}}</td>
+          <td>{{formatBytes .TrafficUsedBytes}}<div class="muted small">limit {{formatTrafficLimit .TrafficLimitBytes}}</div></td>
+          <td>{{formatTrafficRemain .}}</td>
+          <td>{{if .RevokedAt}}<span class="chip">revoked</span>{{else if .TrafficBlockedAt}}<span class="chip">limit reached</span>{{else if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}</td>
           <td><a href="{{$.BasePath}}/api/clients/{{.ID}}/profile.yaml">download</a></td>
           <td>
-            {{if .Active}}
+            {{if .Bound}}
             <form method="post" action="{{$.BasePath}}/api/clients/{{.ID}}/revoke">
               <button type="submit">Revoke</button>
             </form>
@@ -919,7 +1244,7 @@ const adminDashboardTemplate = `
   <div class="card">
     <h2>Invites</h2>
     <table class="table">
-      <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Usage</th><th>Expiry</th><th>Last redeemed</th><th>Redeem URL</th></tr></thead>
+      <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Active uses</th><th>Traffic limit</th><th>Expiry</th><th>Last redeemed</th><th>Redeem URL</th></tr></thead>
       <tbody>
       {{range .Invites}}
         <tr>
@@ -929,10 +1254,30 @@ const adminDashboardTemplate = `
             {{if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}
             <div class="muted small">created {{.CreatedAt.Format "2006-01-02 15:04:05"}}</div>
           </td>
-          <td class="small">{{.RedeemedUses}} / {{.MaxUses}}</td>
+          <td class="small">{{.ActiveUses}} / {{.MaxUses}}<div class="muted">total {{.RedeemedUses}}</div></td>
+          <td class="small">{{formatTrafficLimit .TrafficLimitBytes}}</td>
           <td class="small">{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02 15:04:05"}}{{else}}never{{end}}</td>
           <td class="small">{{if .RedeemedAt}}{{.RedeemedAt.Format "2006-01-02 15:04:05"}}<div class="muted">device {{.RedeemedDeviceName}}</div>{{else}}never{{end}}</td>
           <td class="small">{{$.BasePath}}/redeem/{{.Code}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Promo Codes</h2>
+    <table class="table">
+      <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Bonus</th><th>Uses</th><th>Expiry</th></tr></thead>
+      <tbody>
+      {{range .Promos}}
+        <tr>
+          <td class="small">{{.Code}}</td>
+          <td>{{.Name}}<div class="muted small">{{.Note}}</div></td>
+          <td>{{if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}</td>
+          <td class="small">{{formatBytes .BonusBytes}}</td>
+          <td class="small">{{.RedeemedUses}}</td>
+          <td class="small">{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02 15:04:05"}}{{else}}never{{end}}</td>
         </tr>
       {{end}}
       </tbody>

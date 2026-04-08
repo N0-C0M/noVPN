@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.novpn.R
 import com.novpn.data.AvailableProfile
+import com.novpn.data.CodeRedeemKind
 import com.novpn.vpn.NoVpnService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var powerButton: Button
     private lateinit var inviteCodeInput: EditText
     private lateinit var activateCodeButton: Button
+    private lateinit var disconnectCodeButton: Button
     private lateinit var diagnosticsButton: Button
     private lateinit var diagnosticsDetail: TextView
     private lateinit var serverStrip: LinearLayout
@@ -375,6 +377,24 @@ class MainActivity : ComponentActivity() {
                 setOnClickListener { activateInviteCode() }
             }
             addView(activateCodeButton)
+
+            disconnectCodeButton = Button(this@MainActivity).apply {
+                text = "Disconnect device"
+                isAllCaps = false
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 13f
+                typeface = Typeface.DEFAULT_BOLD
+                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                setPadding(dp(18), dp(12), dp(18), dp(12))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(10)
+                }
+                setOnClickListener { disconnectDeviceFromCode() }
+            }
+            addView(disconnectCodeButton)
         }
     }
 
@@ -461,6 +481,9 @@ class MainActivity : ComponentActivity() {
             diagnosticsDetail.text = state.diagnosticsSummary.ifBlank {
                 getString(R.string.diagnostics_idle)
             }
+        }
+        if (::disconnectCodeButton.isInitialized) {
+            disconnectCodeButton.isEnabled = selected?.isImported == true
         }
 
         rebuildServerCards(state.availableProfiles, state.selectedProfileId)
@@ -563,14 +586,26 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             runCatching {
                 viewModel.activateInviteCode()
-            }.onSuccess { profileName ->
+            }.onSuccess { redeemResult ->
                 renderState(viewModel.state.value)
-                Toast.makeText(
-                    this@MainActivity,
-                    getString(R.string.invite_code_activated, profileName),
-                    Toast.LENGTH_SHORT
-                ).show()
-                beginVpnStartFlow()
+                when (redeemResult.kind) {
+                    CodeRedeemKind.INVITE -> {
+                        val profileName = redeemResult.profileName.ifBlank { viewModel.selectedProfileName() }
+                        Toast.makeText(
+                            this@MainActivity,
+                            getString(R.string.invite_code_activated, profileName),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        beginVpnStartFlow()
+                    }
+                    CodeRedeemKind.PROMO -> {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Promo activated: +${formatBytes(redeemResult.bonusBytes)}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             }.onFailure { error ->
                 renderState(viewModel.state.value)
                 statusTitle.text = getString(R.string.invite_code_activation_failed)
@@ -582,6 +617,34 @@ class MainActivity : ComponentActivity() {
                 ).show()
             }
             activateCodeButton.isEnabled = true
+        }
+    }
+
+    private fun disconnectDeviceFromCode() {
+        disconnectCodeButton.isEnabled = false
+        lifecycleScope.launch {
+            runCatching {
+                if (viewModel.state.value.runtimeRunning) {
+                    startService(NoVpnService.stopIntent(this@MainActivity))
+                    viewModel.markRuntimeStopped()
+                }
+                viewModel.disconnectCurrentDevice()
+            }.onSuccess {
+                renderState(viewModel.state.value)
+                Toast.makeText(
+                    this@MainActivity,
+                    "Device disconnected from the code.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }.onFailure { error ->
+                renderState(viewModel.state.value)
+                Toast.makeText(
+                    this@MainActivity,
+                    error.message ?: "Failed to disconnect device.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            disconnectCodeButton.isEnabled = true
         }
     }
 
@@ -764,6 +827,20 @@ class MainActivity : ComponentActivity() {
                 typeface = Typeface.DEFAULT_BOLD
             }
         }
+    }
+
+    private fun formatBytes(value: Long): String {
+        if (value <= 0L) {
+            return "0 B"
+        }
+        val units = arrayOf("B", "KiB", "MiB", "GiB", "TiB")
+        var unitIndex = 0
+        var current = value.toDouble()
+        while (current >= 1024.0 && unitIndex < units.lastIndex) {
+            current /= 1024.0
+            unitIndex++
+        }
+        return String.format(java.util.Locale.US, "%.1f %s", current, units[unitIndex])
     }
 
     private fun roundedDrawable(

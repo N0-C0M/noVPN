@@ -2,6 +2,7 @@ package com.novpn.vpn
 
 import android.util.Log
 import android.os.ParcelFileDescriptor
+import java.util.concurrent.ExecutionException
 import java.net.Socket
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -17,7 +18,7 @@ class Tun2ProxyBridge {
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "novpn-tun2proxy").apply { isDaemon = true }
     }
-    private var task: Future<*>? = null
+    private var task: Future<Int>? = null
     private var activeTunFd: Int = INVALID_TUN_FD
     private var activeSessionId: Long = 0L
 
@@ -31,7 +32,7 @@ class Tun2ProxyBridge {
             activeTunFd = detachedFd
             activeSessionId
         }
-        task = executor.submit {
+        task = executor.submit<Int> {
             try {
                 nativeRunWithFd(
                     proxyUrl = proxyUrl,
@@ -49,6 +50,29 @@ class Tun2ProxyBridge {
                 }
             }
         }
+    }
+
+    fun confirmStarted(startupDelayMillis: Long = 500) {
+        val currentTask = synchronized(stateLock) { task }
+            ?: throw IllegalStateException("tun2proxy did not start.")
+
+        Thread.sleep(startupDelayMillis)
+        if (!currentTask.isDone) {
+            return
+        }
+
+        val result = try {
+            currentTask.get()
+        } catch (error: ExecutionException) {
+            throw IllegalStateException(
+                "tun2proxy failed before traffic forwarding became active.",
+                error.cause ?: error
+            )
+        }
+
+        throw IllegalStateException(
+            "tun2proxy exited before traffic forwarding became active (code $result)."
+        )
     }
 
     fun stop() {

@@ -73,6 +73,20 @@ class AndroidXrayConfigWriter(private val context: Context) {
                 .put("ruleTag", "default-proxy")
         )
 
+        val inboundSettings = JSONObject()
+            .put("auth", if (localProxy.username.isBlank() || localProxy.password.isBlank()) "noauth" else "password")
+            .put("udp", localProxy.udpEnabled)
+        if (localProxy.username.isNotBlank() && localProxy.password.isNotBlank()) {
+            inboundSettings.put(
+                "accounts",
+                JSONArray().put(
+                    JSONObject()
+                        .put("user", localProxy.username)
+                        .put("pass", localProxy.password)
+                )
+            )
+        }
+
         val document = JSONObject()
             .put("log", JSONObject().put("loglevel", "warning"))
             .put("inbounds", JSONArray()
@@ -82,20 +96,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
                         .put("listen", localProxy.listenHost)
                         .put("port", localProxy.socksPort)
                         .put("protocol", "socks")
-                        .put(
-                            "settings",
-                            JSONObject()
-                                .put("auth", "password")
-                                .put("udp", localProxy.udpEnabled)
-                                .put(
-                                    "accounts",
-                                    JSONArray().put(
-                                        JSONObject()
-                                            .put("user", localProxy.username)
-                                            .put("pass", localProxy.password)
-                                    )
-                                )
-                        )
+                        .put("settings", inboundSettings)
                         .put(
                             "sniffing",
                             JSONObject()

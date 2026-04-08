@@ -30,8 +30,16 @@ func (p *Provisioner) ListInvites() ([]InviteRecord, error) {
 	return p.registryStore.ListInvites()
 }
 
+func (p *Provisioner) ListPromos() ([]PromoRecord, error) {
+	return p.registryStore.ListPromos()
+}
+
 func (p *Provisioner) CreateInvite(input InviteCreateRequest) (InviteRecord, error) {
 	return p.registryStore.CreateInvite(input)
+}
+
+func (p *Provisioner) CreatePromo(input PromoCreateRequest) (PromoRecord, error) {
+	return p.registryStore.CreatePromo(input)
 }
 
 func (p *Provisioner) RedeemInvite(ctx context.Context, code string, deviceID string, deviceName string) (InviteRedeemResult, Result, error) {
@@ -40,13 +48,23 @@ func (p *Provisioner) RedeemInvite(ctx context.Context, code string, deviceID st
 		return InviteRedeemResult{}, Result{}, err
 	}
 
-	refreshResult, err := p.Bootstrap(ctx, Options{
-		InstallXray:    false,
-		ValidateConfig: false,
-		ManageService:  true,
-	})
+	refreshResult, err := p.refreshRuntime(ctx)
 	if err != nil {
 		return InviteRedeemResult{}, Result{}, err
+	}
+
+	return redeemResult, refreshResult, nil
+}
+
+func (p *Provisioner) RedeemPromo(ctx context.Context, code string, deviceID string, deviceName string) (PromoRedeemResult, Result, error) {
+	redeemResult, err := p.registryStore.RedeemPromo(code, deviceID, deviceName)
+	if err != nil {
+		return PromoRedeemResult{}, Result{}, err
+	}
+
+	refreshResult, err := p.refreshRuntime(ctx)
+	if err != nil {
+		return PromoRedeemResult{}, Result{}, err
 	}
 
 	return redeemResult, refreshResult, nil
@@ -58,11 +76,21 @@ func (p *Provisioner) RevokeClient(ctx context.Context, clientID string) (Client
 		return ClientRecord{}, Result{}, err
 	}
 
-	refreshResult, err := p.Bootstrap(ctx, Options{
-		InstallXray:    false,
-		ValidateConfig: false,
-		ManageService:  true,
-	})
+	refreshResult, err := p.refreshRuntime(ctx)
+	if err != nil {
+		return ClientRecord{}, Result{}, err
+	}
+
+	return client, refreshResult, nil
+}
+
+func (p *Provisioner) DisconnectDevice(ctx context.Context, deviceID string, clientUUID string) (ClientRecord, Result, error) {
+	client, err := p.registryStore.DisconnectDevice(deviceID, clientUUID)
+	if err != nil {
+		return ClientRecord{}, Result{}, err
+	}
+
+	refreshResult, err := p.refreshRuntime(ctx)
 	if err != nil {
 		return ClientRecord{}, Result{}, err
 	}

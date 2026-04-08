@@ -23,12 +23,13 @@ type RegistryStore struct {
 }
 
 type Registry struct {
-	Version            int            `json:"version"`
-	UpdatedAt          time.Time      `json:"updated_at"`
-	Server             RegistryServer `json:"server"`
-	BootstrapClientID  string         `json:"bootstrap_client_id,omitempty"`
-	Invites           []InviteRecord  `json:"invites,omitempty"`
-	Clients           []ClientRecord  `json:"clients,omitempty"`
+	Version           int            `json:"version"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	Server            RegistryServer `json:"server"`
+	BootstrapClientID string         `json:"bootstrap_client_id,omitempty"`
+	Invites           []InviteRecord `json:"invites,omitempty"`
+	Promos            []PromoRecord  `json:"promos,omitempty"`
+	Clients           []ClientRecord `json:"clients,omitempty"`
 }
 
 type RegistryServer struct {
@@ -47,7 +48,9 @@ type InviteRecord struct {
 	CreatedAt          time.Time  `json:"created_at"`
 	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
 	MaxUses            int        `json:"max_uses,omitempty"`
+	ActiveUses         int        `json:"active_uses,omitempty"`
 	RedeemedUses       int        `json:"redeemed_uses,omitempty"`
+	TrafficLimitBytes  int64      `json:"traffic_limit_bytes,omitempty"`
 	RedeemedAt         *time.Time `json:"redeemed_at,omitempty"`
 	RedeemedClientID   string     `json:"redeemed_client_id,omitempty"`
 	RedeemedDeviceID   string     `json:"redeemed_device_id,omitempty"`
@@ -55,42 +58,122 @@ type InviteRecord struct {
 	Active             bool       `json:"active"`
 }
 
+type PromoRecord struct {
+	Code           string            `json:"code"`
+	Name           string            `json:"name"`
+	Note           string            `json:"note,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	ExpiresAt      *time.Time        `json:"expires_at,omitempty"`
+	BonusBytes     int64             `json:"bonus_bytes"`
+	RedeemedUses   int               `json:"redeemed_uses,omitempty"`
+	LastRedeemedAt *time.Time        `json:"last_redeemed_at,omitempty"`
+	Redemptions    []PromoRedemption `json:"redemptions,omitempty"`
+	Active         bool              `json:"active"`
+}
+
+type PromoRedemption struct {
+	DeviceID   string    `json:"device_id"`
+	DeviceName string    `json:"device_name"`
+	ClientID   string    `json:"client_id"`
+	RedeemedAt time.Time `json:"redeemed_at"`
+	BonusBytes int64     `json:"bonus_bytes"`
+}
+
 type ClientRecord struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	DeviceID    string     `json:"device_id"`
-	DeviceName  string     `json:"device_name"`
-	UUID        string     `json:"uuid"`
-	Email       string     `json:"email"`
-	InviteCode  string     `json:"invite_code,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
-	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
-	Active      bool       `json:"active"`
+	ID                   string     `json:"id"`
+	Name                 string     `json:"name"`
+	DeviceID             string     `json:"device_id"`
+	DeviceName           string     `json:"device_name"`
+	UUID                 string     `json:"uuid"`
+	Email                string     `json:"email"`
+	InviteCode           string     `json:"invite_code,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	RevokedAt            *time.Time `json:"revoked_at,omitempty"`
+	LastSeenAt           *time.Time `json:"last_seen_at,omitempty"`
+	TrafficLimitBytes    int64      `json:"traffic_limit_bytes,omitempty"`
+	TrafficBonusBytes    int64      `json:"traffic_bonus_bytes,omitempty"`
+	TrafficUsedBytes     int64      `json:"traffic_used_bytes,omitempty"`
+	TrafficObservedBytes int64      `json:"traffic_observed_bytes,omitempty"`
+	LastTrafficSyncAt    *time.Time `json:"last_traffic_sync_at,omitempty"`
+	TrafficBlockedAt     *time.Time `json:"traffic_blocked_at,omitempty"`
+	Active               bool       `json:"active"`
 }
 
 type RegistrySummary struct {
-	Server           RegistryServer `json:"server"`
-	BootstrapClientID string         `json:"bootstrap_client_id,omitempty"`
-	TotalClients     int            `json:"total_clients"`
-	ActiveClients    int            `json:"active_clients"`
-	RevokedClients   int            `json:"revoked_clients"`
-	TotalInvites     int            `json:"total_invites"`
-	PendingInvites   int            `json:"pending_invites"`
-	RedeemedInvites  int            `json:"redeemed_invites"`
+	Server                RegistryServer `json:"server"`
+	BootstrapClientID     string         `json:"bootstrap_client_id,omitempty"`
+	TotalClients          int            `json:"total_clients"`
+	ActiveClients         int            `json:"active_clients"`
+	TrafficBlockedClients int            `json:"traffic_blocked_clients"`
+	RevokedClients        int            `json:"revoked_clients"`
+	TotalInvites          int            `json:"total_invites"`
+	PendingInvites        int            `json:"pending_invites"`
+	RedeemedInvites       int            `json:"redeemed_invites"`
+	TotalPromos           int            `json:"total_promos"`
+	ActivePromos          int            `json:"active_promos"`
+	TotalTrafficBytes     int64          `json:"total_traffic_bytes"`
 }
 
 type InviteCreateRequest struct {
-	Name        string
-	Note        string
-	MaxUses     int
+	Name              string
+	Note              string
+	MaxUses           int
+	TrafficLimitBytes int64
+	ExpiresAfter      time.Duration
+}
+
+type PromoCreateRequest struct {
+	Name         string
+	Note         string
+	BonusBytes   int64
 	ExpiresAfter time.Duration
 }
 
 type InviteRedeemResult struct {
 	Invite InviteRecord
 	Client ClientRecord
+}
+
+type PromoRedeemResult struct {
+	Promo  PromoRecord
+	Client ClientRecord
+}
+
+type TrafficUsage struct {
+	TotalBytes int64
+	ObservedAt time.Time
+}
+
+type TrafficSyncResult struct {
+	UpdatedClients   int
+	BlockedClients   int
+	UnblockedClients int
+	TotalDeltaBytes  int64
+	RequiresRefresh  bool
+}
+
+func (c ClientRecord) Enabled() bool {
+	return c.Active && c.RevokedAt == nil && c.TrafficBlockedAt == nil
+}
+
+func (c ClientRecord) Bound() bool {
+	return c.Active && c.RevokedAt == nil
+}
+
+func (c ClientRecord) TrafficLimited() bool {
+	return c.TrafficLimitBytes > 0
+}
+
+func (c ClientRecord) TrafficRemainingBytes() int64 {
+	if c.TrafficLimitBytes <= 0 {
+		return 0
+	}
+	remaining := c.TrafficLimitBytes - c.TrafficUsedBytes
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 func NewRegistryStore(path string, logger *slog.Logger) *RegistryStore {
@@ -146,7 +229,13 @@ func (s *RegistryStore) Update(mutator func(*Registry) error) (Registry, error) 
 	}
 
 	if s.logger != nil {
-		s.logger.Info("registry updated", "path", s.path, "clients", len(registry.Clients), "invites", len(registry.Invites))
+		s.logger.Info(
+			"registry updated",
+			"path", s.path,
+			"clients", len(registry.Clients),
+			"invites", len(registry.Invites),
+			"promos", len(registry.Promos),
+		)
 	}
 
 	return registry, nil
@@ -181,6 +270,7 @@ func (s *RegistryStore) EnsureBootstrap(state State, cfg config.RealityConfig) (
 		bootstrap.Active = true
 		bootstrap.UpdatedAt = now
 		bootstrap.RevokedAt = nil
+		bootstrap.TrafficBlockedAt = nil
 		bootstrap.DeviceName = bootstrapDeviceName(bootstrap.DeviceName)
 		return nil
 	})
@@ -192,25 +282,36 @@ func (s *RegistryStore) Summary(cfg config.RealityConfig) (RegistrySummary, erro
 		return RegistrySummary{}, err
 	}
 
+	now := time.Now().UTC()
 	summary := RegistrySummary{
-		Server:           snapshotServer(cfg),
+		Server:            snapshotServer(cfg),
 		BootstrapClientID: registry.BootstrapClientID,
-		TotalClients:     len(registry.Clients),
-		TotalInvites:     len(registry.Invites),
+		TotalClients:      len(registry.Clients),
+		TotalInvites:      len(registry.Invites),
+		TotalPromos:       len(registry.Promos),
 	}
 	for _, client := range registry.Clients {
-		if client.Active && client.RevokedAt == nil {
+		summary.TotalTrafficBytes += client.TrafficUsedBytes
+		switch {
+		case client.Enabled():
 			summary.ActiveClients++
-		} else {
+		case client.Bound() && client.TrafficBlockedAt != nil:
+			summary.TrafficBlockedClients++
+		default:
 			summary.RevokedClients++
 		}
 	}
 	for _, invite := range registry.Invites {
-		if invite.isRedeemable(time.Now().UTC()) {
+		if invite.isRedeemable(now) {
 			summary.PendingInvites++
 		}
 		if invite.RedeemedUses > 0 {
 			summary.RedeemedInvites++
+		}
+	}
+	for _, promo := range registry.Promos {
+		if promo.isRedeemable(now) {
+			summary.ActivePromos++
 		}
 	}
 
@@ -241,23 +342,58 @@ func (s *RegistryStore) ListInvites() ([]InviteRecord, error) {
 	return invites, nil
 }
 
+func (s *RegistryStore) ListPromos() ([]PromoRecord, error) {
+	registry, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+	promos := append([]PromoRecord(nil), registry.Promos...)
+	sort.SliceStable(promos, func(i, j int) bool {
+		return promos[i].CreatedAt.Before(promos[j].CreatedAt)
+	})
+	return promos, nil
+}
+
 func (s *RegistryStore) CreateInvite(input InviteCreateRequest) (InviteRecord, error) {
 	var created InviteRecord
 	_, err := s.Update(func(registry *Registry) error {
 		now := time.Now().UTC()
 		created = InviteRecord{
-			Code:      generateRegistryToken("inv"),
-			Name:      firstNonEmpty(strings.TrimSpace(input.Name), "New device"),
-			Note:      strings.TrimSpace(input.Note),
-			MaxUses:   normalizeInviteMaxUses(input.MaxUses),
-			CreatedAt: now,
-			Active:    true,
+			Code:              generateRegistryToken("inv"),
+			Name:              firstNonEmpty(strings.TrimSpace(input.Name), "New device"),
+			Note:              strings.TrimSpace(input.Note),
+			MaxUses:           normalizeInviteMaxUses(input.MaxUses),
+			TrafficLimitBytes: normalizeTrafficBytes(input.TrafficLimitBytes),
+			CreatedAt:         now,
+			Active:            true,
 		}
 		if input.ExpiresAfter > 0 {
 			expiresAt := now.Add(input.ExpiresAfter)
 			created.ExpiresAt = &expiresAt
 		}
 		registry.Invites = append(registry.Invites, created)
+		return nil
+	})
+	return created, err
+}
+
+func (s *RegistryStore) CreatePromo(input PromoCreateRequest) (PromoRecord, error) {
+	var created PromoRecord
+	_, err := s.Update(func(registry *Registry) error {
+		now := time.Now().UTC()
+		created = PromoRecord{
+			Code:       generateRegistryToken("promo"),
+			Name:       firstNonEmpty(strings.TrimSpace(input.Name), "Free traffic"),
+			Note:       strings.TrimSpace(input.Note),
+			BonusBytes: normalizeTrafficBytes(input.BonusBytes),
+			CreatedAt:  now,
+			Active:     true,
+		}
+		if input.ExpiresAfter > 0 {
+			expiresAt := now.Add(input.ExpiresAfter)
+			created.ExpiresAt = &expiresAt
+		}
+		registry.Promos = append(registry.Promos, created)
 		return nil
 	})
 	return created, err
@@ -271,27 +407,29 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 		if invite == nil {
 			return errors.New("invite not found")
 		}
-		if !invite.Active {
-			return errors.New("invite is inactive")
-		}
-		if invite.ExpiresAt != nil && now.After(*invite.ExpiresAt) {
-			invite.Active = false
-			return errors.New("invite expired")
-		}
-		if invite.MaxUses > 0 && invite.RedeemedUses >= invite.MaxUses {
-			invite.Active = false
-			return errors.New("invite usage limit reached")
+		if !invite.isRedeemable(now) {
+			return invite.redeemError(now)
 		}
 
 		normalizedDeviceID := strings.TrimSpace(deviceID)
-		if normalizedDeviceID != "" {
-			for _, existing := range registry.Clients {
-				if existing.DeviceID == normalizedDeviceID && existing.Active && existing.RevokedAt == nil {
-					return fmt.Errorf("device %q already has an active profile", normalizedDeviceID)
-				}
-			}
-		} else {
+		if normalizedDeviceID == "" {
 			normalizedDeviceID = generateRegistryToken("device")
+		}
+		normalizedDeviceName := firstNonEmpty(strings.TrimSpace(deviceName), "Imported device")
+
+		if existing := registry.findBoundClientByDeviceID(normalizedDeviceID); existing != nil {
+			if existing.InviteCode != invite.Code {
+				return fmt.Errorf("device %q already has an active profile", normalizedDeviceID)
+			}
+			existing.DeviceName = normalizedDeviceName
+			existing.Name = firstNonEmpty(strings.TrimSpace(existing.Name), strings.TrimSpace(invite.Name), normalizedDeviceName)
+			existing.UpdatedAt = now
+			bindInviteRedemption(invite, *existing, now)
+			result = InviteRedeemResult{
+				Invite: *invite,
+				Client: *existing,
+			}
+			return nil
 		}
 
 		clientUUID, err := generateUUID()
@@ -299,27 +437,23 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 			return err
 		}
 
+		clientID := generateRegistryToken("client")
 		client := ClientRecord{
-			ID:         generateRegistryToken("client"),
-			Name:       firstNonEmpty(strings.TrimSpace(invite.Name), "Imported device"),
-			DeviceID:   normalizedDeviceID,
-			DeviceName: firstNonEmpty(strings.TrimSpace(deviceName), "Imported device"),
-			UUID:       clientUUID,
-			Email:      slugEmail(invite.Name, deviceName),
-			InviteCode: invite.Code,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-			Active:     true,
+			ID:                clientID,
+			Name:              firstNonEmpty(strings.TrimSpace(invite.Name), normalizedDeviceName, "Imported device"),
+			DeviceID:          normalizedDeviceID,
+			DeviceName:        normalizedDeviceName,
+			UUID:              clientUUID,
+			Email:             buildClientEmail(clientID, invite.Name, normalizedDeviceName, normalizedDeviceID),
+			InviteCode:        invite.Code,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			TrafficLimitBytes: normalizeTrafficBytes(invite.TrafficLimitBytes),
+			Active:            true,
 		}
 
 		invite.RedeemedUses++
-		invite.RedeemedAt = &now
-		invite.RedeemedClientID = client.ID
-		invite.RedeemedDeviceID = client.DeviceID
-		invite.RedeemedDeviceName = client.DeviceName
-		if invite.MaxUses > 0 && invite.RedeemedUses >= invite.MaxUses {
-			invite.Active = false
-		}
+		bindInviteRedemption(invite, client, now)
 
 		registry.Clients = append(registry.Clients, client)
 		result = InviteRedeemResult{
@@ -331,21 +465,141 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 	return result, err
 }
 
+func (s *RegistryStore) RedeemPromo(code string, deviceID string, deviceName string) (PromoRedeemResult, error) {
+	var result PromoRedeemResult
+	_, err := s.Update(func(registry *Registry) error {
+		now := time.Now().UTC()
+		promo := registry.findPromo(code)
+		if promo == nil {
+			return errors.New("promo code not found")
+		}
+		if !promo.isRedeemable(now) {
+			return promo.redeemError(now)
+		}
+
+		normalizedDeviceID := strings.TrimSpace(deviceID)
+		if normalizedDeviceID == "" {
+			return errors.New("device_id is required for promo activation")
+		}
+		if promo.hasDevice(normalizedDeviceID) {
+			return errors.New("promo code was already activated on this device")
+		}
+
+		client := registry.findBoundClientByDeviceID(normalizedDeviceID)
+		if client == nil {
+			return errors.New("activate a key on this device before redeeming a promo code")
+		}
+
+		normalizedDeviceName := firstNonEmpty(strings.TrimSpace(deviceName), client.DeviceName, "Android device")
+		client.DeviceName = normalizedDeviceName
+		client.UpdatedAt = now
+		client.TrafficBonusBytes += promo.BonusBytes
+		if client.TrafficLimitBytes > 0 {
+			client.TrafficLimitBytes += promo.BonusBytes
+		}
+		if client.TrafficLimitBytes == 0 && promo.BonusBytes > 0 {
+			client.TrafficLimitBytes = promo.BonusBytes
+		}
+		if client.TrafficLimitBytes <= 0 || client.TrafficUsedBytes < client.TrafficLimitBytes {
+			client.TrafficBlockedAt = nil
+		}
+
+		promo.Redemptions = append(promo.Redemptions, PromoRedemption{
+			DeviceID:   normalizedDeviceID,
+			DeviceName: normalizedDeviceName,
+			ClientID:   client.ID,
+			RedeemedAt: now,
+			BonusBytes: promo.BonusBytes,
+		})
+		promo.RedeemedUses++
+		promo.LastRedeemedAt = &now
+
+		result = PromoRedeemResult{
+			Promo:  *promo,
+			Client: *client,
+		}
+		return nil
+	})
+	return result, err
+}
+
 func (s *RegistryStore) RevokeClient(clientID string) (ClientRecord, error) {
+	return s.deactivateClient(func(registry *Registry) *ClientRecord {
+		return registry.findClient(clientID)
+	})
+}
+
+func (s *RegistryStore) DisconnectDevice(deviceID string, clientUUID string) (ClientRecord, error) {
+	normalizedDeviceID := strings.TrimSpace(deviceID)
+	normalizedUUID := strings.TrimSpace(clientUUID)
+	if normalizedDeviceID == "" {
+		return ClientRecord{}, errors.New("device_id is required")
+	}
+
+	return s.deactivateClient(func(registry *Registry) *ClientRecord {
+		return registry.findBoundClientByDeviceAndUUID(normalizedDeviceID, normalizedUUID)
+	})
+}
+
+func (s *RegistryStore) deactivateClient(resolve func(*Registry) *ClientRecord) (ClientRecord, error) {
 	var updated ClientRecord
 	_, err := s.Update(func(registry *Registry) error {
-		client := registry.findClient(clientID)
+		client := resolve(registry)
 		if client == nil {
 			return errors.New("client not found")
 		}
 		now := time.Now().UTC()
 		client.Active = false
 		client.RevokedAt = &now
+		client.TrafficBlockedAt = nil
 		client.UpdatedAt = now
 		updated = *client
 		return nil
 	})
 	return updated, err
+}
+
+func (s *RegistryStore) ApplyTrafficStats(usages map[string]TrafficUsage) (TrafficSyncResult, error) {
+	var result TrafficSyncResult
+	_, err := s.Update(func(registry *Registry) error {
+		now := time.Now().UTC()
+		for i := range registry.Clients {
+			client := &registry.Clients[i]
+			if usage, ok := usages[client.Email]; ok {
+				delta := usage.TotalBytes - client.TrafficObservedBytes
+				if delta < 0 {
+					delta = usage.TotalBytes
+				}
+				if delta > 0 {
+					client.TrafficUsedBytes += delta
+					result.TotalDeltaBytes += delta
+					result.UpdatedClients++
+				}
+				client.TrafficObservedBytes = usage.TotalBytes
+				observedAt := usage.ObservedAt
+				client.LastTrafficSyncAt = &observedAt
+			}
+
+			if !client.Bound() {
+				continue
+			}
+
+			shouldBlock := client.TrafficLimitBytes > 0 && client.TrafficUsedBytes >= client.TrafficLimitBytes
+			isBlocked := client.TrafficBlockedAt != nil
+			switch {
+			case shouldBlock && !isBlocked:
+				client.TrafficBlockedAt = &now
+				result.BlockedClients++
+				result.RequiresRefresh = true
+			case !shouldBlock && isBlocked:
+				client.TrafficBlockedAt = nil
+				result.UnblockedClients++
+				result.RequiresRefresh = true
+			}
+		}
+		return nil
+	})
+	return result, err
 }
 
 func (s *RegistryStore) PrimaryClient() (ClientRecord, error) {
@@ -354,17 +608,30 @@ func (s *RegistryStore) PrimaryClient() (ClientRecord, error) {
 		return ClientRecord{}, err
 	}
 	for _, client := range registry.Clients {
-		if client.Active && client.RevokedAt == nil {
+		if client.Enabled() {
 			return client, nil
 		}
 	}
 	return ClientRecord{}, errors.New("no active clients in registry")
 }
 
+func (r Registry) BoundClients() []ClientRecord {
+	clients := make([]ClientRecord, 0, len(r.Clients))
+	for _, client := range r.Clients {
+		if client.Bound() {
+			clients = append(clients, client)
+		}
+	}
+	sort.SliceStable(clients, func(i, j int) bool {
+		return clients[i].CreatedAt.Before(clients[j].CreatedAt)
+	})
+	return clients
+}
+
 func (r Registry) ActiveClients() []ClientRecord {
 	clients := make([]ClientRecord, 0, len(r.Clients))
 	for _, client := range r.Clients {
-		if client.Active && client.RevokedAt == nil {
+		if client.Enabled() {
 			clients = append(clients, client)
 		}
 	}
@@ -388,16 +655,16 @@ func (r Registry) ActiveXrayClients(flow string) []any {
 }
 
 func (r Registry) ActiveClientProfile(state State, cfg config.RealityConfig) (ClientProfile, error) {
-	client, ok := r.primaryActiveClient()
+	client, ok := r.primaryEnabledClient()
 	if !ok {
 		return ClientProfile{}, errors.New("no active client available")
 	}
 	return buildClientProfileFor(cfg, state, client), nil
 }
 
-func (r Registry) primaryActiveClient() (ClientRecord, bool) {
+func (r Registry) primaryEnabledClient() (ClientRecord, bool) {
 	for _, client := range r.Clients {
-		if client.Active && client.RevokedAt == nil {
+		if client.Enabled() {
 			return client, true
 		}
 	}
@@ -405,23 +672,77 @@ func (r Registry) primaryActiveClient() (ClientRecord, bool) {
 }
 
 func (r *Registry) normalize() {
-	if r.Version == 0 {
-		r.Version = 1
+	if r.Version < 2 {
+		r.Version = 2
 	}
 	now := time.Now().UTC()
+	activeInviteUses := make(map[string]int)
+	seenEmails := make(map[string]struct{})
+
+	for i := range r.Clients {
+		client := &r.Clients[i]
+		if client.DeviceID == "bootstrap" || client.ID == r.BootstrapClientID {
+			client.DeviceName = bootstrapDeviceName(client.DeviceName)
+		}
+		client.Email = ensureUniqueClientEmail(*client, seenEmails)
+		if client.TrafficLimitBytes < 0 {
+			client.TrafficLimitBytes = 0
+		}
+		if client.TrafficBonusBytes < 0 {
+			client.TrafficBonusBytes = 0
+		}
+		if client.TrafficUsedBytes < 0 {
+			client.TrafficUsedBytes = 0
+		}
+		if client.TrafficObservedBytes < 0 {
+			client.TrafficObservedBytes = 0
+		}
+		if client.Bound() {
+			activeInviteUses[client.InviteCode]++
+			if client.TrafficLimitBytes > 0 && client.TrafficUsedBytes >= client.TrafficLimitBytes {
+				if client.TrafficBlockedAt == nil {
+					blockedAt := now
+					client.TrafficBlockedAt = &blockedAt
+				}
+			} else {
+				client.TrafficBlockedAt = nil
+			}
+		} else {
+			client.TrafficBlockedAt = nil
+		}
+	}
+
 	for i := range r.Invites {
 		if r.Invites[i].MaxUses <= 0 {
 			r.Invites[i].MaxUses = 1
 		}
-		if r.Invites[i].ExpiresAt != nil && now.After(*r.Invites[i].ExpiresAt) {
-			r.Invites[i].Active = false
+		if r.Invites[i].TrafficLimitBytes < 0 {
+			r.Invites[i].TrafficLimitBytes = 0
 		}
-		if r.Invites[i].MaxUses > 0 && r.Invites[i].RedeemedUses >= r.Invites[i].MaxUses {
-			r.Invites[i].Active = false
+		r.Invites[i].ActiveUses = activeInviteUses[r.Invites[i].Code]
+		if r.Invites[i].RedeemedUses < r.Invites[i].ActiveUses {
+			r.Invites[i].RedeemedUses = r.Invites[i].ActiveUses
 		}
+		r.Invites[i].Active = r.Invites[i].isRedeemable(now)
+	}
+
+	for i := range r.Promos {
+		if r.Promos[i].BonusBytes < 0 {
+			r.Promos[i].BonusBytes = 0
+		}
+		if r.Promos[i].RedeemedUses < len(r.Promos[i].Redemptions) {
+			r.Promos[i].RedeemedUses = len(r.Promos[i].Redemptions)
+		}
+		r.Promos[i].Active = r.Promos[i].isRedeemable(now)
+		sort.SliceStable(r.Promos[i].Redemptions, func(a, b int) bool {
+			return r.Promos[i].Redemptions[a].RedeemedAt.Before(r.Promos[i].Redemptions[b].RedeemedAt)
+		})
 	}
 	sort.SliceStable(r.Invites, func(i, j int) bool {
 		return r.Invites[i].CreatedAt.Before(r.Invites[j].CreatedAt)
+	})
+	sort.SliceStable(r.Promos, func(i, j int) bool {
+		return r.Promos[i].CreatedAt.Before(r.Promos[j].CreatedAt)
 	})
 	sort.SliceStable(r.Clients, func(i, j int) bool {
 		return r.Clients[i].CreatedAt.Before(r.Clients[j].CreatedAt)
@@ -437,10 +758,42 @@ func (r *Registry) findInvite(code string) *InviteRecord {
 	return nil
 }
 
+func (r *Registry) findPromo(code string) *PromoRecord {
+	for i := range r.Promos {
+		if r.Promos[i].Code == code {
+			return &r.Promos[i]
+		}
+	}
+	return nil
+}
+
 func (r *Registry) findClient(id string) *ClientRecord {
 	for i := range r.Clients {
 		if r.Clients[i].ID == id {
 			return &r.Clients[i]
+		}
+	}
+	return nil
+}
+
+func (r *Registry) findBoundClientByDeviceID(deviceID string) *ClientRecord {
+	for i := range r.Clients {
+		client := &r.Clients[i]
+		if client.DeviceID == deviceID && client.Bound() {
+			return client
+		}
+	}
+	return nil
+}
+
+func (r *Registry) findBoundClientByDeviceAndUUID(deviceID string, clientUUID string) *ClientRecord {
+	for i := range r.Clients {
+		client := &r.Clients[i]
+		if client.DeviceID != deviceID || !client.Bound() {
+			continue
+		}
+		if clientUUID == "" || client.UUID == clientUUID {
+			return client
 		}
 	}
 	return nil
@@ -516,9 +869,16 @@ func normalizeInviteMaxUses(value int) int {
 	return value
 }
 
+func normalizeTrafficBytes(value int64) int64 {
+	if value <= 0 {
+		return 0
+	}
+	return value
+}
+
 func (i InviteRecord) remainingUses() int {
 	maxUses := normalizeInviteMaxUses(i.MaxUses)
-	remaining := maxUses - i.RedeemedUses
+	remaining := maxUses - i.ActiveUses
 	if remaining < 0 {
 		return 0
 	}
@@ -526,13 +886,86 @@ func (i InviteRecord) remainingUses() int {
 }
 
 func (i InviteRecord) isRedeemable(now time.Time) bool {
-	if !i.Active {
-		return false
-	}
 	if i.ExpiresAt != nil && now.After(*i.ExpiresAt) {
 		return false
 	}
 	return i.remainingUses() > 0
+}
+
+func (i InviteRecord) redeemError(now time.Time) error {
+	switch {
+	case i.ExpiresAt != nil && now.After(*i.ExpiresAt):
+		return errors.New("invite expired")
+	case i.remainingUses() == 0:
+		return errors.New("invite usage limit reached")
+	default:
+		return errors.New("invite is inactive")
+	}
+}
+
+func (p PromoRecord) isRedeemable(now time.Time) bool {
+	if p.ExpiresAt != nil && now.After(*p.ExpiresAt) {
+		return false
+	}
+	return p.BonusBytes > 0
+}
+
+func (p PromoRecord) redeemError(now time.Time) error {
+	switch {
+	case p.ExpiresAt != nil && now.After(*p.ExpiresAt):
+		return errors.New("promo code expired")
+	case p.BonusBytes <= 0:
+		return errors.New("promo code has no traffic bonus configured")
+	default:
+		return errors.New("promo code is inactive")
+	}
+}
+
+func (p PromoRecord) hasDevice(deviceID string) bool {
+	for _, redemption := range p.Redemptions {
+		if redemption.DeviceID == deviceID {
+			return true
+		}
+	}
+	return false
+}
+
+func bindInviteRedemption(invite *InviteRecord, client ClientRecord, redeemedAt time.Time) {
+	invite.RedeemedAt = &redeemedAt
+	invite.RedeemedClientID = client.ID
+	invite.RedeemedDeviceID = client.DeviceID
+	invite.RedeemedDeviceName = client.DeviceName
+}
+
+func ensureUniqueClientEmail(client ClientRecord, seen map[string]struct{}) string {
+	candidate := strings.TrimSpace(client.Email)
+	if candidate == "" {
+		candidate = buildClientEmail(client.ID, client.Name, client.DeviceName, client.DeviceID)
+	}
+	if _, exists := seen[candidate]; !exists {
+		seen[candidate] = struct{}{}
+		return candidate
+	}
+
+	fallback := buildClientEmail(client.ID, client.DeviceID)
+	if _, exists := seen[fallback]; !exists {
+		seen[fallback] = struct{}{}
+		return fallback
+	}
+
+	index := 1
+	for {
+		next := strings.TrimSuffix(fallback, "@novpn") + fmt.Sprintf("-%d@novpn", index)
+		if _, exists := seen[next]; !exists {
+			seen[next] = struct{}{}
+			return next
+		}
+		index++
+	}
+}
+
+func buildClientEmail(parts ...string) string {
+	return slugEmail(parts...)
 }
 
 func bootstrapDeviceName(value string) string {

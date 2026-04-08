@@ -61,6 +61,18 @@ class ProfileRepository(private val context: Context) {
         )
     }
 
+    fun deleteProfile(profileId: String) {
+        val entry = resolveProfileEntry(profileId)
+        if (entry.source != ProfileSource.IMPORTED) {
+            return
+        }
+        File(importedProfilesDir, entry.fileName).delete()
+    }
+
+    fun isImportedProfile(profileId: String): Boolean {
+        return resolveProfileEntry(profileId).source == ProfileSource.IMPORTED
+    }
+
     fun listProfiles(): List<AvailableProfile> {
         return listProfileEntries().map { entry ->
             val profile = loadProfile(entry.profileId)
@@ -237,7 +249,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     private fun listProfileEntries(): List<ProfileEntry> {
-        return listImportedProfileEntries()
+        return listOfNotNull(assetProfileEntryOrNull(DEFAULT_ASSET)) + listImportedProfileEntries()
     }
 
     private fun listImportedProfileEntries(): List<ProfileEntry> {
@@ -278,6 +290,17 @@ class ProfileRepository(private val context: Context) {
         return context.assets.list("")
             .orEmpty()
             .any { it == fileName }
+    }
+
+    private fun assetProfileEntryOrNull(fileName: String): ProfileEntry? {
+        if (!assetProfileExists(fileName)) {
+            return null
+        }
+        return ProfileEntry(
+            profileId = assetProfileId(fileName),
+            fileName = fileName,
+            source = ProfileSource.ASSET
+        )
     }
 
     private fun buildImportedFileName(nameHint: String, profile: ClientProfile): String {

@@ -198,22 +198,37 @@ class NetworkDiagnosticsRunner {
         val input = BufferedInputStream(socket.getInputStream())
         val output = BufferedOutputStream(socket.getOutputStream())
 
-        output.write(byteArrayOf(0x05, 0x01, 0x02))
+        val usesPasswordAuth = proxy.username.isNotBlank() && proxy.password.isNotBlank()
+        if (usesPasswordAuth) {
+            output.write(byteArrayOf(0x05, 0x02, 0x00, 0x02))
+        } else {
+            output.write(byteArrayOf(0x05, 0x01, 0x00))
+        }
         output.flush()
-        expectBytes(input, byteArrayOf(0x05, 0x02))
-
-        val usernameBytes = proxy.username.toByteArray(StandardCharsets.UTF_8)
-        val passwordBytes = proxy.password.toByteArray(StandardCharsets.UTF_8)
-        val authRequest = ByteArrayOutputStream().apply {
-            write(0x01)
-            write(usernameBytes.size)
-            write(usernameBytes)
-            write(passwordBytes.size)
-            write(passwordBytes)
-        }.toByteArray()
-        output.write(authRequest)
-        output.flush()
-        expectBytes(input, byteArrayOf(0x01, 0x00))
+        val selectedMethod = readExactly(input, 2)
+        if (selectedMethod[0].toInt() != 0x05) {
+            throw IllegalStateException("Local SOCKS bridge returned an invalid handshake response.")
+        }
+        when (selectedMethod[1].toInt() and 0xff) {
+            0x00 -> Unit
+            0x02 -> {
+                val usernameBytes = proxy.username.toByteArray(StandardCharsets.UTF_8)
+                val passwordBytes = proxy.password.toByteArray(StandardCharsets.UTF_8)
+                val authRequest = ByteArrayOutputStream().apply {
+                    write(0x01)
+                    write(usernameBytes.size)
+                    write(usernameBytes)
+                    write(passwordBytes.size)
+                    write(passwordBytes)
+                }.toByteArray()
+                output.write(authRequest)
+                output.flush()
+                expectBytes(input, byteArrayOf(0x01, 0x00))
+            }
+            else -> throw IllegalStateException(
+                "Local SOCKS bridge rejected authentication with method ${(selectedMethod[1].toInt() and 0xff)}."
+            )
+        }
 
         val addressBytes = buildDestinationAddress(host)
         val connectRequest = ByteArrayOutputStream().apply {
