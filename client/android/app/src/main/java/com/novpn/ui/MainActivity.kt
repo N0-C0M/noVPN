@@ -401,7 +401,7 @@ class MainActivity : ComponentActivity() {
         }
         val appsLine = getString(R.string.app_exclusions_count, state.excludedPackages.size)
         val serverLine = selected?.let {
-            getString(R.string.server_line_format, it.name, it.address)
+            getString(R.string.server_line_format, it.name, getString(R.string.server_endpoint_hidden))
         } ?: getString(R.string.no_profiles_found)
 
         if (state.runtimeRunning) {
@@ -499,7 +499,7 @@ class MainActivity : ComponentActivity() {
 
             card.addView(label(profile.name, 15f, "#F3F6FB", true))
             card.addView(
-                label(profile.address, 12f, if (selected) "#D8E5F3" else "#93A3B7", false).apply {
+                label(getString(R.string.server_endpoint_hidden), 12f, if (selected) "#D8E5F3" else "#93A3B7", false).apply {
                     setPadding(0, dp(8), 0, 0)
                 }
             )

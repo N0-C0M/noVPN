@@ -164,7 +164,7 @@ class NoVpnService : VpnService() {
 
         runtimeStatusStore.markRunning(
             status = getString(R.string.runtime_active_profile, effectiveProfile.name),
-            detail = getString(R.string.runtime_running_detail, effectiveProfile.server.address, effectiveProfile.server.port)
+            detail = getString(R.string.runtime_running_detail)
         )
         RuntimeLocalProxySession.update(localProxy)
         startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
@@ -275,7 +275,7 @@ class NoVpnService : VpnService() {
         private const val EXTRA_EXCLUDED_PACKAGES = "extra_excluded_packages"
         private const val NOTIFICATION_CHANNEL_ID = "novpn_runtime"
         private const val NOTIFICATION_ID = 1001
-        private const val TUN_MTU = 1380
+        private const val TUN_MTU = 1500
         private const val TUN_IPV4_ADDRESS = "198.18.0.1"
         private const val TUN_IPV4_PREFIX_LENGTH = 15
         private const val TUN_IPV6_ADDRESS = "fdfe:dcba:9876::1"

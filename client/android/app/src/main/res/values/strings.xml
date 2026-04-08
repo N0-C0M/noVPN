@@ -41,6 +41,7 @@
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
     <string name="server_line_format">%1$s  |  %2$s</string>
+    <string name="server_endpoint_hidden">Endpoint hidden</string>
     <string name="server_sni_format">SNI %1$s</string>
     <string name="settings_title">Settings</string>
     <string name="settings_subtitle">Manage split routing and application exclusions.</string>
@@ -56,7 +57,7 @@
     <string name="runtime_start_failed">VPN startup failed</string>
     <string name="runtime_profile_incomplete">Import a real server profile before connecting.</string>
     <string name="runtime_active_profile">VPN active: %1$s</string>
-    <string name="runtime_running_detail">Tunnel established. Upstream %1$s:%2$d is active.</string>
+    <string name="runtime_running_detail">Tunnel established. Remote endpoint hidden in client UI.</string>
     <string name="preflight_ready">Runtime preflight passed</string>
     <string name="preflight_attention">Runtime preflight needs attention</string>
     <string name="preflight_tun2proxy_ready">Tun2proxy bridge is bundled for live TUN to Xray forwarding.</string>

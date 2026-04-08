@@ -76,7 +76,7 @@ class ProfileRepository(private val context: Context) {
         }
         val seed = obfuscation?.optString("seed")
             ?.takeIf { it.isNotBlank() }
-            ?: defaultSeed(shortId, server.optString("address"))
+            ?: defaultSeed(shortId)
 
         return ClientProfile(
             name = root.optString("name").ifBlank { DEFAULT_PROFILE_NAME },
@@ -166,7 +166,7 @@ class ProfileRepository(private val context: Context) {
                 httpPort = DEFAULT_HTTP_PORT
             ),
             obfuscation = ObfuscationProfile(
-                seed = defaultSeed(shortId, scalars["address"].orEmpty())
+                seed = defaultSeed(shortId)
             )
         )
     }
@@ -271,12 +271,12 @@ class ProfileRepository(private val context: Context) {
         val candidates = listOf(
             nameHint,
             profile.name,
-            "${profile.server.address}-${profile.server.port}"
+            profile.server.serverName
         )
         val slug = candidates
             .map(::slugify)
             .firstOrNull { it.isNotBlank() }
-            ?: "imported-profile"
+            ?: "imported-profile-" + UUID.randomUUID().toString().substring(0, 8)
         return "profile.$slug.json"
     }
 
@@ -293,10 +293,9 @@ class ProfileRepository(private val context: Context) {
             .removeSurrounding("'")
     }
 
-    private fun defaultSeed(shortId: String, address: String): String {
+    private fun defaultSeed(shortId: String): String {
         val seedBase = shortId.ifBlank {
-            address.replace(Regex("[^a-zA-Z0-9]"), "").takeIf { it.isNotBlank() }
-                ?: UUID.randomUUID().toString().replace("-", "")
+            UUID.randomUUID().toString().replace("-", "")
         }
         return "novpn-seed-$seedBase"
     }
