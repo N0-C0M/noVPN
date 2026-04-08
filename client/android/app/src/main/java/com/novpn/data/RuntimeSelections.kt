@@ -18,7 +18,9 @@ enum class TrafficObfuscationStrategy(
 ) {
     BALANCED("balanced", "chrome", "/"),
     CDN_MIMIC("cdn_mimic", "chrome", "/cdn-cgi/trace"),
-    FRAGMENTED("fragmented", "safari", "/assets");
+    FRAGMENTED("fragmented", "safari", "/assets"),
+    MOBILE_MIX("mobile_mix", "firefox", "/generate_204"),
+    TLS_BLEND("tls_blend", "edge", "/favicon.ico");
 
     companion object {
         fun fromStorage(value: String?): TrafficObfuscationStrategy {
@@ -35,7 +37,9 @@ enum class PatternMaskingStrategy(
 ) {
     STEADY("steady", "/robots.txt", 60, "steady"),
     PULSE("pulse", "/cdn-cgi/trace", 180, "pulse"),
-    RANDOMIZED("randomized", "/assets/cache", 320, "randomized");
+    RANDOMIZED("randomized", "/assets/cache", 320, "randomized"),
+    BURST_FADE("burst_fade", "/generate_204", 420, "burst_fade"),
+    QUIET_SWEEP("quiet_sweep", "/favicon.ico", 240, "quiet_sweep");
 
     companion object {
         fun fromStorage(value: String?): PatternMaskingStrategy {

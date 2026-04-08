@@ -17,8 +17,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
     ): File {
         val selectedFingerprint = when (profile.obfuscation.trafficStrategy) {
             com.novpn.data.TrafficObfuscationStrategy.BALANCED -> profile.server.fingerprint
-            com.novpn.data.TrafficObfuscationStrategy.CDN_MIMIC -> "chrome"
-            com.novpn.data.TrafficObfuscationStrategy.FRAGMENTED -> "safari"
+            else -> profile.obfuscation.trafficStrategy.fingerprint
         }
         val selectedSpiderX = when (profile.obfuscation.patternStrategy) {
             com.novpn.data.PatternMaskingStrategy.STEADY -> profile.server.spiderX
@@ -26,6 +25,12 @@ class AndroidXrayConfigWriter(private val context: Context) {
             com.novpn.data.PatternMaskingStrategy.RANDOMIZED -> {
                 val suffix = profile.server.shortId.takeLast(4).ifBlank { "edge" }
                 "${profile.obfuscation.patternStrategy.spiderXPath}/$suffix"
+            }
+            com.novpn.data.PatternMaskingStrategy.BURST_FADE ->
+                profile.obfuscation.patternStrategy.spiderXPath
+            com.novpn.data.PatternMaskingStrategy.QUIET_SWEEP -> {
+                val fingerprintHint = selectedFingerprint.take(3).lowercase()
+                "${profile.obfuscation.patternStrategy.spiderXPath}?fp=$fingerprintHint"
             }
         }
         val rules = JSONArray()

@@ -733,6 +733,10 @@ class MainActivity : ComponentActivity() {
                 getString(R.string.traffic_strategy_cdn_short)
             com.novpn.data.TrafficObfuscationStrategy.FRAGMENTED ->
                 getString(R.string.traffic_strategy_fragmented_short)
+            com.novpn.data.TrafficObfuscationStrategy.MOBILE_MIX ->
+                getString(R.string.traffic_strategy_mobile_short)
+            com.novpn.data.TrafficObfuscationStrategy.TLS_BLEND ->
+                getString(R.string.traffic_strategy_tls_short)
         }
     }
 
@@ -744,6 +748,10 @@ class MainActivity : ComponentActivity() {
                 getString(R.string.pattern_strategy_pulse_short)
             com.novpn.data.PatternMaskingStrategy.RANDOMIZED ->
                 getString(R.string.pattern_strategy_randomized_short)
+            com.novpn.data.PatternMaskingStrategy.BURST_FADE ->
+                getString(R.string.pattern_strategy_burst_short)
+            com.novpn.data.PatternMaskingStrategy.QUIET_SWEEP ->
+                getString(R.string.pattern_strategy_quiet_short)
         }
     }
 

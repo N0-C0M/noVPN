@@ -6,6 +6,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val disguiseAppId = providers.gradleProperty("novpnAppId").orNull
+    ?: System.getenv("NOVPN_APP_ID")
+    ?: "safety.turtle"
+val disguiseAppName = providers.gradleProperty("novpnAppName").orNull
+    ?: System.getenv("NOVPN_APP_NAME")
+    ?: "Safaty Turtle"
+
 val embeddedRuntimeExecLibsDir = layout.buildDirectory.dir("generated/embeddedRuntimeExecJniLibs")
 
 val prepareEmbeddedRuntimeExecutables by tasks.registering(Sync::class) {
@@ -27,11 +34,12 @@ android {
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.novpn"
+        applicationId = disguiseAppId
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        manifestPlaceholders["appLabel"] = disguiseAppName
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
         }

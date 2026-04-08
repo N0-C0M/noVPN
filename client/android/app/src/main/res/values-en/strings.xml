@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">NoVPN</string>
+    <string name="app_name">Safaty Turtle</string>
     <string name="header_profile_label">Активный сервер</string>
     <string name="header_no_server">Сервер не выбран</string>
     <string name="import_profile">Импорт</string>
@@ -64,6 +64,8 @@
     <string name="traffic_strategy_balanced_short">баланс</string>
     <string name="traffic_strategy_cdn_short">CDN</string>
     <string name="traffic_strategy_fragmented_short">фрагменты</string>
+    <string name="traffic_strategy_mobile_short">мобайл</string>
+    <string name="traffic_strategy_tls_short">tls</string>
     <string name="pattern_strategy_title">Стратегия скрытия паттернов</string>
     <string name="pattern_strategy_subtitle">Меняет cover-path, джиттер и профиль сглаживания активности.</string>
     <string name="pattern_strategy_steady">Ровный фон</string>
@@ -72,6 +74,8 @@
     <string name="pattern_strategy_steady_short">ровный фон</string>
     <string name="pattern_strategy_pulse_short">пульсация</string>
     <string name="pattern_strategy_randomized_short">случайно</string>
+    <string name="pattern_strategy_burst_short">всплески</string>
+    <string name="pattern_strategy_quiet_short">тихо</string>
     <string name="apps_title">Приложения</string>
     <string name="apps_subtitle">Список открывается только по кнопке ниже. Для каждого приложения видна иконка.</string>
     <string name="apps_pick_button">Выбрать приложения</string>
@@ -92,10 +96,10 @@
     <string name="preflight_local_proxy_hardened">Локальный SOCKS использует пароль на каждый запуск, случайный порт и отключённый UDP.</string>
     <string name="preflight_no_api_surface">В этом Android-клиенте нет открытого API управления Xray.</string>
     <string name="preflight_tunnel_live">Android-трафик идёт через TUN в tun2proxy и дальше в локальный аутентифицированный Xray SOCKS-мост.</string>
-    <string name="notification_title">NoVPN</string>
+    <string name="notification_title">Safaty Turtle</string>
     <string name="notification_channel_name">Фоновый VPN-рантайм</string>
     <string name="service_stopped">Сервис остановлен</string>
     <string name="connected_to_profile">Подключено к %1$s</string>
     <string name="default_server">Сервер не выбран</string>
-    <string name="tunnel_session_name">NoVPN</string>
+    <string name="tunnel_session_name">Safaty Turtle</string>
 </resources>

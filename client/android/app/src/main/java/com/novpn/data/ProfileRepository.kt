@@ -8,6 +8,7 @@ import java.util.Locale
 import java.util.UUID
 
 class ProfileRepository(private val context: Context) {
+    private val preferences by lazy { ClientPreferences(context) }
     private val importedProfilesDir by lazy {
         File(context.filesDir, "profiles").apply { mkdirs() }
     }
@@ -309,6 +310,13 @@ class ProfileRepository(private val context: Context) {
         val address = value.trim()
         if (address.isBlank() || isNumericAddress(address)) {
             return address
+        }
+
+        if (preferences.forceServerIpMode()) {
+            val fallback = bootstrapFallbackAddress
+            if (isNumericAddress(fallback)) {
+                return fallback
+            }
         }
 
         val lowerAddress = address.lowercase(Locale.ROOT)
