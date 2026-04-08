@@ -33,20 +33,20 @@ class RuntimePreflightChecker(private val context: Context) {
             details += error.message ?: "Profile validation failed"
         }
 
-        val xrayAsset = EmbeddedRuntimeAssets.resolveBinaryAssetPathOrNull(context, "xray")
-        if (xrayAsset == null) {
+        val xrayExec = EmbeddedRuntimeAssets.resolveExecutablePathOrNull(context, "xray")
+        if (xrayExec == null) {
             ready = false
-            details += "Missing embedded Xray binary for this device ABI"
+            details += "Missing packaged Xray executable for this device ABI"
         } else {
-            details += "Xray asset ready: ${EmbeddedRuntimeAssets.assetLabel(xrayAsset)}"
+            details += "Xray runtime executable ready: ${xrayExec.name}"
         }
 
-        val obfuscatorAsset = EmbeddedRuntimeAssets.resolveBinaryAssetPathOrNull(context, "obfuscator")
-        if (obfuscatorAsset == null) {
+        val obfuscatorExec = EmbeddedRuntimeAssets.resolveExecutablePathOrNull(context, "obfuscator")
+        if (obfuscatorExec == null) {
             ready = false
-            details += "Missing embedded obfuscator binary for this device ABI"
+            details += "Missing packaged obfuscator executable for this device ABI"
         } else {
-            details += "Obfuscator asset ready: ${EmbeddedRuntimeAssets.assetLabel(obfuscatorAsset)}"
+            details += "Obfuscator runtime executable ready: ${obfuscatorExec.name}"
         }
 
         val geoDataReady = EmbeddedRuntimeAssets.assetExists(context, "bin/geoip.dat") &&

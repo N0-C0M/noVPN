@@ -1,6 +1,7 @@
 package com.novpn.vpn
 
 import android.content.Context
+import android.os.Build
 import java.io.File
 
 class EmbeddedRuntimeManager(private val context: Context) {
@@ -17,10 +18,10 @@ class EmbeddedRuntimeManager(private val context: Context) {
         binDir.mkdirs()
         logsDir.mkdirs()
 
-        val xrayBinary = installAbiAwareBinary("xray")
+        val xrayBinary = resolveRuntimeExecutable("xray")
         installAssetFile("bin/geoip.dat", "geoip.dat")
         installAssetFile("bin/geosite.dat", "geosite.dat")
-        val obfuscatorBinary = installAbiAwareBinary("obfuscator")
+        val obfuscatorBinary = resolveRuntimeExecutable("obfuscator")
 
         obfuscatorProcess = ProcessBuilder(
             obfuscatorBinary.absolutePath,
@@ -72,6 +73,19 @@ class EmbeddedRuntimeManager(private val context: Context) {
             logTailSummary("obfuscator", obfuscatorLogFile)?.let(::add)
         }
         return sections.joinToString("\n")
+    }
+
+    private fun resolveRuntimeExecutable(binaryName: String): File {
+        EmbeddedRuntimeAssets.resolveExecutablePathOrNull(context, binaryName)?.let { return it }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            throw IllegalStateException(
+                "Android blocked executing $binaryName from app files. " +
+                    "The packaged runtime executable is missing for this ABI."
+            )
+        }
+
+        return installAbiAwareBinary(binaryName)
     }
 
     private fun installAbiAwareBinary(binaryName: String): File {

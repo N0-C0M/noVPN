@@ -6,3 +6,6 @@
 0	9	0	clean	7b514fe0ab338318
 10	840	7972897434014820	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
 841	963	7972897435265681	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+0	10	0	clean	7b514fe0ab338318
+27	1495	7973488364465661	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+1496	1832	7973488367880469	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75

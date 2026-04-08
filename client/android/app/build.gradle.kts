@@ -1,6 +1,24 @@
+import org.gradle.api.file.RelativePath
+import org.gradle.api.tasks.Sync
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+val embeddedRuntimeExecLibsDir = layout.buildDirectory.dir("generated/embeddedRuntimeExecJniLibs")
+
+val prepareEmbeddedRuntimeExecutables by tasks.registering(Sync::class) {
+    from("src/main/assets/bin") {
+        include("*/xray", "*/obfuscator")
+        includeEmptyDirs = false
+        eachFile {
+            val abi = relativePath.segments.firstOrNull() ?: return@eachFile
+            val executableName = name
+            relativePath = RelativePath(true, abi, "libnovpn_${executableName}_exec.so")
+        }
+    }
+    into(embeddedRuntimeExecLibsDir)
 }
 
 android {
@@ -49,6 +67,12 @@ android {
             path = file("src/main/cpp/CMakeLists.txt")
         }
     }
+
+    sourceSets.getByName("main").jniLibs.srcDir(embeddedRuntimeExecLibsDir)
+
+    packaging {
+        jniLibs.useLegacyPackaging = true
+    }
 }
 
 dependencies {
@@ -58,4 +82,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+}
+
+tasks.named("preBuild") {
+    dependsOn(prepareEmbeddedRuntimeExecutables)
 }

@@ -2,6 +2,7 @@ package com.novpn.vpn
 
 import android.content.Context
 import android.os.Build
+import java.io.File
 import java.io.IOException
 
 object EmbeddedRuntimeAssets {
@@ -34,6 +35,20 @@ object EmbeddedRuntimeAssets {
         }
     }
 
+    fun resolveExecutablePath(context: Context, binaryName: String): File {
+        return resolveExecutablePathOrNull(context, binaryName)
+            ?: throw IllegalStateException(
+                "Packaged runtime executable missing for $binaryName. " +
+                    "Expected ${executableLibraryName(binaryName)} under ${context.applicationInfo.nativeLibraryDir}."
+            )
+    }
+
+    fun resolveExecutablePathOrNull(context: Context, binaryName: String): File? {
+        val nativeLibraryDir = context.applicationInfo.nativeLibraryDir ?: return null
+        val executable = File(nativeLibraryDir, executableLibraryName(binaryName))
+        return executable.takeIf { it.exists() && it.canRead() }
+    }
+
     private fun buildAbiAssetCandidates(binaryName: String): List<String> {
         val supported = Build.SUPPORTED_ABIS
             .flatMap(::abiAliases)
@@ -53,5 +68,9 @@ object EmbeddedRuntimeAssets {
             "x86" -> aliases += listOf("i686", "i386")
         }
         return aliases
+    }
+
+    private fun executableLibraryName(binaryName: String): String {
+        return "libnovpn_${binaryName}_exec.so"
     }
 }
