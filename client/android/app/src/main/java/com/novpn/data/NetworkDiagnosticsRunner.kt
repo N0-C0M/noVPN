@@ -147,11 +147,17 @@ class NetworkDiagnosticsRunner {
 
             val input = BufferedInputStream(activeSocket.getInputStream())
             val statusLine = readAsciiLine(input)
+            if (statusLine.isBlank()) {
+                throw IllegalStateException(
+                    "Сервер диагностики не вернул строку HTTP-статуса. Похоже, туннель не довёл запрос до /admin/diag/ping."
+                )
+            }
+
             val statusCode = statusLine.split(' ')
                 .drop(1)
                 .firstOrNull()
                 ?.toIntOrNull()
-                ?: throw IllegalStateException("Сервер диагностики вернул некорректный HTTP-ответ.")
+                ?: throw IllegalStateException("Сервер диагностики вернул некорректный HTTP-ответ: $statusLine")
 
             var contentLength = -1L
             while (true) {
@@ -177,7 +183,7 @@ class NetworkDiagnosticsRunner {
             }
 
             if (statusCode !in 200..299) {
-                throw IllegalStateException("Diagnostics endpoint returned HTTP $statusCode.")
+                throw IllegalStateException("Сервер диагностики вернул HTTP $statusCode.")
             }
 
             return HttpProbeResponse(statusCode = statusCode, bodyBytes = bodyBytes)

@@ -11,6 +11,7 @@ class ProfileRepository(private val context: Context) {
     private val importedProfilesDir by lazy {
         File(context.filesDir, "profiles").apply { mkdirs() }
     }
+    private val bootstrapFallbackAddress by lazy { loadBootstrapServerAddress() }
 
     fun defaultProfileId(): String {
         return listProfileEntries().firstOrNull()?.profileId.orEmpty()
@@ -23,8 +24,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     fun bootstrapServerAddress(): String {
-        val payload = context.assets.open(DEFAULT_ASSET).bufferedReader().use { it.readText() }
-        return parseClientProfileJson(payload).server.address
+        return bootstrapFallbackAddress
     }
 
     fun loadProfile(profileId: String): ClientProfile {
@@ -84,8 +84,9 @@ class ProfileRepository(private val context: Context) {
                 ?.optString(0)
                 .orEmpty()
         }
+        val address = normalizeServerAddress(server.getString("address"))
         val locationLabel = server.optString("location_label")
-            .ifBlank { ServerLocationCatalog.labelFor(server.optString("address")) }
+            .ifBlank { ServerLocationCatalog.labelFor(address) }
         val seed = obfuscation?.optString("seed")
             ?.takeIf { it.isNotBlank() }
             ?: defaultSeed(shortId)
@@ -99,7 +100,7 @@ class ProfileRepository(private val context: Context) {
         return ClientProfile(
             name = root.optString("name").ifBlank { DEFAULT_PROFILE_NAME },
             server = ServerProfile(
-                address = server.getString("address"),
+                address = address,
                 port = server.getInt("port"),
                 uuid = server.getString("uuid"),
                 flow = server.optString("flow", DEFAULT_FLOW),
@@ -169,7 +170,7 @@ class ProfileRepository(private val context: Context) {
         }
 
         val shortId = scalars["short_id"].orEmpty().ifBlank { shortIds.firstOrNull().orEmpty() }
-        val address = scalars["address"].orEmpty()
+        val address = normalizeServerAddress(scalars["address"].orEmpty())
         return ClientProfile(
             name = scalars["name"].orEmpty().ifBlank { DEFAULT_IMPORTED_NAME },
             server = ServerProfile(
@@ -304,6 +305,36 @@ class ProfileRepository(private val context: Context) {
             .removeSurrounding("'")
     }
 
+    private fun normalizeServerAddress(value: String): String {
+        val address = value.trim()
+        if (address.isBlank() || isNumericAddress(address)) {
+            return address
+        }
+
+        val lowerAddress = address.lowercase(Locale.ROOT)
+        if (lowerAddress == PENDING_ROOT_DOMAIN || lowerAddress.endsWith(".$PENDING_ROOT_DOMAIN")) {
+            return bootstrapFallbackAddress.ifBlank { address }
+        }
+
+        return address
+    }
+
+    private fun isNumericAddress(value: String): Boolean {
+        if (':' in value) {
+            return true
+        }
+        return IPV4_REGEX.matches(value)
+    }
+
+    private fun loadBootstrapServerAddress(): String {
+        return runCatching {
+            val payload = context.assets.open(DEFAULT_ASSET).bufferedReader().use { it.readText() }
+            val root = JSONObject(payload)
+            val server = root.optJSONObject("server") ?: root
+            server.optString("address").trim()
+        }.getOrDefault("")
+    }
+
     private fun defaultSeed(shortId: String): String {
         val seedBase = shortId.ifBlank {
             UUID.randomUUID().toString().replace("-", "")
@@ -338,5 +369,7 @@ class ProfileRepository(private val context: Context) {
         private const val DEFAULT_HTTP_PORT = 10809
         private const val ASSET_PREFIX = "asset:"
         private const val FILE_PREFIX = "file:"
+        private const val PENDING_ROOT_DOMAIN = "xower.eu.org"
+        private val IPV4_REGEX = Regex("""^\d{1,3}(\.\d{1,3}){3}$""")
     }
 }
