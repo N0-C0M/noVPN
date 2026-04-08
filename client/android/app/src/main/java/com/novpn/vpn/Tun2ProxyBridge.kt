@@ -18,7 +18,6 @@ class Tun2ProxyBridge {
 
     fun start(tunnel: ParcelFileDescriptor, proxy: RuntimeLocalProxyConfig, mtu: Int) {
         stop()
-        waitForLocalProxy(proxy)
 
         val proxyUrl = proxy.socksUrl()
         val detachedFd = ParcelFileDescriptor.dup(tunnel.fileDescriptor).detachFd()
@@ -39,8 +38,8 @@ class Tun2ProxyBridge {
         task = null
     }
 
-    private fun waitForLocalProxy(proxy: RuntimeLocalProxyConfig) {
-        val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+    fun waitForLocalProxy(proxy: RuntimeLocalProxyConfig, timeoutSeconds: Long = 10) {
+        val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
         while (System.nanoTime() < deadlineNanos) {
             runCatching {
                 Socket(proxy.listenHost, proxy.socksPort).use { return }

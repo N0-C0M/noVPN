@@ -127,6 +127,7 @@ class NoVpnService : VpnService() {
             val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy)
             val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig)
             runtimeManager.start(xrayConfig, obfuscatorConfig)
+            tun2ProxyBridge.waitForLocalProxy(localProxy)
             tunnelInterface = establishTunnel(
                 disallowedPackages = excludedPackages,
                 upstreamAddress = effectiveProfile.server.address
