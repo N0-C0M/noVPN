@@ -360,41 +360,55 @@ class MainActivity : ComponentActivity() {
                 )
             )
 
-            activateCodeButton = Button(this@MainActivity).apply {
-                text = getString(R.string.activate_invite_code)
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 13f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
-                setPadding(dp(18), dp(12), dp(18), dp(12))
+            val buttonRow = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
                     topMargin = dp(12)
                 }
+            }
+
+            activateCodeButton = Button(this@MainActivity).apply {
+                text = getString(R.string.activate_invite_code)
+                isAllCaps = false
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 12.5f
+                typeface = Typeface.DEFAULT_BOLD
+                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                ).apply {
+                    marginEnd = dp(6)
+                }
                 setOnClickListener { activateInviteCode() }
             }
-            addView(activateCodeButton)
+            buttonRow.addView(activateCodeButton)
 
             disconnectCodeButton = Button(this@MainActivity).apply {
                 text = "Disconnect device"
                 isAllCaps = false
                 setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 13f
+                textSize = 12.5f
                 typeface = Typeface.DEFAULT_BOLD
                 background = roundedDrawable("#0E1520", "#243244", 22f, 2)
-                setPadding(dp(18), dp(12), dp(18), dp(12))
+                setPadding(dp(14), dp(12), dp(14), dp(12))
                 layoutParams = LinearLayout.LayoutParams(
+                    0,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+                    1f
                 ).apply {
-                    topMargin = dp(10)
+                    marginStart = dp(6)
                 }
                 setOnClickListener { disconnectDeviceFromCode() }
             }
-            addView(disconnectCodeButton)
+            buttonRow.addView(disconnectCodeButton)
+
+            addView(buttonRow)
         }
     }
 

@@ -56,6 +56,10 @@ type clientObfuscation struct {
 	Seed string `json:"seed"`
 }
 
+type androidBootstrap struct {
+	ServerAddress string `json:"server_address"`
+}
+
 func main() {
 	var (
 		inputPath     string
@@ -67,7 +71,7 @@ func main() {
 
 	flag.StringVar(&inputPath, "input", "", "path to server client-profile.yaml")
 	flag.StringVar(&commonOutput, "common-output", "client/common/profiles/reality/default.profile.json", "path to common client profile JSON")
-	flag.StringVar(&androidOutput, "android-output", "client/android/app/src/main/assets/profile.default.json", "path to Android client profile JSON")
+	flag.StringVar(&androidOutput, "android-output", "client/android/app/src/main/assets/bootstrap.json", "path to Android bootstrap JSON")
 	flag.StringVar(&profileName, "name", "Default Reality Profile", "profile display name for generated JSON")
 	flag.StringVar(&seed, "seed", "", "shared obfuscation seed override")
 	flag.Parse()
@@ -86,13 +90,15 @@ func main() {
 	}
 
 	document := buildClientProfile(profile, profileName, seed)
-	outputs := []string{commonOutput, androidOutput}
-	for _, target := range outputs {
-		if err := writeClientProfile(target, document); err != nil {
-			exitf("%v", err)
-		}
-		fmt.Printf("updated %s\n", filepath.Clean(target))
+	if err := writeClientProfile(commonOutput, document); err != nil {
+		exitf("%v", err)
 	}
+	fmt.Printf("updated %s\n", filepath.Clean(commonOutput))
+
+	if err := writeAndroidBootstrap(androidOutput, profile.Address); err != nil {
+		exitf("%v", err)
+	}
+	fmt.Printf("updated %s\n", filepath.Clean(androidOutput))
 }
 
 func loadServerProfile(path string) (serverClientProfile, error) {
@@ -166,6 +172,24 @@ func buildClientProfile(profile serverClientProfile, profileName string, seed st
 
 func writeClientProfile(path string, profile clientProfile) error {
 	payload, err := json.MarshalIndent(profile, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal %s: %w", path, err)
+	}
+	payload = append(payload, '\n')
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create parent directory for %s: %w", path, err)
+	}
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
+
+func writeAndroidBootstrap(path string, serverAddress string) error {
+	payload, err := json.MarshalIndent(androidBootstrap{
+		ServerAddress: strings.TrimSpace(serverAddress),
+	}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal %s: %w", path, err)
 	}

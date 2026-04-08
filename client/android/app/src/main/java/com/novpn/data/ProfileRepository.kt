@@ -249,7 +249,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     private fun listProfileEntries(): List<ProfileEntry> {
-        return listOfNotNull(assetProfileEntryOrNull(DEFAULT_ASSET)) + listImportedProfileEntries()
+        return listImportedProfileEntries()
     }
 
     private fun listImportedProfileEntries(): List<ProfileEntry> {
@@ -359,10 +359,9 @@ class ProfileRepository(private val context: Context) {
 
     private fun loadBootstrapServerAddress(): String {
         return runCatching {
-            val payload = context.assets.open(DEFAULT_ASSET).bufferedReader().use { it.readText() }
+            val payload = context.assets.open(BOOTSTRAP_ASSET).bufferedReader().use { it.readText() }
             val root = JSONObject(payload)
-            val server = root.optJSONObject("server") ?: root
-            server.optString("address").trim()
+            root.optString("server_address").trim()
         }.getOrDefault("")
     }
 
@@ -389,7 +388,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     companion object {
-        private const val DEFAULT_ASSET = "profile.default.json"
+        private const val BOOTSTRAP_ASSET = "bootstrap.json"
         private const val DEFAULT_PROFILE_NAME = "Default Reality Profile"
         private const val DEFAULT_IMPORTED_NAME = "Imported Reality Profile"
         private const val DEFAULT_FLOW = "xtls-rprx-vision"

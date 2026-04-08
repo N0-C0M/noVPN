@@ -26,7 +26,6 @@ import com.novpn.data.DisguiseIdentity
 import com.novpn.data.DisguiseIdentityGenerator
 import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.TrafficObfuscationStrategy
-import com.novpn.split.InstalledAppEntry
 import com.novpn.split.InstalledAppsScanner
 
 class SettingsActivity : ComponentActivity() {
@@ -34,7 +33,6 @@ class SettingsActivity : ComponentActivity() {
     private val appScanner by lazy { InstalledAppsScanner(this) }
 
     private val selectedPackages = linkedSetOf<String>()
-    private val appCheckBoxes = mutableListOf<Pair<InstalledAppEntry, CheckBox>>()
 
     private lateinit var bypassRuCheckBox: CheckBox
     private lateinit var forceServerIpCheckBox: CheckBox
@@ -92,7 +90,6 @@ class SettingsActivity : ComponentActivity() {
             content.addView(buildStrategiesCard())
             content.addView(buildAppsCard())
             content.addView(buildDisguiseCard())
-            content.addView(buildSaveButton())
             addView(content)
         }
     }
@@ -142,16 +139,22 @@ class SettingsActivity : ComponentActivity() {
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 14f
                 buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                setOnCheckedChangeListener { _, _ ->
+                    persistSettings()
+                }
             }
             addView(bypassRuCheckBox)
 
             forceServerIpCheckBox = CheckBox(this@SettingsActivity).apply {
-                text = "Пока домен не активен, использовать только IP сервера"
+                text = "Use server IP while the domain is not active"
                 isChecked = preferences.forceServerIpMode()
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 14f
                 buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
                 setPadding(0, dp(10), 0, 0)
+                setOnCheckedChangeListener { _, _ ->
+                    persistSettings()
+                }
             }
             addView(forceServerIpCheckBox)
 
@@ -170,19 +173,16 @@ class SettingsActivity : ComponentActivity() {
                 orientation = LinearLayout.VERTICAL
             }
             modeExcludeButton = choiceButton(getString(R.string.apps_mode_exclude)) {
-                appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
-                refreshSelectionViews()
+                applySelectionChange {
+                    appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
+                }
             }
             modeOnlySelectedButton = choiceButton(getString(R.string.apps_mode_only_selected)) {
-                appRoutingMode = AppRoutingMode.ONLY_SELECTED
-                refreshSelectionViews()
+                applySelectionChange {
+                    appRoutingMode = AppRoutingMode.ONLY_SELECTED
+                }
             }.apply {
-                val params = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                params.topMargin = dp(10)
-                layoutParams = params
+                layoutParams = stackedChoiceParams()
             }
             modeRow.addView(modeExcludeButton)
             modeRow.addView(modeOnlySelectedButton)
@@ -207,38 +207,43 @@ class SettingsActivity : ComponentActivity() {
             )
 
             trafficBalancedButton = choiceButton(getString(R.string.traffic_strategy_balanced)) {
-                trafficStrategy = TrafficObfuscationStrategy.BALANCED
-                refreshSelectionViews()
+                applySelectionChange {
+                    trafficStrategy = TrafficObfuscationStrategy.BALANCED
+                }
             }
             addView(trafficBalancedButton)
 
             trafficCdnButton = choiceButton(getString(R.string.traffic_strategy_cdn)) {
-                trafficStrategy = TrafficObfuscationStrategy.CDN_MIMIC
-                refreshSelectionViews()
+                applySelectionChange {
+                    trafficStrategy = TrafficObfuscationStrategy.CDN_MIMIC
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
             addView(trafficCdnButton)
 
             trafficFragmentedButton = choiceButton(getString(R.string.traffic_strategy_fragmented)) {
-                trafficStrategy = TrafficObfuscationStrategy.FRAGMENTED
-                refreshSelectionViews()
+                applySelectionChange {
+                    trafficStrategy = TrafficObfuscationStrategy.FRAGMENTED
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
             addView(trafficFragmentedButton)
 
-            trafficMobileButton = choiceButton("Под мобильный браузер") {
-                trafficStrategy = TrafficObfuscationStrategy.MOBILE_MIX
-                refreshSelectionViews()
+            trafficMobileButton = choiceButton("Mobile browser blend") {
+                applySelectionChange {
+                    trafficStrategy = TrafficObfuscationStrategy.MOBILE_MIX
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
             addView(trafficMobileButton)
 
-            trafficTlsButton = choiceButton("Смешанный TLS-профиль") {
-                trafficStrategy = TrafficObfuscationStrategy.TLS_BLEND
-                refreshSelectionViews()
+            trafficTlsButton = choiceButton("Mixed TLS profile") {
+                applySelectionChange {
+                    trafficStrategy = TrafficObfuscationStrategy.TLS_BLEND
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
@@ -256,38 +261,43 @@ class SettingsActivity : ComponentActivity() {
             )
 
             patternSteadyButton = choiceButton(getString(R.string.pattern_strategy_steady)) {
-                patternStrategy = PatternMaskingStrategy.STEADY
-                refreshSelectionViews()
+                applySelectionChange {
+                    patternStrategy = PatternMaskingStrategy.STEADY
+                }
             }
             addView(patternSteadyButton)
 
             patternPulseButton = choiceButton(getString(R.string.pattern_strategy_pulse)) {
-                patternStrategy = PatternMaskingStrategy.PULSE
-                refreshSelectionViews()
+                applySelectionChange {
+                    patternStrategy = PatternMaskingStrategy.PULSE
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
             addView(patternPulseButton)
 
             patternRandomizedButton = choiceButton(getString(R.string.pattern_strategy_randomized)) {
-                patternStrategy = PatternMaskingStrategy.RANDOMIZED
-                refreshSelectionViews()
+                applySelectionChange {
+                    patternStrategy = PatternMaskingStrategy.RANDOMIZED
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
             addView(patternRandomizedButton)
 
-            patternBurstButton = choiceButton("Короткие всплески и затухание") {
-                patternStrategy = PatternMaskingStrategy.BURST_FADE
-                refreshSelectionViews()
+            patternBurstButton = choiceButton("Short bursts and fade") {
+                applySelectionChange {
+                    patternStrategy = PatternMaskingStrategy.BURST_FADE
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
             addView(patternBurstButton)
 
-            patternQuietButton = choiceButton("Тихая ротация паттернов") {
-                patternStrategy = PatternMaskingStrategy.QUIET_SWEEP
-                refreshSelectionViews()
+            patternQuietButton = choiceButton("Quiet pattern rotation") {
+                applySelectionChange {
+                    patternStrategy = PatternMaskingStrategy.QUIET_SWEEP
+                }
             }.apply {
                 layoutParams = stackedChoiceParams()
             }
@@ -339,10 +349,10 @@ class SettingsActivity : ComponentActivity() {
 
     private fun buildDisguiseCard(): LinearLayout {
         return card(dp(18)).apply {
-            addView(label("Маска приложения", 16f, "#F3F6FB", true))
+            addView(label("App disguise", 16f, "#F3F6FB", true))
             addView(
                 label(
-                    "Можно подготовить новую identity для следующей переустановки APK. Текущая установленная сборка не меняет package name без новой установки.",
+                    "Prepare a new identity for the next APK build. The installed app keeps its current package name until you rebuild and reinstall it.",
                     12f,
                     "#8091A7",
                     false
@@ -351,7 +361,7 @@ class SettingsActivity : ComponentActivity() {
                 }
             )
 
-            addView(label("Имя приложения", 13f, "#9DB1C6", true))
+            addView(label("App name", 13f, "#9DB1C6", true))
             disguiseNameValue = label("", 14f, "#F3F6FB", false).apply {
                 setPadding(0, dp(6), 0, dp(12))
             }
@@ -363,7 +373,7 @@ class SettingsActivity : ComponentActivity() {
             }
             addView(disguisePackageValue)
 
-            addView(label("Команда сборки", 13f, "#9DB1C6", true))
+            addView(label("Build command", 13f, "#9DB1C6", true))
             disguiseCommandValue = label("", 12f, "#7ACAA7", false).apply {
                 setPadding(0, dp(6), 0, dp(14))
             }
@@ -374,23 +384,25 @@ class SettingsActivity : ComponentActivity() {
             }
 
             buttons.addView(
-                choiceButton("Случайная маска для следующей сборки") {
-                    disguiseIdentity = DisguiseIdentityGenerator.randomIdentity()
-                    refreshSelectionViews()
+                choiceButton("Generate random disguise") {
+                    applySelectionChange {
+                        disguiseIdentity = DisguiseIdentityGenerator.randomIdentity()
+                    }
                 }
             )
 
             buttons.addView(
-                choiceButton("Вернуть Safaty Turtle / safety.turtle") {
-                    disguiseIdentity = DisguiseIdentityGenerator.defaultIdentity()
-                    refreshSelectionViews()
+                choiceButton("Reset to Safaty Turtle") {
+                    applySelectionChange {
+                        disguiseIdentity = DisguiseIdentityGenerator.defaultIdentity()
+                    }
                 }.apply {
                     layoutParams = stackedChoiceParams()
                 }
             )
 
             buttons.addView(
-                choiceButton("Скопировать команду сборки") {
+                choiceButton("Copy build command") {
                     copyDisguiseCommand(disguiseIdentity)
                 }.apply {
                     layoutParams = stackedChoiceParams()
@@ -398,25 +410,6 @@ class SettingsActivity : ComponentActivity() {
             )
 
             addView(buttons)
-        }
-    }
-
-    private fun buildSaveButton(): Button {
-        return Button(this).apply {
-            text = getString(R.string.save_settings)
-            isAllCaps = false
-            setTextColor(Color.parseColor("#F3F6FB"))
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            background = roundedDrawable("#111A25", "#27405A", 26f, 2)
-            setPadding(dp(18), dp(16), dp(18), dp(16))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(20)
-            }
-            setOnClickListener { saveSettings() }
         }
     }
 
@@ -440,7 +433,6 @@ class SettingsActivity : ComponentActivity() {
 
     private fun populateApps() {
         appsListContainer.removeAllViews()
-        appCheckBoxes.clear()
         appScanner.loadLaunchableEntries().forEachIndexed { index, app ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -484,6 +476,7 @@ class SettingsActivity : ComponentActivity() {
                     } else {
                         selectedPackages -= app.packageName
                     }
+                    persistSettings()
                     refreshSelectionViews()
                 }
             }
@@ -493,7 +486,6 @@ class SettingsActivity : ComponentActivity() {
             row.addView(textBlock)
             row.addView(box)
             appsListContainer.addView(row)
-            appCheckBoxes += app to box
         }
     }
 
@@ -522,18 +514,12 @@ class SettingsActivity : ComponentActivity() {
         } else {
             getString(R.string.apps_pick_button)
         }
-        if (::disguiseNameValue.isInitialized) {
-            disguiseNameValue.text = disguiseIdentity.appName
-        }
-        if (::disguisePackageValue.isInitialized) {
-            disguisePackageValue.text = disguiseIdentity.applicationId
-        }
-        if (::disguiseCommandValue.isInitialized) {
-            disguiseCommandValue.text = disguiseIdentity.rebuildCommand
-        }
+        disguiseNameValue.text = disguiseIdentity.appName
+        disguisePackageValue.text = disguiseIdentity.applicationId
+        disguiseCommandValue.text = disguiseIdentity.rebuildCommand
     }
 
-    private fun saveSettings() {
+    private fun persistSettings() {
         preferences.saveBypassRu(bypassRuCheckBox.isChecked)
         preferences.saveForceServerIpMode(forceServerIpCheckBox.isChecked)
         preferences.saveAppRoutingMode(appRoutingMode)
@@ -542,7 +528,12 @@ class SettingsActivity : ComponentActivity() {
         preferences.savePatternMaskingStrategy(patternStrategy)
         preferences.saveDisguiseIdentity(disguiseIdentity)
         setResult(Activity.RESULT_OK)
-        finish()
+    }
+
+    private fun applySelectionChange(change: () -> Unit) {
+        change()
+        persistSettings()
+        refreshSelectionViews()
     }
 
     private fun copyDisguiseCommand(identity: DisguiseIdentity) {
