@@ -179,7 +179,8 @@ class NoVpnService : VpnService() {
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         ).withRuntimeStrategies(trafficStrategy, patternStrategy)
-        val localProxy = RuntimeLocalProxyFactory.create()
+        val localProxy = RuntimeLocalProxyFactory.createOpen()
+        val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected()
         coreSessionActive = true
 
         try {
@@ -187,8 +188,19 @@ class NoVpnService : VpnService() {
                 profile = effectiveProfile,
                 deviceId = deviceIdentityStore.deviceId()
             )
-            val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy, sessionPlan)
-            val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig, sessionPlan)
+            val xrayConfig = xrayConfigWriter.write(
+                effectiveProfile,
+                bypassRu,
+                xrayInboundProxy,
+                sessionPlan
+            )
+            val obfuscatorConfig = obfuscatorConfigWriter.write(
+                effectiveProfile,
+                xrayConfig,
+                localProxy,
+                xrayInboundProxy,
+                sessionPlan
+            )
             runtimeManager.start(xrayConfig, obfuscatorConfig)
             tun2ProxyBridge.waitForLocalProxy(localProxy)
             tunnelInterface = establishTunnel(

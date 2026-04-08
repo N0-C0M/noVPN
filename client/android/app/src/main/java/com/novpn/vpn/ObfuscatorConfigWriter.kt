@@ -14,6 +14,8 @@ class ObfuscatorConfigWriter(private val context: Context) {
     fun write(
         profile: ClientProfile,
         xrayConfigPath: File,
+        listenProxy: RuntimeLocalProxyConfig,
+        upstreamProxy: RuntimeLocalProxyConfig,
         sessionPlan: SessionObfuscationPlan? = null
     ): File {
         val effectivePlan = sessionPlan ?: SessionObfuscationPlanner.build(
@@ -32,6 +34,22 @@ class ObfuscatorConfigWriter(private val context: Context) {
                 JSONObject()
                     .put("address", profile.server.address)
                     .put("port", profile.server.port)
+            )
+            .put(
+                "listen",
+                JSONObject()
+                    .put("address", listenProxy.listenHost)
+                    .put("port", listenProxy.socksPort)
+                    .put("username", listenProxy.username)
+                    .put("password", listenProxy.password)
+            )
+            .put(
+                "upstream",
+                JSONObject()
+                    .put("address", upstreamProxy.listenHost)
+                    .put("port", upstreamProxy.socksPort)
+                    .put("username", upstreamProxy.username)
+                    .put("password", upstreamProxy.password)
             )
             .put(
                 "integration",

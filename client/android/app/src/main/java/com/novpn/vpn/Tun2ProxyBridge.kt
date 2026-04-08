@@ -109,7 +109,7 @@ class Tun2ProxyBridge {
             }
             Thread.sleep(100)
         }
-        throw IllegalStateException("Local Xray SOCKS bridge did not become ready in time.")
+        throw IllegalStateException("Local obfuscator SOCKS bridge did not become ready in time.")
     }
 
     private external fun nativeRunWithFd(
