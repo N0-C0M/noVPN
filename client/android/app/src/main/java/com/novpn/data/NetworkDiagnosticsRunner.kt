@@ -9,6 +9,7 @@ import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -24,34 +25,38 @@ data class NetworkDiagnosticsResult(
 class NetworkDiagnosticsRunner {
     fun run(profile: ClientProfile, proxy: RuntimeLocalProxyConfig): NetworkDiagnosticsResult {
         val host = profile.server.address
-        val diagnosticsPort = 80
+        val diagnosticsPort = DIAGNOSTICS_PORT
 
         val latencySamples = (1..3).map { index ->
             val startedAt = System.nanoTime()
-            executeRequest(
-                proxy = proxy,
-                host = host,
-                port = diagnosticsPort,
-                method = "GET",
-                path = "/admin/diag/ping?seq=$index&ts=${System.currentTimeMillis()}",
-                body = ByteArray(0)
-            )
+            runStage("Latency probe #$index") {
+                executeRequest(
+                    proxy = proxy,
+                    host = host,
+                    port = diagnosticsPort,
+                    method = "HEAD",
+                    path = "/admin/diag/ping?seq=$index&ts=${System.currentTimeMillis()}",
+                    body = ByteArray(0)
+                )
+            }
             elapsedMillis(startedAt)
         }
 
         val latencyAverage = latencySamples.average().roundToInt()
         val jitter = (latencySamples.maxOrNull() ?: latencyAverage) - (latencySamples.minOrNull() ?: latencyAverage)
 
-        val downloadBytes = 4L * 1024L * 1024L
+        val downloadBytes = DOWNLOAD_BYTES
         val downloadStartedAt = System.nanoTime()
-        val downloaded = executeRequest(
-            proxy = proxy,
-            host = host,
-            port = diagnosticsPort,
-            method = "GET",
-            path = "/admin/diag/download?bytes=$downloadBytes",
-            body = ByteArray(0)
-        ).bodyBytes
+        val downloaded = runStage("Download test") {
+            executeRequest(
+                proxy = proxy,
+                host = host,
+                port = diagnosticsPort,
+                method = "GET",
+                path = "/admin/diag/download?bytes=$downloadBytes",
+                body = ByteArray(0)
+            ).bodyBytes
+        }
         val downloadDurationSeconds = elapsedSeconds(downloadStartedAt)
         val downloadMbps = if (downloadDurationSeconds <= 0.0) {
             0.0
@@ -59,16 +64,18 @@ class NetworkDiagnosticsRunner {
             (downloaded * 8.0) / downloadDurationSeconds / 1_000_000.0
         }
 
-        val uploadPayload = ByteArray(1024 * 1024) { index -> (index % 251).toByte() }
+        val uploadPayload = ByteArray(UPLOAD_BYTES) { index -> (index % 251).toByte() }
         val uploadStartedAt = System.nanoTime()
-        executeRequest(
-            proxy = proxy,
-            host = host,
-            port = diagnosticsPort,
-            method = "POST",
-            path = "/admin/diag/upload",
-            body = uploadPayload
-        )
+        runStage("Upload test") {
+            executeRequest(
+                proxy = proxy,
+                host = host,
+                port = diagnosticsPort,
+                method = "POST",
+                path = "/admin/diag/upload",
+                body = uploadPayload
+            )
+        }
         val uploadDurationSeconds = elapsedSeconds(uploadStartedAt)
         val uploadMbps = if (uploadDurationSeconds <= 0.0) {
             0.0
@@ -107,7 +114,7 @@ class NetworkDiagnosticsRunner {
         body: ByteArray
     ): HttpProbeResponse {
         val socket = openSocksSocket(proxy, host, port)
-        socket.soTimeout = 20_000
+        socket.soTimeout = READ_TIMEOUT_MS
         socket.tcpNoDelay = true
 
         socket.use { activeSocket ->
@@ -179,8 +186,8 @@ class NetworkDiagnosticsRunner {
 
     private fun openSocksSocket(proxy: RuntimeLocalProxyConfig, host: String, port: Int): Socket {
         val socket = Socket()
-        socket.connect(InetSocketAddress(proxy.listenHost, proxy.socksPort), 5_000)
-        socket.soTimeout = 10_000
+        socket.connect(InetSocketAddress(proxy.listenHost, proxy.socksPort), CONNECT_TIMEOUT_MS)
+        socket.soTimeout = HANDSHAKE_TIMEOUT_MS
 
         val input = BufferedInputStream(socket.getInputStream())
         val output = BufferedOutputStream(socket.getOutputStream())
@@ -230,6 +237,17 @@ class NetworkDiagnosticsRunner {
         }
         readExactly(input, 2)
         return socket
+    }
+
+    private fun <T> runStage(name: String, block: () -> T): T {
+        return try {
+            block()
+        } catch (error: SocketTimeoutException) {
+            throw IllegalStateException(
+                "$name timed out. The tunnel is responding too slowly for the current diagnostics sample size.",
+                error
+            )
+        }
     }
 
     private fun buildDestinationAddress(host: String): ByteArray {
@@ -325,4 +343,13 @@ class NetworkDiagnosticsRunner {
         val statusCode: Int,
         val bodyBytes: Long
     )
+
+    companion object {
+        private const val DIAGNOSTICS_PORT = 80
+        private const val DOWNLOAD_BYTES = 1024 * 1024L
+        private const val UPLOAD_BYTES = 256 * 1024
+        private const val CONNECT_TIMEOUT_MS = 10_000
+        private const val HANDSHAKE_TIMEOUT_MS = 15_000
+        private const val READ_TIMEOUT_MS = 60_000
+    }
 }
