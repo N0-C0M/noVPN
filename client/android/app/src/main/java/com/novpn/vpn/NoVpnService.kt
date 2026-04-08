@@ -10,6 +10,8 @@ import android.content.pm.ServiceInfo
 import android.net.IpPrefix
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -21,6 +23,8 @@ import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.ui.MainActivity
 import com.novpn.xray.AndroidXrayConfigWriter
 import java.net.InetAddress
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 
 class NoVpnService : VpnService() {
@@ -32,6 +36,10 @@ class NoVpnService : VpnService() {
     private val runtimeManager by lazy { EmbeddedRuntimeManager(this) }
     private val runtimeStatusStore by lazy { VpnRuntimeStatusStore(this) }
     private val preflightChecker by lazy { RuntimePreflightChecker(this) }
+    private val worker: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "novpn-service-worker").apply { isDaemon = true }
+    }
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     private var tunnelInterface: ParcelFileDescriptor? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -46,42 +54,54 @@ class NoVpnService : VpnService() {
                     status = getString(R.string.runtime_starting),
                     detail = getString(R.string.runtime_starting_detail)
                 )
-                runCatching {
-                    startCore(profileId, bypassRu, excludedPackages)
-                }.getOrElse {
-                    runtimeStatusStore.markFailed(
-                        status = getString(R.string.runtime_start_failed),
-                        detail = buildFailureDetail(it)
-                    )
-                    stopCore()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                    return START_NOT_STICKY
+                worker.execute {
+                    runCatching {
+                        startCore(profileId, bypassRu, excludedPackages)
+                    }.onFailure {
+                        runtimeStatusStore.markFailed(
+                            status = getString(R.string.runtime_start_failed),
+                            detail = buildFailureDetail(it)
+                        )
+                        stopCore()
+                        mainHandler.post {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                        }
+                    }
                 }
             }
 
             ACTION_STOP -> {
-                runtimeStatusStore.markStopped(getString(R.string.service_stopped))
-                stopCore()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                worker.execute {
+                    runtimeStatusStore.markStopped(getString(R.string.service_stopped))
+                    stopCore()
+                    mainHandler.post {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
+                }
             }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
-        stopCore()
-        runtimeStatusStore.markStopped(getString(R.string.service_stopped))
+        worker.execute {
+            stopCore()
+            runtimeStatusStore.markStopped(getString(R.string.service_stopped))
+        }
+        worker.shutdown()
         super.onDestroy()
     }
 
     override fun onRevoke() {
-        stopCore()
-        runtimeStatusStore.markStopped(
-            status = getString(R.string.status_permission_required),
-            detail = getString(R.string.status_permission_denied_detail)
-        )
+        worker.execute {
+            stopCore()
+            runtimeStatusStore.markStopped(
+                status = getString(R.string.status_permission_required),
+                detail = getString(R.string.status_permission_denied_detail)
+            )
+        }
         stopSelf()
     }
 
@@ -98,7 +118,8 @@ class NoVpnService : VpnService() {
             .addAddress(TUN_IPV6_ADDRESS, TUN_IPV6_PREFIX_LENGTH)
             .addRoute("0.0.0.0", 0)
             .addRoute("::", 0)
-            .addDnsServer(TUN_DNS_SERVER)
+            .addDnsServer(TUN_DNS_PRIMARY)
+            .addDnsServer(TUN_DNS_SECONDARY)
             .allowFamily(android.system.OsConstants.AF_INET)
             .allowFamily(android.system.OsConstants.AF_INET6)
             .allowBypass()
@@ -254,7 +275,8 @@ class NoVpnService : VpnService() {
         private const val TUN_IPV4_PREFIX_LENGTH = 15
         private const val TUN_IPV6_ADDRESS = "fdfe:dcba:9876::1"
         private const val TUN_IPV6_PREFIX_LENGTH = 126
-        private const val TUN_DNS_SERVER = "198.18.0.1"
+        private const val TUN_DNS_PRIMARY = "1.1.1.1"
+        private const val TUN_DNS_SECONDARY = "1.0.0.1"
 
         fun startIntent(
             context: Context,

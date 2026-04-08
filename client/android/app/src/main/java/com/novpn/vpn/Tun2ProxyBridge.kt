@@ -26,7 +26,7 @@ class Tun2ProxyBridge {
                 proxyUrl = proxyUrl,
                 tunFd = detachedFd,
                 mtu = mtu,
-                dnsStrategy = DnsStrategy.VIRTUAL.value,
+                dnsStrategy = DnsStrategy.OVER_TCP.value,
                 verbosity = Verbosity.INFO.value
             )
         }
