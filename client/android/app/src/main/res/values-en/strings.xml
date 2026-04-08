@@ -21,6 +21,15 @@
     <string name="invite_code_loading_detail">Requesting the client profile from the server and preparing VPN startup.</string>
     <string name="invite_code_activated">Invite activated: %1$s</string>
     <string name="invite_code_activation_failed">Invite activation failed</string>
+    <string name="diagnostics_title">Network diagnostics</string>
+    <string name="diagnostics_hint">Runs latency and speed checks through the current local Xray SOCKS path to the server diagnostics endpoints.</string>
+    <string name="run_diagnostics">Run diagnostics</string>
+    <string name="diagnostics_running_button">Testing...</string>
+    <string name="diagnostics_running">Running latency and throughput diagnostics.</string>
+    <string name="diagnostics_idle">Diagnostics are idle. Start the VPN first, then run a test.</string>
+    <string name="diagnostics_runtime_unavailable">VPN runtime is not active yet. Connect first, then run diagnostics.</string>
+    <string name="diagnostics_completed">Diagnostics finished</string>
+    <string name="diagnostics_failed">Diagnostics failed</string>
     <string name="server_section_title">Available servers</string>
     <string name="server_section_hint">Pick a server below. Split routing is available from the top-right settings button.</string>
     <string name="profile_source_imported">Imported profile</string>

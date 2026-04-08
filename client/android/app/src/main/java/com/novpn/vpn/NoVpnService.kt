@@ -161,7 +161,8 @@ class NoVpnService : VpnService() {
 
         runtimeStatusStore.markRunning(
             status = getString(R.string.runtime_active_profile, effectiveProfile.name),
-            detail = getString(R.string.runtime_running_detail, effectiveProfile.server.address, effectiveProfile.server.port)
+            detail = getString(R.string.runtime_running_detail, effectiveProfile.server.address, effectiveProfile.server.port),
+            localProxy = localProxy
         )
         startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
     }

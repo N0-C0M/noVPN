@@ -13,5 +13,7 @@ data class TunnelState(
     val generatedConfigPath: String = "",
     val runtimeRunning: Boolean = false,
     val runtimeStatus: String = "",
-    val runtimeDetail: String = ""
+    val runtimeDetail: String = "",
+    val diagnosticsRunning: Boolean = false,
+    val diagnosticsSummary: String = ""
 )

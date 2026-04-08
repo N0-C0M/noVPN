@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -40,11 +41,15 @@ type dashboardView struct {
 	Clients            []reality.ClientRecord
 	Invites            []reality.InviteRecord
 	Metrics            []metricRow
+	ServerStats        []metricRow
 	HealthAddr        string
 	RegistryPath      string
 	ClientProfilePath string
 	ConfigPath        string
 	StatePath         string
+	PingURL           string
+	DownloadURL       string
+	UploadURL         string
 	Ready             bool
 	Notice            string
 }
@@ -99,6 +104,10 @@ func (a *adminApp) redirectDashboard(w http.ResponseWriter, r *http.Request) {
 func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/login") {
 		a.handleLogin(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/diag/") {
+		a.handlePublicDiagnostics(w, r)
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/redeem/") {
@@ -249,11 +258,15 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Clients:           clients,
 		Invites:           invites,
 		Metrics:           a.metricSnapshot(),
+		ServerStats:       a.serverStatSnapshot(),
 		HealthAddr:        a.metricsAddress(),
 		RegistryPath:      a.realityRegistryPath(),
 		ClientProfilePath: realityCfg.Xray.ClientProfilePath,
 		ConfigPath:        realityCfg.Xray.ConfigPath,
 		StatePath:         realityCfg.Xray.StatePath,
+		PingURL:           a.basePath + "/diag/ping",
+		DownloadURL:       a.basePath + "/diag/download?bytes=4194304",
+		UploadURL:         a.basePath + "/diag/upload",
 		Ready:             true,
 		Notice:            "",
 	}
@@ -274,6 +287,13 @@ func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == a.basePath+"/api/summary":
 		a.writeJSON(w, r, func() (any, error) {
 			return a.reality.RegistrySummary()
+		})
+	case r.URL.Path == a.basePath+"/api/diag/system":
+		a.writeJSON(w, r, func() (any, error) {
+			return map[string]any{
+				"observed_at": time.Now().UTC(),
+				"rows":        a.serverStatSnapshot(),
+			}, nil
 		})
 	case r.URL.Path == a.basePath+"/api/clients":
 		switch r.Method {
@@ -448,6 +468,20 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *adminApp) handlePublicDiagnostics(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, a.basePath+"/diag/")
+	switch path {
+	case "ping":
+		a.handleDiagnosticsPing(w, r)
+	case "download":
+		a.handleDiagnosticsDownload(w, r)
+	case "upload":
+		a.handleDiagnosticsUpload(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
 type redeemInviteRequest struct {
 	DeviceID   string `json:"device_id"`
 	DeviceName string `json:"device_name"`
@@ -574,6 +608,84 @@ func (a *adminApp) metricSnapshot() []metricRow {
 	return values
 }
 
+func (a *adminApp) serverStatSnapshot() []metricRow {
+	return collectServerRuntimeRows()
+}
+
+func (a *adminApp) handleDiagnosticsPing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	hostname, _ := os.Hostname()
+	payload := map[string]any{
+		"ok":          true,
+		"server_time": time.Now().UTC(),
+		"hostname":    hostname,
+	}
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	a.writeJSONPayload(w, http.StatusOK, payload)
+}
+
+func (a *adminApp) handleDiagnosticsDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	byteCount := clampByteCount(r.URL.Query().Get("bytes"), 4*1024*1024, 64*1024, 32*1024*1024)
+	buffer := make([]byte, 32*1024)
+	for i := range buffer {
+		buffer[i] = 'N'
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Length", strconv.FormatInt(byteCount, 10))
+	w.Header().Set("X-NoVPN-Bytes", strconv.FormatInt(byteCount, 10))
+
+	remaining := byteCount
+	for remaining > 0 {
+		chunk := int64(len(buffer))
+		if remaining < chunk {
+			chunk = remaining
+		}
+		if _, err := w.Write(buffer[:chunk]); err != nil {
+			return
+		}
+		remaining -= chunk
+	}
+}
+
+func (a *adminApp) handleDiagnosticsUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	const maxBytes = 16 * 1024 * 1024
+	startedAt := time.Now()
+	limited := io.LimitReader(r.Body, maxBytes+1)
+	written, err := io.Copy(io.Discard, limited)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if written > maxBytes {
+		http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	a.writeJSONPayload(w, http.StatusOK, map[string]any{
+		"received_bytes": written,
+		"duration_ms":    time.Since(startedAt).Milliseconds(),
+	})
+}
+
 func (a *adminApp) metricsAddress() string {
 	return a.cfg.ListenAddr
 }
@@ -666,6 +778,20 @@ func marshalClientProfileYAML(profile reality.ClientProfile) ([]byte, error) {
 	return payload, nil
 }
 
+func clampByteCount(raw string, fallback int64, min int64, max int64) int64 {
+	value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || value == 0 {
+		value = fallback
+	}
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
 const adminDashboardTemplate = `
 <!doctype html>
 <html lang="en">
@@ -741,6 +867,20 @@ const adminDashboardTemplate = `
         {{range .Metrics}}
         <div class="topline"><span class="chip">{{.Name}}</span><strong>{{.Value}}</strong></div>
         {{end}}
+      </div>
+    </div>
+    <div class="card">
+      <h2>Server runtime</h2>
+      <div class="stack">
+        {{range .ServerStats}}
+        <div class="topline"><span class="chip">{{.Name}}</span><strong>{{.Value}}</strong></div>
+        {{end}}
+        <div class="muted small">
+          Diagnostics:
+          <a href="{{.PingURL}}" target="_blank" rel="noreferrer">ping</a>
+          · <a href="{{.DownloadURL}}" target="_blank" rel="noreferrer">download</a>
+          · <span>{{.UploadURL}} (POST)</span>
+        </div>
       </div>
     </div>
   </div>

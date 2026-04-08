@@ -41,6 +41,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var powerButton: Button
     private lateinit var inviteCodeInput: EditText
     private lateinit var activateCodeButton: Button
+    private lateinit var diagnosticsButton: Button
+    private lateinit var diagnosticsDetail: TextView
     private lateinit var serverStrip: LinearLayout
 
     private val settingsLauncher = registerForActivityResult(
@@ -127,6 +129,7 @@ class MainActivity : ComponentActivity() {
 
         content.addView(buildHeader())
         content.addView(buildHeroSection())
+        content.addView(buildDiagnosticsSection())
         content.addView(buildInviteSection())
         content.addView(buildServerSection())
         return root
@@ -287,6 +290,48 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun buildDiagnosticsSection(): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedDrawable("#0A1018", "#182432", 38f, 2)
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(18)
+            }
+
+            addView(label(getString(R.string.diagnostics_title), 16f, "#F3F6FB", true))
+            addView(
+                label(getString(R.string.diagnostics_hint), 12f, "#7B8DA3", false).apply {
+                    setPadding(0, dp(6), 0, dp(14))
+                }
+            )
+
+            diagnosticsButton = Button(this@MainActivity).apply {
+                text = getString(R.string.run_diagnostics)
+                isAllCaps = false
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 13f
+                typeface = Typeface.DEFAULT_BOLD
+                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                setPadding(dp(18), dp(12), dp(18), dp(12))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setOnClickListener { runDiagnostics() }
+            }
+            addView(diagnosticsButton)
+
+            diagnosticsDetail = label(getString(R.string.diagnostics_idle), 12f, "#7B8DA3", false).apply {
+                setPadding(0, dp(12), 0, 0)
+            }
+            addView(diagnosticsDetail)
+        }
+    }
+
     private fun buildInviteSection(): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -399,6 +444,20 @@ class MainActivity : ComponentActivity() {
             if (currentCode != state.inviteCode) {
                 inviteCodeInput.setText(state.inviteCode)
                 inviteCodeInput.setSelection(inviteCodeInput.text?.length ?: 0)
+            }
+        }
+
+        if (::diagnosticsButton.isInitialized) {
+            diagnosticsButton.isEnabled = !state.diagnosticsRunning
+            diagnosticsButton.text = if (state.diagnosticsRunning) {
+                getString(R.string.diagnostics_running_button)
+            } else {
+                getString(R.string.run_diagnostics)
+            }
+        }
+        if (::diagnosticsDetail.isInitialized) {
+            diagnosticsDetail.text = state.diagnosticsSummary.ifBlank {
+                getString(R.string.diagnostics_idle)
             }
         }
 
@@ -515,6 +574,34 @@ class MainActivity : ComponentActivity() {
                 ).show()
             }
             activateCodeButton.isEnabled = true
+        }
+    }
+
+    private fun runDiagnostics() {
+        viewModel.markDiagnosticsStarted()
+        renderState(viewModel.state.value)
+
+        lifecycleScope.launch {
+            runCatching {
+                viewModel.runNetworkDiagnostics()
+            }.onSuccess {
+                renderState(viewModel.state.value)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.diagnostics_completed),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }.onFailure { error ->
+                viewModel.markDiagnosticsFailed(
+                    error.message ?: getString(R.string.diagnostics_failed)
+                )
+                renderState(viewModel.state.value)
+                Toast.makeText(
+                    this@MainActivity,
+                    error.message ?: getString(R.string.diagnostics_failed),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 

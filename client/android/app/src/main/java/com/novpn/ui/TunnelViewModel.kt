@@ -8,6 +8,7 @@ import com.novpn.data.InviteRedeemer
 import com.novpn.R
 import com.novpn.data.ClientPreferences
 import com.novpn.data.ProfileRepository
+import com.novpn.data.NetworkDiagnosticsRunner
 import com.novpn.data.requireRuntimeReady
 import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
@@ -17,9 +18,11 @@ import com.novpn.vpn.RuntimePreflightReport
 import com.novpn.vpn.VpnRuntimeStatusStore
 import com.novpn.vpn.VpnRuntimeRequest
 import com.novpn.xray.AndroidXrayConfigWriter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 
 class TunnelViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application
@@ -32,6 +35,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val deviceIdentityStore = DeviceIdentityStore(application)
     private val inviteRedeemer = InviteRedeemer()
     private val runtimeStatusStore = VpnRuntimeStatusStore(application)
+    private val diagnosticsRunner = NetworkDiagnosticsRunner()
 
     private val _state = MutableStateFlow(TunnelState())
     val state: StateFlow<TunnelState> = _state
@@ -159,6 +163,42 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 runtimeDetail = ""
             )
         }
+    }
+
+    fun markDiagnosticsStarted() {
+        _state.update {
+            it.copy(
+                diagnosticsRunning = true,
+                diagnosticsSummary = appContext.getString(R.string.diagnostics_running)
+            )
+        }
+    }
+
+    fun markDiagnosticsFailed(message: String) {
+        _state.update {
+            it.copy(
+                diagnosticsRunning = false,
+                diagnosticsSummary = message
+            )
+        }
+    }
+
+    suspend fun runNetworkDiagnostics(): String {
+        val runtimeStatus = runtimeStatusStore.load()
+        val localProxy = requireNotNull(runtimeStatus.localProxy) {
+            appContext.getString(R.string.diagnostics_runtime_unavailable)
+        }
+        val profile = profileRepository.loadProfile(currentProfileId())
+        val result = withContext(Dispatchers.IO) {
+            diagnosticsRunner.run(profile, localProxy)
+        }
+        _state.update {
+            it.copy(
+                diagnosticsRunning = false,
+                diagnosticsSummary = result.summary
+            )
+        }
+        return result.summary
     }
 
     fun selectedProfileName(): String {
