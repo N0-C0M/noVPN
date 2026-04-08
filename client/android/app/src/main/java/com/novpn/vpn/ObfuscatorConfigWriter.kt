@@ -13,6 +13,8 @@ class ObfuscatorConfigWriter(private val context: Context) {
         val document = JSONObject()
             .put("mode", "client")
             .put("seed", profile.obfuscation.seed)
+            .put("traffic_strategy", profile.obfuscation.trafficStrategy.storageValue)
+            .put("pattern_strategy", profile.obfuscation.patternStrategy.storageValue)
             .put(
                 "remote",
                 JSONObject()
@@ -24,6 +26,12 @@ class ObfuscatorConfigWriter(private val context: Context) {
                 JSONObject()
                     .put("xrayConfigPath", xrayConfigPath.absolutePath)
                     .put("expectedCli", "--config <path>")
+            )
+            .put(
+                "pattern_tuning",
+                JSONObject()
+                    .put("padding_profile", profile.obfuscation.patternStrategy.paddingProfile)
+                    .put("jitter_window_ms", profile.obfuscation.patternStrategy.jitterWindowMs)
             )
 
         outputFile.writeText(document.toString(2))

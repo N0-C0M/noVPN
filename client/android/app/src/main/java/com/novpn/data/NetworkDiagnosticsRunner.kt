@@ -151,7 +151,7 @@ class NetworkDiagnosticsRunner {
                 .drop(1)
                 .firstOrNull()
                 ?.toIntOrNull()
-                ?: throw IllegalStateException("Invalid HTTP response from diagnostics endpoint.")
+                ?: throw IllegalStateException("Сервер диагностики вернул некорректный HTTP-ответ.")
 
             var contentLength = -1L
             while (true) {
@@ -223,7 +223,7 @@ class NetworkDiagnosticsRunner {
 
         val header = readExactly(input, 4)
         if (header[0].toInt() != 0x05 || header[1].toInt() != 0x00) {
-            throw IllegalStateException("SOCKS CONNECT failed with code ${header[1].toInt() and 0xff}.")
+            throw IllegalStateException("Локальный SOCKS отклонил CONNECT с кодом ${header[1].toInt() and 0xff}.")
         }
 
         val atyp = header[3].toInt() and 0xff
@@ -244,7 +244,7 @@ class NetworkDiagnosticsRunner {
             block()
         } catch (error: SocketTimeoutException) {
             throw IllegalStateException(
-                "$name timed out. The tunnel is responding too slowly for the current diagnostics sample size.",
+                "$name: время ожидания истекло. Туннель отвечает слишком медленно для текущего теста.",
                 error
             )
         }
@@ -285,7 +285,7 @@ class NetworkDiagnosticsRunner {
         while (offset < count) {
             val read = input.read(buffer, offset, count - offset)
             if (read < 0) {
-                throw IllegalStateException("Unexpected EOF while reading diagnostics stream.")
+                throw IllegalStateException("Диагностический поток завершился раньше ожидаемого.")
             }
             offset += read
         }
@@ -323,7 +323,7 @@ class NetworkDiagnosticsRunner {
     private fun expectBytes(input: BufferedInputStream, expected: ByteArray) {
         val actual = readExactly(input, expected.size)
         if (!actual.contentEquals(expected)) {
-            throw IllegalStateException("Unexpected SOCKS handshake response.")
+            throw IllegalStateException("Локальный SOCKS вернул неожиданный ответ на handshake.")
         }
     }
 

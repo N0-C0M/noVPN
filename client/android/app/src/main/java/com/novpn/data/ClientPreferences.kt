@@ -11,9 +11,30 @@ class ClientPreferences(context: Context) {
     }
 
     fun excludedPackages(): List<String> {
-        return preferences.getStringSet(KEY_EXCLUDED_PACKAGES, emptySet())
+        return preferences.getStringSet(
+            KEY_SELECTED_PACKAGES,
+            preferences.getStringSet(KEY_EXCLUDED_PACKAGES, emptySet())
+        )
             .orEmpty()
             .sorted()
+    }
+
+    fun appRoutingMode(): AppRoutingMode {
+        return AppRoutingMode.fromStorage(
+            preferences.getString(KEY_APP_ROUTING_MODE, AppRoutingMode.EXCLUDE_SELECTED.storageValue)
+        )
+    }
+
+    fun trafficObfuscationStrategy(): TrafficObfuscationStrategy {
+        return TrafficObfuscationStrategy.fromStorage(
+            preferences.getString(KEY_TRAFFIC_STRATEGY, TrafficObfuscationStrategy.BALANCED.storageValue)
+        )
+    }
+
+    fun patternMaskingStrategy(): PatternMaskingStrategy {
+        return PatternMaskingStrategy.fromStorage(
+            preferences.getString(KEY_PATTERN_STRATEGY, PatternMaskingStrategy.STEADY.storageValue)
+        )
     }
 
     fun selectedProfileId(defaultProfileId: String): String {
@@ -30,8 +51,21 @@ class ClientPreferences(context: Context) {
 
     fun saveExcludedPackages(packageNames: List<String>) {
         preferences.edit()
+            .putStringSet(KEY_SELECTED_PACKAGES, packageNames.distinct().toSet())
             .putStringSet(KEY_EXCLUDED_PACKAGES, packageNames.distinct().toSet())
             .apply()
+    }
+
+    fun saveAppRoutingMode(mode: AppRoutingMode) {
+        preferences.edit().putString(KEY_APP_ROUTING_MODE, mode.storageValue).apply()
+    }
+
+    fun saveTrafficObfuscationStrategy(strategy: TrafficObfuscationStrategy) {
+        preferences.edit().putString(KEY_TRAFFIC_STRATEGY, strategy.storageValue).apply()
+    }
+
+    fun savePatternMaskingStrategy(strategy: PatternMaskingStrategy) {
+        preferences.edit().putString(KEY_PATTERN_STRATEGY, strategy.storageValue).apply()
     }
 
     fun saveSelectedProfileId(profileId: String) {
@@ -45,7 +79,11 @@ class ClientPreferences(context: Context) {
     companion object {
         private const val PREFERENCE_FILE = "novpn_client_preferences"
         private const val KEY_BYPASS_RU = "bypass_ru"
+        private const val KEY_APP_ROUTING_MODE = "app_routing_mode"
+        private const val KEY_SELECTED_PACKAGES = "selected_packages"
         private const val KEY_EXCLUDED_PACKAGES = "excluded_packages"
+        private const val KEY_TRAFFIC_STRATEGY = "traffic_strategy"
+        private const val KEY_PATTERN_STRATEGY = "pattern_strategy"
         private const val KEY_SELECTED_PROFILE = "selected_profile"
         private const val KEY_INVITE_CODE = "invite_code"
     }

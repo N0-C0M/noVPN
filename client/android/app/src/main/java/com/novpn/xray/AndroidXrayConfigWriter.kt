@@ -15,6 +15,19 @@ class AndroidXrayConfigWriter(private val context: Context) {
         bypassRu: Boolean,
         localProxy: RuntimeLocalProxyConfig = RuntimeLocalProxyFactory.create()
     ): File {
+        val selectedFingerprint = when (profile.obfuscation.trafficStrategy) {
+            com.novpn.data.TrafficObfuscationStrategy.BALANCED -> profile.server.fingerprint
+            com.novpn.data.TrafficObfuscationStrategy.CDN_MIMIC -> "chrome"
+            com.novpn.data.TrafficObfuscationStrategy.FRAGMENTED -> "safari"
+        }
+        val selectedSpiderX = when (profile.obfuscation.patternStrategy) {
+            com.novpn.data.PatternMaskingStrategy.STEADY -> profile.server.spiderX
+            com.novpn.data.PatternMaskingStrategy.PULSE -> profile.obfuscation.patternStrategy.spiderXPath
+            com.novpn.data.PatternMaskingStrategy.RANDOMIZED -> {
+                val suffix = profile.server.shortId.takeLast(4).ifBlank { "edge" }
+                "${profile.obfuscation.patternStrategy.spiderXPath}/$suffix"
+            }
+        }
         val rules = JSONArray()
             .put(
                 JSONObject()
@@ -118,14 +131,14 @@ class AndroidXrayConfigWriter(private val context: Context) {
                                 .put("network", "tcp")
                                 .put("security", "reality")
                                 .put(
-                                    "realitySettings",
-                                    JSONObject()
-                                        .put("serverName", profile.server.serverName)
-                                        .put("fingerprint", profile.server.fingerprint)
-                                        .put("publicKey", profile.server.publicKey)
-                                        .put("shortId", profile.server.shortId)
-                                        .put("spiderX", profile.server.spiderX)
-                                )
+                                        "realitySettings",
+                                        JSONObject()
+                                            .put("serverName", profile.server.serverName)
+                                            .put("fingerprint", selectedFingerprint)
+                                            .put("publicKey", profile.server.publicKey)
+                                            .put("shortId", profile.server.shortId)
+                                            .put("spiderX", selectedSpiderX)
+                                    )
                         )
                 )
                 .put(JSONObject().put("tag", "direct").put("protocol", "freedom"))

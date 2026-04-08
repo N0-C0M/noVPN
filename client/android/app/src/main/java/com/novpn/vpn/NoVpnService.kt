@@ -16,9 +16,13 @@ import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novpn.R
+import com.novpn.data.AppRoutingMode
+import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.ProfileRepository
+import com.novpn.data.TrafficObfuscationStrategy
 import com.novpn.data.requireRuntimeReady
 import com.novpn.data.withObfuscationSeed
+import com.novpn.data.withRuntimeStrategies
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.ui.MainActivity
 import com.novpn.xray.AndroidXrayConfigWriter
@@ -48,7 +52,14 @@ class NoVpnService : VpnService() {
                 val profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
                     ?: profileRepository.defaultProfileId()
                 val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
-                val excludedPackages = intent.getStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES).orEmpty()
+                val appRoutingMode = AppRoutingMode.fromStorage(intent.getStringExtra(EXTRA_APP_ROUTING_MODE))
+                val selectedPackages = intent.getStringArrayListExtra(EXTRA_SELECTED_PACKAGES).orEmpty()
+                val trafficStrategy = TrafficObfuscationStrategy.fromStorage(
+                    intent.getStringExtra(EXTRA_TRAFFIC_STRATEGY)
+                )
+                val patternStrategy = PatternMaskingStrategy.fromStorage(
+                    intent.getStringExtra(EXTRA_PATTERN_STRATEGY)
+                )
                 startForegroundRuntime(getString(R.string.runtime_starting))
                 runtimeStatusStore.markStarting(
                     status = getString(R.string.runtime_starting),
@@ -56,7 +67,14 @@ class NoVpnService : VpnService() {
                 )
                 worker.execute {
                     runCatching {
-                        startCore(profileId, bypassRu, excludedPackages)
+                        startCore(
+                            profileId = profileId,
+                            bypassRu = bypassRu,
+                            appRoutingMode = appRoutingMode,
+                            selectedPackages = selectedPackages,
+                            trafficStrategy = trafficStrategy,
+                            patternStrategy = patternStrategy
+                        )
                     }.onFailure {
                         runtimeStatusStore.markFailed(
                             status = getString(R.string.runtime_start_failed),
@@ -109,7 +127,8 @@ class NoVpnService : VpnService() {
     }
 
     fun establishTunnel(
-        disallowedPackages: List<String>,
+        appRoutingMode: AppRoutingMode,
+        packageNames: List<String>,
         upstreamAddress: String
     ): ParcelFileDescriptor? {
         val mtu = TUN_MTU
@@ -128,14 +147,17 @@ class NoVpnService : VpnService() {
             .allowBypass()
 
         applyUpstreamBypassRoutes(builder, upstreamAddress)
-        applyDisallowedApplications(builder, disallowedPackages)
+        applyApplicationRouting(builder, appRoutingMode, packageNames)
         return builder.establish()
     }
 
     private fun startCore(
         profileId: String,
         bypassRu: Boolean,
-        excludedPackages: List<String>
+        appRoutingMode: AppRoutingMode,
+        selectedPackages: List<String>,
+        trafficStrategy: TrafficObfuscationStrategy,
+        patternStrategy: PatternMaskingStrategy
     ) {
         stopCore()
         preflightChecker.evaluate(profileId).requireReady()
@@ -144,7 +166,7 @@ class NoVpnService : VpnService() {
         profile.requireRuntimeReady()
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
-        )
+        ).withRuntimeStrategies(trafficStrategy, patternStrategy)
         val localProxy = RuntimeLocalProxyFactory.create()
 
         try {
@@ -153,7 +175,8 @@ class NoVpnService : VpnService() {
             runtimeManager.start(xrayConfig, obfuscatorConfig)
             tun2ProxyBridge.waitForLocalProxy(localProxy)
             tunnelInterface = establishTunnel(
-                disallowedPackages = excludedPackages,
+                appRoutingMode = appRoutingMode,
+                packageNames = selectedPackages,
                 upstreamAddress = effectiveProfile.server.address
             )
             tunnelInterface?.let { tun2ProxyBridge.start(it, localProxy, TUN_MTU) }
@@ -178,13 +201,26 @@ class NoVpnService : VpnService() {
         RuntimeLocalProxySession.update(null)
     }
 
-    private fun applyDisallowedApplications(
+    private fun applyApplicationRouting(
         builder: Builder,
+        mode: AppRoutingMode,
         packageNames: List<String>
     ) {
-        (packageNames + packageName).distinct().forEach { packageName ->
-            if (isInstalled(packageName)) {
-                builder.addDisallowedApplication(packageName)
+        when (mode) {
+            AppRoutingMode.EXCLUDE_SELECTED -> {
+                (packageNames + packageName).distinct().forEach { packageName ->
+                    if (isInstalled(packageName)) {
+                        builder.addDisallowedApplication(packageName)
+                    }
+                }
+            }
+
+            AppRoutingMode.ONLY_SELECTED -> {
+                packageNames.distinct().forEach { packageName ->
+                    if (isInstalled(packageName)) {
+                        builder.addAllowedApplication(packageName)
+                    }
+                }
             }
         }
     }
@@ -272,7 +308,10 @@ class NoVpnService : VpnService() {
         private const val ACTION_STOP = "com.novpn.vpn.STOP"
         private const val EXTRA_PROFILE_ID = "extra_profile_id"
         private const val EXTRA_BYPASS_RU = "extra_bypass_ru"
-        private const val EXTRA_EXCLUDED_PACKAGES = "extra_excluded_packages"
+        private const val EXTRA_APP_ROUTING_MODE = "extra_app_routing_mode"
+        private const val EXTRA_SELECTED_PACKAGES = "extra_selected_packages"
+        private const val EXTRA_TRAFFIC_STRATEGY = "extra_traffic_strategy"
+        private const val EXTRA_PATTERN_STRATEGY = "extra_pattern_strategy"
         private const val NOTIFICATION_CHANNEL_ID = "novpn_runtime"
         private const val NOTIFICATION_ID = 1001
         private const val TUN_MTU = 1500
@@ -287,13 +326,19 @@ class NoVpnService : VpnService() {
             context: Context,
             profileId: String,
             bypassRu: Boolean,
-            excludedPackages: List<String>
+            appRoutingMode: AppRoutingMode,
+            selectedPackages: List<String>,
+            trafficStrategy: TrafficObfuscationStrategy,
+            patternStrategy: PatternMaskingStrategy
         ): Intent {
             return Intent(context, NoVpnService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_PROFILE_ID, profileId)
                 putExtra(EXTRA_BYPASS_RU, bypassRu)
-                putStringArrayListExtra(EXTRA_EXCLUDED_PACKAGES, ArrayList(excludedPackages))
+                putExtra(EXTRA_APP_ROUTING_MODE, appRoutingMode.storageValue)
+                putStringArrayListExtra(EXTRA_SELECTED_PACKAGES, ArrayList(selectedPackages))
+                putExtra(EXTRA_TRAFFIC_STRATEGY, trafficStrategy.storageValue)
+                putExtra(EXTRA_PATTERN_STRATEGY, patternStrategy.storageValue)
             }
         }
 

@@ -12,6 +12,7 @@ data class AvailableProfile(
     val name: String,
     val address: String,
     val serverName: String,
+    val locationLabel: String,
     val isImported: Boolean
 )
 
@@ -24,6 +25,7 @@ data class ServerProfile(
     val fingerprint: String,
     val publicKey: String,
     val shortId: String,
+    val locationLabel: String = "",
     val spiderX: String = "/"
 )
 
@@ -35,7 +37,9 @@ data class LocalPorts(
 )
 
 data class ObfuscationProfile(
-    val seed: String
+    val seed: String,
+    val trafficStrategy: TrafficObfuscationStrategy = TrafficObfuscationStrategy.BALANCED,
+    val patternStrategy: PatternMaskingStrategy = PatternMaskingStrategy.STEADY
 )
 
 data class InstalledApp(
@@ -44,7 +48,19 @@ data class InstalledApp(
 )
 
 fun ClientProfile.withObfuscationSeed(seed: String): ClientProfile {
-    return copy(obfuscation = ObfuscationProfile(seed = seed))
+    return copy(obfuscation = obfuscation.copy(seed = seed))
+}
+
+fun ClientProfile.withRuntimeStrategies(
+    trafficStrategy: TrafficObfuscationStrategy,
+    patternStrategy: PatternMaskingStrategy
+): ClientProfile {
+    return copy(
+        obfuscation = obfuscation.copy(
+            trafficStrategy = trafficStrategy,
+            patternStrategy = patternStrategy
+        )
+    )
 }
 
 fun ClientProfile.requireRuntimeReady() {
@@ -58,7 +74,7 @@ fun ClientProfile.requireRuntimeReady() {
 
     if (invalidFields.isNotEmpty()) {
         throw IllegalStateException(
-            "Import a real server client-profile before connecting. Missing: ${invalidFields.joinToString()}."
+            "Импортируйте реальный серверный профиль перед подключением. Не заполнены поля: ${invalidFields.joinToString()}."
         )
     }
 }

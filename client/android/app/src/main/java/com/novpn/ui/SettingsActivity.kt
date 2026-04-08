@@ -8,31 +8,59 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import com.novpn.R
+import com.novpn.data.AppRoutingMode
 import com.novpn.data.ClientPreferences
-import com.novpn.data.InstalledApp
+import com.novpn.data.PatternMaskingStrategy
+import com.novpn.data.TrafficObfuscationStrategy
+import com.novpn.split.InstalledAppEntry
 import com.novpn.split.InstalledAppsScanner
 
 class SettingsActivity : ComponentActivity() {
     private val preferences by lazy { ClientPreferences(this) }
     private val appScanner by lazy { InstalledAppsScanner(this) }
-    private val appCheckBoxes = mutableListOf<Pair<InstalledApp, CheckBox>>()
+
+    private val selectedPackages = linkedSetOf<String>()
+    private val appCheckBoxes = mutableListOf<Pair<InstalledAppEntry, CheckBox>>()
+
     private lateinit var bypassRuCheckBox: CheckBox
+    private lateinit var modeExcludeButton: Button
+    private lateinit var modeOnlySelectedButton: Button
+    private lateinit var trafficBalancedButton: Button
+    private lateinit var trafficCdnButton: Button
+    private lateinit var trafficFragmentedButton: Button
+    private lateinit var patternSteadyButton: Button
+    private lateinit var patternPulseButton: Button
+    private lateinit var patternRandomizedButton: Button
+    private lateinit var appsToggleButton: Button
+    private lateinit var appsSummary: TextView
+    private lateinit var appsListContainer: LinearLayout
+
+    private var appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
+    private var trafficStrategy = TrafficObfuscationStrategy.BALANCED
+    private var patternStrategy = PatternMaskingStrategy.STEADY
+    private var appsLoaded = false
+    private var appsExpanded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        selectedPackages += preferences.excludedPackages()
+        appRoutingMode = preferences.appRoutingMode()
+        trafficStrategy = preferences.trafficObfuscationStrategy()
+        patternStrategy = preferences.patternMaskingStrategy()
         setContentView(buildContentView())
+        refreshSelectionViews()
     }
 
     private fun buildContentView(): ScrollView {
-        val selectedPackages = preferences.excludedPackages().toSet()
-
         return ScrollView(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
@@ -46,7 +74,8 @@ class SettingsActivity : ComponentActivity() {
 
             content.addView(buildHeader())
             content.addView(buildRoutingCard())
-            content.addView(buildAppsCard(selectedPackages))
+            content.addView(buildStrategiesCard())
+            content.addView(buildAppsCard())
             content.addView(buildSaveButton())
             addView(content)
         }
@@ -83,17 +112,7 @@ class SettingsActivity : ComponentActivity() {
     }
 
     private fun buildRoutingCard(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#0A1018", "#182432", 34f, 2)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(24)
-            }
-
+        return card(dp(24)).apply {
             addView(label(getString(R.string.routing_title), 16f, "#F3F6FB", true))
             addView(
                 label(getString(R.string.routing_subtitle), 12f, "#8091A7", false).apply {
@@ -109,40 +128,154 @@ class SettingsActivity : ComponentActivity() {
                 buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
             }
             addView(bypassRuCheckBox)
+
+            addView(
+                label(getString(R.string.apps_mode_title), 14f, "#F3F6FB", true).apply {
+                    setPadding(0, dp(16), 0, dp(6))
+                }
+            )
+            addView(
+                label(getString(R.string.apps_mode_subtitle), 12f, "#8091A7", false).apply {
+                    setPadding(0, 0, 0, dp(12))
+                }
+            )
+
+            val modeRow = LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            modeExcludeButton = choiceButton(getString(R.string.apps_mode_exclude)) {
+                appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
+                refreshSelectionViews()
+            }
+            modeOnlySelectedButton = choiceButton(getString(R.string.apps_mode_only_selected)) {
+                appRoutingMode = AppRoutingMode.ONLY_SELECTED
+                refreshSelectionViews()
+            }.apply {
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                params.topMargin = dp(10)
+                layoutParams = params
+            }
+            modeRow.addView(modeExcludeButton)
+            modeRow.addView(modeOnlySelectedButton)
+            addView(modeRow)
         }
     }
 
-    private fun buildAppsCard(selectedPackages: Set<String>): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#0A1018", "#182432", 34f, 2)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(18)
-            }
-
-            addView(label(getString(R.string.apps_title), 16f, "#F3F6FB", true))
+    private fun buildStrategiesCard(): LinearLayout {
+        return card(dp(18)).apply {
+            addView(label(getString(R.string.strategies_title), 16f, "#F3F6FB", true))
             addView(
-                label(getString(R.string.apps_subtitle), 12f, "#8091A7", false).apply {
+                label(getString(R.string.strategies_subtitle), 12f, "#8091A7", false).apply {
                     setPadding(0, dp(8), 0, dp(14))
                 }
             )
 
-            appScanner.loadLaunchableApps().forEach { app ->
-                val box = CheckBox(this@SettingsActivity).apply {
-                    text = "${app.label} (${app.packageName})"
-                    isChecked = app.packageName in selectedPackages
-                    setTextColor(Color.parseColor("#F3F6FB"))
-                    textSize = 13f
-                    buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
-                    setPadding(0, dp(4), 0, dp(4))
+            addView(label(getString(R.string.traffic_strategy_title), 14f, "#F3F6FB", true))
+            addView(
+                label(getString(R.string.traffic_strategy_subtitle), 12f, "#8091A7", false).apply {
+                    setPadding(0, dp(6), 0, dp(10))
                 }
-                appCheckBoxes += app to box
-                addView(box)
+            )
+
+            trafficBalancedButton = choiceButton(getString(R.string.traffic_strategy_balanced)) {
+                trafficStrategy = TrafficObfuscationStrategy.BALANCED
+                refreshSelectionViews()
             }
+            addView(trafficBalancedButton)
+
+            trafficCdnButton = choiceButton(getString(R.string.traffic_strategy_cdn)) {
+                trafficStrategy = TrafficObfuscationStrategy.CDN_MIMIC
+                refreshSelectionViews()
+            }.apply {
+                layoutParams = stackedChoiceParams()
+            }
+            addView(trafficCdnButton)
+
+            trafficFragmentedButton = choiceButton(getString(R.string.traffic_strategy_fragmented)) {
+                trafficStrategy = TrafficObfuscationStrategy.FRAGMENTED
+                refreshSelectionViews()
+            }.apply {
+                layoutParams = stackedChoiceParams()
+            }
+            addView(trafficFragmentedButton)
+
+            addView(
+                label(getString(R.string.pattern_strategy_title), 14f, "#F3F6FB", true).apply {
+                    setPadding(0, dp(18), 0, dp(6))
+                }
+            )
+            addView(
+                label(getString(R.string.pattern_strategy_subtitle), 12f, "#8091A7", false).apply {
+                    setPadding(0, 0, 0, dp(10))
+                }
+            )
+
+            patternSteadyButton = choiceButton(getString(R.string.pattern_strategy_steady)) {
+                patternStrategy = PatternMaskingStrategy.STEADY
+                refreshSelectionViews()
+            }
+            addView(patternSteadyButton)
+
+            patternPulseButton = choiceButton(getString(R.string.pattern_strategy_pulse)) {
+                patternStrategy = PatternMaskingStrategy.PULSE
+                refreshSelectionViews()
+            }.apply {
+                layoutParams = stackedChoiceParams()
+            }
+            addView(patternPulseButton)
+
+            patternRandomizedButton = choiceButton(getString(R.string.pattern_strategy_randomized)) {
+                patternStrategy = PatternMaskingStrategy.RANDOMIZED
+                refreshSelectionViews()
+            }.apply {
+                layoutParams = stackedChoiceParams()
+            }
+            addView(patternRandomizedButton)
+        }
+    }
+
+    private fun buildAppsCard(): LinearLayout {
+        return card(dp(18)).apply {
+            addView(label(getString(R.string.apps_title), 16f, "#F3F6FB", true))
+            addView(
+                label(getString(R.string.apps_subtitle), 12f, "#8091A7", false).apply {
+                    setPadding(0, dp(8), 0, dp(10))
+                }
+            )
+
+            appsSummary = label("", 12f, "#9DB1C6", false).apply {
+                setPadding(0, 0, 0, dp(12))
+            }
+            addView(appsSummary)
+
+            appsToggleButton = Button(this@SettingsActivity).apply {
+                isAllCaps = false
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 13f
+                typeface = Typeface.DEFAULT_BOLD
+                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                setPadding(dp(18), dp(12), dp(18), dp(12))
+                setOnClickListener { toggleAppsList() }
+            }
+            addView(appsToggleButton)
+
+            appsListContainer = LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = View.GONE
+                alpha = 0f
+            }
+            addView(
+                appsListContainer,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(14)
+                }
+            )
         }
     }
 
@@ -165,15 +298,163 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
-    private fun saveSettings() {
-        val selectedPackages = appCheckBoxes
-            .filter { (_, box) -> box.isChecked }
-            .map { (app, _) -> app.packageName }
+    private fun toggleAppsList() {
+        if (!appsLoaded) {
+            populateApps()
+            appsLoaded = true
+        }
 
+        appsExpanded = !appsExpanded
+        if (appsExpanded) {
+            appsListContainer.visibility = View.VISIBLE
+            appsListContainer.animate().alpha(1f).setDuration(220).start()
+        } else {
+            appsListContainer.animate().alpha(0f).setDuration(180).withEndAction {
+                appsListContainer.visibility = View.GONE
+            }.start()
+        }
+        refreshSelectionViews()
+    }
+
+    private fun populateApps() {
+        appsListContainer.removeAllViews()
+        appCheckBoxes.clear()
+        appScanner.loadLaunchableEntries().forEachIndexed { index, app ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                background = roundedDrawable("#0E1520", "#1C2938", 24f, 1)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    if (index > 0) {
+                        topMargin = dp(10)
+                    }
+                }
+            }
+
+            val iconView = ImageView(this).apply {
+                setImageDrawable(app.icon)
+                layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply {
+                    marginEnd = dp(12)
+                }
+            }
+
+            val textBlock = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            textBlock.addView(label(app.label, 14f, "#F3F6FB", true))
+            textBlock.addView(
+                label(app.packageName, 11f, "#7B8DA3", false).apply {
+                    setPadding(0, dp(4), 0, 0)
+                }
+            )
+
+            val box = CheckBox(this).apply {
+                isChecked = app.packageName in selectedPackages
+                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                setOnCheckedChangeListener { _, isChecked ->
+                    if (isChecked) {
+                        selectedPackages += app.packageName
+                    } else {
+                        selectedPackages -= app.packageName
+                    }
+                    refreshSelectionViews()
+                }
+            }
+
+            row.setOnClickListener { box.toggle() }
+            row.addView(iconView)
+            row.addView(textBlock)
+            row.addView(box)
+            appsListContainer.addView(row)
+            appCheckBoxes += app to box
+        }
+    }
+
+    private fun refreshSelectionViews() {
+        applyChoiceButtonStyle(modeExcludeButton, appRoutingMode == AppRoutingMode.EXCLUDE_SELECTED)
+        applyChoiceButtonStyle(modeOnlySelectedButton, appRoutingMode == AppRoutingMode.ONLY_SELECTED)
+
+        applyChoiceButtonStyle(trafficBalancedButton, trafficStrategy == TrafficObfuscationStrategy.BALANCED)
+        applyChoiceButtonStyle(trafficCdnButton, trafficStrategy == TrafficObfuscationStrategy.CDN_MIMIC)
+        applyChoiceButtonStyle(trafficFragmentedButton, trafficStrategy == TrafficObfuscationStrategy.FRAGMENTED)
+
+        applyChoiceButtonStyle(patternSteadyButton, patternStrategy == PatternMaskingStrategy.STEADY)
+        applyChoiceButtonStyle(patternPulseButton, patternStrategy == PatternMaskingStrategy.PULSE)
+        applyChoiceButtonStyle(patternRandomizedButton, patternStrategy == PatternMaskingStrategy.RANDOMIZED)
+
+        appsSummary.text = when (appRoutingMode) {
+            AppRoutingMode.EXCLUDE_SELECTED -> getString(R.string.apps_selection_summary_exclude, selectedPackages.size)
+            AppRoutingMode.ONLY_SELECTED -> getString(R.string.apps_selection_summary_include, selectedPackages.size)
+        }
+        appsToggleButton.text = if (appsExpanded) {
+            getString(R.string.apps_hide_list)
+        } else {
+            getString(R.string.apps_pick_button)
+        }
+    }
+
+    private fun saveSettings() {
         preferences.saveBypassRu(bypassRuCheckBox.isChecked)
-        preferences.saveExcludedPackages(selectedPackages)
+        preferences.saveAppRoutingMode(appRoutingMode)
+        preferences.saveExcludedPackages(selectedPackages.toList())
+        preferences.saveTrafficObfuscationStrategy(trafficStrategy)
+        preferences.savePatternMaskingStrategy(patternStrategy)
         setResult(Activity.RESULT_OK)
         finish()
+    }
+
+    private fun card(topMargin: Int): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedDrawable("#0A1018", "#182432", 34f, 2)
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                this.topMargin = topMargin
+            }
+        }
+    }
+
+    private fun choiceButton(text: String, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            this.text = text
+            isAllCaps = false
+            setTextColor(Color.parseColor("#F3F6FB"))
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            background = roundedDrawable("#0E1520", "#243244", 24f, 2)
+            setOnClickListener { onClick() }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+    }
+
+    private fun stackedChoiceParams(): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = dp(10)
+        }
+    }
+
+    private fun applyChoiceButtonStyle(button: Button, selected: Boolean) {
+        button.background = roundedDrawable(
+            if (selected) "#153047" else "#0E1520",
+            if (selected) "#5FD4A6" else "#243244",
+            24f,
+            2
+        )
     }
 
     private fun label(text: String, sizeSp: Float, color: String, bold: Boolean): TextView {

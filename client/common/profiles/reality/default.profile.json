@@ -1,5 +1,5 @@
 {
-  "name": "Default Reality Profile",
+  "name": "Финляндия",
   "server": {
     "address": "2.26.85.47",
     "port": 8443,
@@ -9,6 +9,7 @@
     "fingerprint": "chrome",
     "public_key": "REPLACE_WITH_SERVER_PUBLIC_KEY",
     "short_id": "REPLACE_WITH_SHORT_ID",
+    "location_label": "Финляндия",
     "spider_x": "/"
   },
   "local": {
@@ -18,6 +19,8 @@
     "http_port": 10809
   },
   "obfuscation": {
-    "seed": "replace-with-shared-seed"
+    "seed": "replace-with-shared-seed",
+    "traffic_strategy": "balanced",
+    "pattern_strategy": "steady"
   }
 }

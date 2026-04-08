@@ -1,6 +1,7 @@
 package com.novpn.ui
 
 import android.app.Activity
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -44,6 +45,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var diagnosticsButton: Button
     private lateinit var diagnosticsDetail: TextView
     private lateinit var serverStrip: LinearLayout
+    private var powerPulseAnimator: ValueAnimator? = null
+    private var lastPowerVisualState = PowerVisualState.IDLE
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -393,25 +396,42 @@ class MainActivity : ComponentActivity() {
             ?: state.availableProfiles.firstOrNull()
 
         headerServer.text = selected?.name ?: getString(R.string.header_no_server)
+        val locationLine = getString(
+            R.string.server_location_format,
+            selected?.locationLabel?.ifBlank { getString(R.string.server_location_unknown) }
+                ?: getString(R.string.server_location_unknown)
+        )
 
         val modeLine = if (state.bypassRu) {
             getString(R.string.mode_bypass_ru)
         } else {
             getString(R.string.mode_full_tunnel)
         }
-        val appsLine = getString(R.string.app_exclusions_count, state.excludedPackages.size)
+        val appsLine = when (state.appRoutingMode) {
+            com.novpn.data.AppRoutingMode.EXCLUDE_SELECTED ->
+                getString(R.string.apps_selection_summary_exclude, state.selectedPackages.size)
+            com.novpn.data.AppRoutingMode.ONLY_SELECTED ->
+                getString(R.string.apps_selection_summary_include, state.selectedPackages.size)
+        }
+        val strategyLine = getString(
+            R.string.strategy_summary_format,
+            trafficStrategyLabel(state.trafficStrategy),
+            patternStrategyLabel(state.patternStrategy)
+        )
         val serverLine = selected?.let {
             getString(R.string.server_line_format, it.name, getString(R.string.server_endpoint_hidden))
         } ?: getString(R.string.no_profiles_found)
 
+        val statusTitleText: String
+
         if (state.runtimeRunning) {
             powerButton.text = getString(R.string.disconnect)
             powerButton.background = powerDrawable(true)
-            statusTitle.text = getString(R.string.status_connected)
+            statusTitleText = getString(R.string.status_connected)
         } else {
             powerButton.text = getString(R.string.connect)
             powerButton.background = powerDrawable(false)
-            statusTitle.text = if (state.runtimeStatus.isBlank() || state.runtimeStatus == getString(R.string.service_stopped)) {
+            statusTitleText = if (state.runtimeStatus.isBlank() || state.runtimeStatus == getString(R.string.service_stopped)) {
                 getString(R.string.status_ready)
             } else {
                 state.runtimeStatus
@@ -420,14 +440,19 @@ class MainActivity : ComponentActivity() {
 
         val baselineDetail = buildString {
             appendLine(serverLine)
+            appendLine(locationLine)
             appendLine(modeLine)
-            append(appsLine)
+            appendLine(appsLine)
+            append(strategyLine)
         }
-        statusDetail.text = if (state.runtimeDetail.isBlank()) {
+        val statusDetailText = if (state.runtimeDetail.isBlank()) {
             baselineDetail
         } else {
             state.runtimeDetail + "\n\n" + baselineDetail
         }
+        updateTextWithFade(statusTitle, statusTitleText)
+        updateTextWithFade(statusDetail, statusDetailText)
+        animatePowerState(state)
 
         val preflight = viewModel.runtimePreflight()
         preflightTitle.text = preflight.headline
@@ -499,7 +524,12 @@ class MainActivity : ComponentActivity() {
 
             card.addView(label(profile.name, 15f, "#F3F6FB", true))
             card.addView(
-                label(getString(R.string.server_endpoint_hidden), 12f, if (selected) "#D8E5F3" else "#93A3B7", false).apply {
+                label(
+                    profile.locationLabel.ifBlank { getString(R.string.server_location_unknown) },
+                    12f,
+                    if (selected) "#D8E5F3" else "#93A3B7",
+                    false
+                ).apply {
                     setPadding(0, dp(8), 0, 0)
                 }
             )
@@ -527,6 +557,7 @@ class MainActivity : ComponentActivity() {
 
     private fun toggleRuntime() {
         if (viewModel.state.value.runtimeRunning) {
+            animateDisconnectTransition()
             startService(NoVpnService.stopIntent(this))
             viewModel.markRuntimeStopped()
             renderState(viewModel.state.value)
@@ -614,7 +645,10 @@ class MainActivity : ComponentActivity() {
                 context = this,
                 profileId = request.profileId,
                 bypassRu = request.bypassRu,
-                excludedPackages = request.excludedPackages
+                appRoutingMode = request.appRoutingMode,
+                selectedPackages = request.selectedPackages,
+                trafficStrategy = request.trafficStrategy,
+                patternStrategy = request.patternStrategy
             )
             ContextCompat.startForegroundService(this, intent)
             viewModel.markRuntimeStarted(configPath)
@@ -633,7 +667,106 @@ class MainActivity : ComponentActivity() {
                 this,
                 error.message ?: getString(R.string.runtime_profile_incomplete),
                 Toast.LENGTH_LONG
-            ).show()
+                ).show()
+        }
+    }
+
+    private fun animatePowerState(state: TunnelState) {
+        val visualState = when {
+            state.runtimeRunning -> PowerVisualState.CONNECTED
+            state.runtimeStatus == getString(R.string.runtime_starting) -> PowerVisualState.CONNECTING
+            state.runtimeStatus == getString(R.string.runtime_start_failed) -> PowerVisualState.ERROR
+            else -> PowerVisualState.IDLE
+        }
+        if (visualState == lastPowerVisualState) {
+            return
+        }
+        lastPowerVisualState = visualState
+
+        when (visualState) {
+            PowerVisualState.IDLE -> stopPowerPulse(1f)
+            PowerVisualState.CONNECTING -> startPowerPulse()
+            PowerVisualState.CONNECTED -> {
+                stopPowerPulse(1f)
+                powerButton.animate().scaleX(1.08f).scaleY(1.08f).setDuration(180).withEndAction {
+                    powerButton.animate().scaleX(1f).scaleY(1f).setDuration(220).start()
+                }.start()
+            }
+            PowerVisualState.ERROR -> {
+                stopPowerPulse(1f)
+                powerButton.animate().scaleX(0.94f).scaleY(0.94f).setDuration(120).withEndAction {
+                    powerButton.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
+                }.start()
+            }
+        }
+    }
+
+    private fun startPowerPulse() {
+        if (powerPulseAnimator != null) {
+            return
+        }
+        powerPulseAnimator = ValueAnimator.ofFloat(0.96f, 1.06f).apply {
+            duration = 900L
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            addUpdateListener { animator ->
+                val value = animator.animatedValue as Float
+                powerButton.scaleX = value
+                powerButton.scaleY = value
+                powerButton.alpha = 0.88f + ((value - 0.96f) / 0.10f) * 0.12f
+            }
+            start()
+        }
+    }
+
+    private fun stopPowerPulse(targetScale: Float) {
+        powerPulseAnimator?.cancel()
+        powerPulseAnimator = null
+        powerButton.animate()
+            .scaleX(targetScale)
+            .scaleY(targetScale)
+            .alpha(1f)
+            .setDuration(220)
+            .start()
+    }
+
+    private fun animateDisconnectTransition() {
+        stopPowerPulse(1f)
+        powerButton.animate().scaleX(0.92f).scaleY(0.92f).setDuration(120).withEndAction {
+            powerButton.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
+        }.start()
+    }
+
+    private fun updateTextWithFade(view: TextView, text: String) {
+        if (view.text.toString() == text) {
+            return
+        }
+        view.animate().cancel()
+        view.animate().alpha(0f).setDuration(120).withEndAction {
+            view.text = text
+            view.animate().alpha(1f).setDuration(200).start()
+        }.start()
+    }
+
+    private fun trafficStrategyLabel(strategy: com.novpn.data.TrafficObfuscationStrategy): String {
+        return when (strategy) {
+            com.novpn.data.TrafficObfuscationStrategy.BALANCED ->
+                getString(R.string.traffic_strategy_balanced_short)
+            com.novpn.data.TrafficObfuscationStrategy.CDN_MIMIC ->
+                getString(R.string.traffic_strategy_cdn_short)
+            com.novpn.data.TrafficObfuscationStrategy.FRAGMENTED ->
+                getString(R.string.traffic_strategy_fragmented_short)
+        }
+    }
+
+    private fun patternStrategyLabel(strategy: com.novpn.data.PatternMaskingStrategy): String {
+        return when (strategy) {
+            com.novpn.data.PatternMaskingStrategy.STEADY ->
+                getString(R.string.pattern_strategy_steady_short)
+            com.novpn.data.PatternMaskingStrategy.PULSE ->
+                getString(R.string.pattern_strategy_pulse_short)
+            com.novpn.data.PatternMaskingStrategy.RANDOMIZED ->
+                getString(R.string.pattern_strategy_randomized_short)
         }
     }
 
@@ -688,5 +821,12 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val VPN_PERMISSION_REQUEST_CODE = 4107
+    }
+
+    private enum class PowerVisualState {
+        IDLE,
+        CONNECTING,
+        CONNECTED,
+        ERROR
     }
 }

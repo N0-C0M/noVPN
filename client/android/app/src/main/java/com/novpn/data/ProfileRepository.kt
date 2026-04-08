@@ -31,7 +31,7 @@ class ProfileRepository(private val context: Context) {
 
     fun importProfile(uri: Uri): AvailableProfile {
         val payload = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            ?: throw IllegalArgumentException("Unable to read the selected profile file.")
+            ?: throw IllegalArgumentException("Не удалось прочитать выбранный файл профиля.")
         return importProfilePayload(payload, uri.lastPathSegment.orEmpty())
     }
 
@@ -47,6 +47,7 @@ class ProfileRepository(private val context: Context) {
             name = profile.name,
             address = "${profile.server.address}:${profile.server.port}",
             serverName = profile.server.serverName,
+            locationLabel = profile.server.locationLabel,
             isImported = true
         )
     }
@@ -59,6 +60,7 @@ class ProfileRepository(private val context: Context) {
                 name = profile.name,
                 address = "${profile.server.address}:${profile.server.port}",
                 serverName = profile.server.serverName,
+                locationLabel = profile.server.locationLabel,
                 isImported = entry.source == ProfileSource.IMPORTED
             )
         }
@@ -74,9 +76,17 @@ class ProfileRepository(private val context: Context) {
                 ?.optString(0)
                 .orEmpty()
         }
+        val locationLabel = server.optString("location_label")
+            .ifBlank { ServerLocationCatalog.labelFor(server.optString("address")) }
         val seed = obfuscation?.optString("seed")
             ?.takeIf { it.isNotBlank() }
             ?: defaultSeed(shortId)
+        val trafficStrategy = TrafficObfuscationStrategy.fromStorage(
+            obfuscation?.optString("traffic_strategy")
+        )
+        val patternStrategy = PatternMaskingStrategy.fromStorage(
+            obfuscation?.optString("pattern_strategy")
+        )
 
         return ClientProfile(
             name = root.optString("name").ifBlank { DEFAULT_PROFILE_NAME },
@@ -89,6 +99,7 @@ class ProfileRepository(private val context: Context) {
                 fingerprint = server.optString("fingerprint", DEFAULT_FINGERPRINT),
                 publicKey = server.getString("public_key"),
                 shortId = shortId,
+                locationLabel = locationLabel,
                 spiderX = server.optString("spider_x", "/")
             ),
             local = LocalPorts(
@@ -97,7 +108,11 @@ class ProfileRepository(private val context: Context) {
                 httpListen = local?.optString("http_listen", DEFAULT_HTTP_LISTEN) ?: DEFAULT_HTTP_LISTEN,
                 httpPort = local?.optInt("http_port", DEFAULT_HTTP_PORT) ?: DEFAULT_HTTP_PORT
             ),
-            obfuscation = ObfuscationProfile(seed = seed)
+            obfuscation = ObfuscationProfile(
+                seed = seed,
+                trafficStrategy = trafficStrategy,
+                patternStrategy = patternStrategy
+            )
         )
     }
 
@@ -146,10 +161,11 @@ class ProfileRepository(private val context: Context) {
         }
 
         val shortId = scalars["short_id"].orEmpty().ifBlank { shortIds.firstOrNull().orEmpty() }
+        val address = scalars["address"].orEmpty()
         return ClientProfile(
             name = scalars["name"].orEmpty().ifBlank { DEFAULT_IMPORTED_NAME },
             server = ServerProfile(
-                address = scalars["address"].orEmpty(),
+                address = address,
                 port = scalars["port"]?.toIntOrNull() ?: 0,
                 uuid = scalars["uuid"].orEmpty(),
                 flow = scalars["flow"].orEmpty().ifBlank { DEFAULT_FLOW },
@@ -157,6 +173,7 @@ class ProfileRepository(private val context: Context) {
                 fingerprint = scalars["fingerprint"].orEmpty().ifBlank { DEFAULT_FINGERPRINT },
                 publicKey = scalars["public_key"].orEmpty(),
                 shortId = shortId,
+                locationLabel = ServerLocationCatalog.labelFor(address),
                 spiderX = scalars["spider_x"].orEmpty().ifBlank { "/" }
             ),
             local = LocalPorts(
@@ -166,7 +183,9 @@ class ProfileRepository(private val context: Context) {
                 httpPort = DEFAULT_HTTP_PORT
             ),
             obfuscation = ObfuscationProfile(
-                seed = defaultSeed(shortId)
+                seed = defaultSeed(shortId),
+                trafficStrategy = TrafficObfuscationStrategy.BALANCED,
+                patternStrategy = PatternMaskingStrategy.STEADY
             )
         )
     }
@@ -185,6 +204,7 @@ class ProfileRepository(private val context: Context) {
                     .put("fingerprint", profile.server.fingerprint)
                     .put("public_key", profile.server.publicKey)
                     .put("short_id", profile.server.shortId)
+                    .put("location_label", profile.server.locationLabel)
                     .put("spider_x", profile.server.spiderX)
             )
             .put(
@@ -199,6 +219,8 @@ class ProfileRepository(private val context: Context) {
                 "obfuscation",
                 JSONObject()
                     .put("seed", profile.obfuscation.seed)
+                    .put("traffic_strategy", profile.obfuscation.trafficStrategy.storageValue)
+                    .put("pattern_strategy", profile.obfuscation.patternStrategy.storageValue)
             )
 
         return document.toString(2) + "\n"

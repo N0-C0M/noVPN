@@ -1,12 +1,18 @@
 package com.novpn.ui
 
 import com.novpn.data.AvailableProfile
+import com.novpn.data.AppRoutingMode
 import com.novpn.data.InstalledApp
+import com.novpn.data.PatternMaskingStrategy
+import com.novpn.data.TrafficObfuscationStrategy
 
 data class TunnelState(
     val bypassRu: Boolean = true,
     val inviteCode: String = "",
-    val excludedPackages: List<String> = emptyList(),
+    val appRoutingMode: AppRoutingMode = AppRoutingMode.EXCLUDE_SELECTED,
+    val selectedPackages: List<String> = emptyList(),
+    val trafficStrategy: TrafficObfuscationStrategy = TrafficObfuscationStrategy.BALANCED,
+    val patternStrategy: PatternMaskingStrategy = PatternMaskingStrategy.STEADY,
     val installedApps: List<InstalledApp> = emptyList(),
     val availableProfiles: List<AvailableProfile> = emptyList(),
     val selectedProfileId: String = "",

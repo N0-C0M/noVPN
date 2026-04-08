@@ -80,8 +80,8 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             throw IllegalStateException(
-                "Android blocked executing $binaryName from app files. " +
-                    "The packaged runtime executable is missing for this ABI."
+                "Android заблокировал запуск $binaryName из файлов приложения. " +
+                    "Для этой ABI не найден упакованный runtime-исполняемый файл."
             )
         }
 
@@ -118,7 +118,7 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
     private fun verifyProcessStartup(process: Process?, label: String, logFile: File) {
         if (process == null) {
-            throw IllegalStateException("$label process was not created.")
+            throw IllegalStateException("Процесс $label не был создан.")
         }
 
         Thread.sleep(250)
@@ -129,9 +129,9 @@ class EmbeddedRuntimeManager(private val context: Context) {
         val exitCode = runCatching { process.exitValue() }.getOrNull()
         val tail = readLogTail(logFile)
         val detail = if (tail.isBlank()) {
-            "$label exited immediately with code ${exitCode ?: -1}."
+            "$label завершился сразу с кодом ${exitCode ?: -1}."
         } else {
-            "$label exited immediately with code ${exitCode ?: -1}. Log tail: $tail"
+            "$label завершился сразу с кодом ${exitCode ?: -1}. Хвост лога: $tail"
         }
         throw IllegalStateException(detail)
     }
@@ -139,9 +139,9 @@ class EmbeddedRuntimeManager(private val context: Context) {
     private fun processSummary(label: String, process: Process?): String? {
         process ?: return null
         return if (process.isAlive) {
-            "$label process is alive."
+            "Процесс $label активен."
         } else {
-            "$label process exited with code ${runCatching { process.exitValue() }.getOrElse { -1 }}."
+            "Процесс $label завершился с кодом ${runCatching { process.exitValue() }.getOrElse { -1 }}."
         }
     }
 
@@ -150,7 +150,7 @@ class EmbeddedRuntimeManager(private val context: Context) {
         if (tail.isBlank()) {
             return null
         }
-        return "$label log: $tail"
+        return "Лог $label: $tail"
     }
 
     private fun readLogTail(logFile: File, lineCount: Int = 12): String {

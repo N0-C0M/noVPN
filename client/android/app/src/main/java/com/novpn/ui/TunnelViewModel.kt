@@ -6,13 +6,17 @@ import androidx.lifecycle.AndroidViewModel
 import com.novpn.data.DeviceIdentityStore
 import com.novpn.data.InviteRedeemer
 import com.novpn.R
+import com.novpn.data.AppRoutingMode
 import com.novpn.data.ClientPreferences
+import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.ProfileRepository
 import com.novpn.data.NetworkDiagnosticsRunner
 import com.novpn.data.requireRuntimeReady
+import com.novpn.data.withRuntimeStrategies
 import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
+import com.novpn.data.TrafficObfuscationStrategy
 import com.novpn.vpn.RuntimePreflightChecker
 import com.novpn.vpn.RuntimePreflightReport
 import com.novpn.vpn.RuntimeLocalProxySession
@@ -64,7 +68,10 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             it.copy(
                 bypassRu = preferences.isBypassRuEnabled(),
                 inviteCode = preferences.inviteCode(),
-                excludedPackages = preferences.excludedPackages(),
+                appRoutingMode = preferences.appRoutingMode(),
+                selectedPackages = preferences.excludedPackages(),
+                trafficStrategy = preferences.trafficObfuscationStrategy(),
+                patternStrategy = preferences.patternMaskingStrategy(),
                 installedApps = appsScanner.loadLaunchableApps(),
                 availableProfiles = availableProfiles,
                 selectedProfileId = normalizedProfileId,
@@ -85,7 +92,22 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     fun setExcludedPackages(value: List<String>) {
         val normalized = value.distinct()
         preferences.saveExcludedPackages(normalized)
-        _state.update { it.copy(excludedPackages = normalized) }
+        _state.update { it.copy(selectedPackages = normalized) }
+    }
+
+    fun setAppRoutingMode(value: AppRoutingMode) {
+        preferences.saveAppRoutingMode(value)
+        _state.update { it.copy(appRoutingMode = value) }
+    }
+
+    fun setTrafficStrategy(value: TrafficObfuscationStrategy) {
+        preferences.saveTrafficObfuscationStrategy(value)
+        _state.update { it.copy(trafficStrategy = value) }
+    }
+
+    fun setPatternStrategy(value: PatternMaskingStrategy) {
+        preferences.savePatternMaskingStrategy(value)
+        _state.update { it.copy(patternStrategy = value) }
     }
 
     fun setInviteCode(value: String) {
@@ -135,7 +157,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         profile.requireRuntimeReady()
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
-        )
+        ).withRuntimeStrategies(_state.value.trafficStrategy, _state.value.patternStrategy)
         val outputFile = configWriter.write(effectiveProfile, _state.value.bypassRu)
         _state.update { it.copy(generatedConfigPath = outputFile.absolutePath) }
     }
@@ -144,7 +166,10 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         return VpnRuntimeRequest(
             profileId = currentProfileId(),
             bypassRu = _state.value.bypassRu,
-            excludedPackages = _state.value.excludedPackages
+            appRoutingMode = _state.value.appRoutingMode,
+            selectedPackages = _state.value.selectedPackages,
+            trafficStrategy = _state.value.trafficStrategy,
+            patternStrategy = _state.value.patternStrategy
         )
     }
 
