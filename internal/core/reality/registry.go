@@ -46,6 +46,8 @@ type InviteRecord struct {
 	Note               string     `json:"note,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	MaxUses            int        `json:"max_uses,omitempty"`
+	RedeemedUses       int        `json:"redeemed_uses,omitempty"`
 	RedeemedAt         *time.Time `json:"redeemed_at,omitempty"`
 	RedeemedClientID   string     `json:"redeemed_client_id,omitempty"`
 	RedeemedDeviceID   string     `json:"redeemed_device_id,omitempty"`
@@ -82,6 +84,7 @@ type RegistrySummary struct {
 type InviteCreateRequest struct {
 	Name        string
 	Note        string
+	MaxUses     int
 	ExpiresAfter time.Duration
 }
 
@@ -203,10 +206,10 @@ func (s *RegistryStore) Summary(cfg config.RealityConfig) (RegistrySummary, erro
 		}
 	}
 	for _, invite := range registry.Invites {
-		if invite.RedeemedAt == nil && invite.Active {
+		if invite.isRedeemable(time.Now().UTC()) {
 			summary.PendingInvites++
 		}
-		if invite.RedeemedAt != nil {
+		if invite.RedeemedUses > 0 {
 			summary.RedeemedInvites++
 		}
 	}
@@ -246,6 +249,7 @@ func (s *RegistryStore) CreateInvite(input InviteCreateRequest) (InviteRecord, e
 			Code:      generateRegistryToken("inv"),
 			Name:      firstNonEmpty(strings.TrimSpace(input.Name), "New device"),
 			Note:      strings.TrimSpace(input.Note),
+			MaxUses:   normalizeInviteMaxUses(input.MaxUses),
 			CreatedAt: now,
 			Active:    true,
 		}
@@ -267,12 +271,16 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 		if invite == nil {
 			return errors.New("invite not found")
 		}
-		if !invite.Active || invite.RedeemedAt != nil {
-			return errors.New("invite already redeemed")
+		if !invite.Active {
+			return errors.New("invite is inactive")
 		}
 		if invite.ExpiresAt != nil && now.After(*invite.ExpiresAt) {
 			invite.Active = false
 			return errors.New("invite expired")
+		}
+		if invite.MaxUses > 0 && invite.RedeemedUses >= invite.MaxUses {
+			invite.Active = false
+			return errors.New("invite usage limit reached")
 		}
 
 		normalizedDeviceID := strings.TrimSpace(deviceID)
@@ -304,11 +312,14 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 			Active:     true,
 		}
 
-		invite.Active = false
+		invite.RedeemedUses++
 		invite.RedeemedAt = &now
 		invite.RedeemedClientID = client.ID
 		invite.RedeemedDeviceID = client.DeviceID
 		invite.RedeemedDeviceName = client.DeviceName
+		if invite.MaxUses > 0 && invite.RedeemedUses >= invite.MaxUses {
+			invite.Active = false
+		}
 
 		registry.Clients = append(registry.Clients, client)
 		result = InviteRedeemResult{
@@ -397,6 +408,18 @@ func (r *Registry) normalize() {
 	if r.Version == 0 {
 		r.Version = 1
 	}
+	now := time.Now().UTC()
+	for i := range r.Invites {
+		if r.Invites[i].MaxUses <= 0 {
+			r.Invites[i].MaxUses = 1
+		}
+		if r.Invites[i].ExpiresAt != nil && now.After(*r.Invites[i].ExpiresAt) {
+			r.Invites[i].Active = false
+		}
+		if r.Invites[i].MaxUses > 0 && r.Invites[i].RedeemedUses >= r.Invites[i].MaxUses {
+			r.Invites[i].Active = false
+		}
+	}
 	sort.SliceStable(r.Invites, func(i, j int) bool {
 		return r.Invites[i].CreatedAt.Before(r.Invites[j].CreatedAt)
 	})
@@ -484,6 +507,32 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeInviteMaxUses(value int) int {
+	if value <= 0 {
+		return 1
+	}
+	return value
+}
+
+func (i InviteRecord) remainingUses() int {
+	maxUses := normalizeInviteMaxUses(i.MaxUses)
+	remaining := maxUses - i.RedeemedUses
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+func (i InviteRecord) isRedeemable(now time.Time) bool {
+	if !i.Active {
+		return false
+	}
+	if i.ExpiresAt != nil && now.After(*i.ExpiresAt) {
+		return false
+	}
+	return i.remainingUses() > 0
 }
 
 func bootstrapDeviceName(value string) string {

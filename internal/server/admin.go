@@ -343,10 +343,11 @@ func (a *adminApp) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.writeJSONPayload(w, http.StatusCreated, map[string]any{
-		"invite":      invite,
-		"redeem_url":  a.basePath + "/api/invites/" + invite.Code + "/redeem",
-		"dashboard":   a.basePath + "/dashboard",
-		"status":      "created",
+		"invite":         invite,
+		"redeem_url":     a.basePath + "/redeem/" + invite.Code,
+		"api_redeem_url": a.basePath + "/api/invites/" + invite.Code + "/redeem",
+		"dashboard":      a.basePath + "/dashboard",
+		"status":         "created",
 	})
 }
 
@@ -709,6 +710,7 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 		var payload struct {
 			Name           string `json:"name"`
 			Note           string `json:"note"`
+			MaxUses        int    `json:"max_uses"`
 			ExpiresMinutes int    `json:"expires_minutes"`
 		}
 		if err := decodeJSON(r, &payload); err != nil {
@@ -717,6 +719,7 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 		return reality.InviteCreateRequest{
 			Name:         payload.Name,
 			Note:         payload.Note,
+			MaxUses:      payload.MaxUses,
 			ExpiresAfter: time.Duration(payload.ExpiresMinutes) * time.Minute,
 		}, nil
 	}
@@ -725,9 +728,11 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 		return reality.InviteCreateRequest{}, err
 	}
 	minutes, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("expires_minutes")))
+	maxUses, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("max_uses")))
 	return reality.InviteCreateRequest{
 		Name:         r.FormValue("name"),
 		Note:         r.FormValue("note"),
+		MaxUses:      maxUses,
 		ExpiresAfter: time.Duration(minutes) * time.Minute,
 	}, nil
 }
@@ -832,7 +837,7 @@ const adminDashboardTemplate = `
   <div class="hero">
     <div>
       <h1 class="title">NoVPN Admin</h1>
-      <div class="sub">Phase 1 registry, one-time invites, device-bound client records, and runtime monitoring.</div>
+      <div class="sub">Registry, reusable invite codes, device-bound client records, and runtime monitoring.</div>
     </div>
     <div class="topline">
       <span class="chip">Registry: {{.RegistryPath}}</span>
@@ -857,8 +862,9 @@ const adminDashboardTemplate = `
       <form method="post" action="{{.BasePath}}/api/invites" class="stack">
         <input name="name" placeholder="Invite name, e.g. Alice phone">
         <textarea name="note" rows="3" placeholder="Note"></textarea>
+        <input name="max_uses" type="number" min="1" value="1" placeholder="Allowed activations, 1 = single-device">
         <input name="expires_minutes" type="number" min="0" placeholder="Expires in minutes, 0 = no expiry">
-        <button type="submit">Create one-time invite</button>
+        <button type="submit">Create invite</button>
       </form>
     </div>
     <div class="card">
@@ -913,16 +919,20 @@ const adminDashboardTemplate = `
   <div class="card">
     <h2>Invites</h2>
     <table class="table">
-      <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Created</th><th>Redeemed</th><th>Redeem URL</th></tr></thead>
+      <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Usage</th><th>Expiry</th><th>Last redeemed</th><th>Redeem URL</th></tr></thead>
       <tbody>
       {{range .Invites}}
         <tr>
           <td class="small">{{.Code}}</td>
           <td>{{.Name}}<div class="muted small">{{.Note}}</div></td>
-          <td>{{if .RedeemedAt}}<span class="badge">redeemed</span>{{else if .Active}}<span class="badge">pending</span>{{else}}<span class="chip">inactive</span>{{end}}</td>
-          <td class="small">{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
-          <td class="small">{{if .RedeemedAt}}{{.RedeemedAt.Format "2006-01-02 15:04:05"}}{{end}}</td>
-          <td class="small">{{$.BasePath}}/api/invites/{{.Code}}/redeem</td>
+          <td>
+            {{if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}
+            <div class="muted small">created {{.CreatedAt.Format "2006-01-02 15:04:05"}}</div>
+          </td>
+          <td class="small">{{.RedeemedUses}} / {{.MaxUses}}</td>
+          <td class="small">{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02 15:04:05"}}{{else}}never{{end}}</td>
+          <td class="small">{{if .RedeemedAt}}{{.RedeemedAt.Format "2006-01-02 15:04:05"}}<div class="muted">device {{.RedeemedDeviceName}}</div>{{else}}never{{end}}</td>
+          <td class="small">{{$.BasePath}}/redeem/{{.Code}}</td>
         </tr>
       {{end}}
       </tbody>

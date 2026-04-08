@@ -5,71 +5,67 @@ import android.content.Context
 data class VpnRuntimeStatusSnapshot(
     val running: Boolean,
     val status: String,
-    val detail: String,
-    val localProxy: RuntimeLocalProxyConfig?
+    val detail: String
 )
 
 class VpnRuntimeStatusStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    init {
+        clearLegacyProxyState()
+    }
+
     fun load(): VpnRuntimeStatusSnapshot {
         return VpnRuntimeStatusSnapshot(
             running = prefs.getBoolean(KEY_RUNNING, false),
             status = prefs.getString(KEY_STATUS, "").orEmpty(),
-            detail = prefs.getString(KEY_DETAIL, "").orEmpty(),
-            localProxy = loadLocalProxy()
+            detail = prefs.getString(KEY_DETAIL, "").orEmpty()
         )
     }
 
     fun markStarting(status: String, detail: String = "") {
-        save(running = false, status = status, detail = detail, localProxy = null)
+        save(running = false, status = status, detail = detail)
     }
 
-    fun markRunning(status: String, detail: String = "", localProxy: RuntimeLocalProxyConfig? = null) {
-        save(running = true, status = status, detail = detail, localProxy = localProxy)
+    fun markRunning(status: String, detail: String = "") {
+        save(running = true, status = status, detail = detail)
     }
 
     fun markFailed(status: String, detail: String = "") {
-        save(running = false, status = status, detail = detail, localProxy = null)
+        save(running = false, status = status, detail = detail)
     }
 
     fun markStopped(status: String, detail: String = "") {
-        save(running = false, status = status, detail = detail, localProxy = null)
+        save(running = false, status = status, detail = detail)
     }
 
-    private fun save(
-        running: Boolean,
-        status: String,
-        detail: String,
-        localProxy: RuntimeLocalProxyConfig?
-    ) {
+    private fun save(running: Boolean, status: String, detail: String) {
         prefs.edit()
             .putBoolean(KEY_RUNNING, running)
             .putString(KEY_STATUS, status)
             .putString(KEY_DETAIL, detail)
-            .putString(KEY_PROXY_HOST, localProxy?.listenHost)
-            .putInt(KEY_PROXY_PORT, localProxy?.socksPort ?: 0)
-            .putString(KEY_PROXY_USERNAME, localProxy?.username)
-            .putString(KEY_PROXY_PASSWORD, localProxy?.password)
+            .remove(KEY_PROXY_HOST)
+            .remove(KEY_PROXY_PORT)
+            .remove(KEY_PROXY_USERNAME)
+            .remove(KEY_PROXY_PASSWORD)
             .apply()
     }
 
-    private fun loadLocalProxy(): RuntimeLocalProxyConfig? {
-        val host = prefs.getString(KEY_PROXY_HOST, "").orEmpty()
-        val port = prefs.getInt(KEY_PROXY_PORT, 0)
-        val username = prefs.getString(KEY_PROXY_USERNAME, "").orEmpty()
-        val password = prefs.getString(KEY_PROXY_PASSWORD, "").orEmpty()
-        if (host.isBlank() || port <= 0 || username.isBlank() || password.isBlank()) {
-            return null
+    private fun clearLegacyProxyState() {
+        if (!prefs.contains(KEY_PROXY_HOST) &&
+            !prefs.contains(KEY_PROXY_PORT) &&
+            !prefs.contains(KEY_PROXY_USERNAME) &&
+            !prefs.contains(KEY_PROXY_PASSWORD)
+        ) {
+            return
         }
 
-        return RuntimeLocalProxyConfig(
-            listenHost = host,
-            socksPort = port,
-            username = username,
-            password = password,
-            udpEnabled = false
-        )
+        prefs.edit()
+            .remove(KEY_PROXY_HOST)
+            .remove(KEY_PROXY_PORT)
+            .remove(KEY_PROXY_USERNAME)
+            .remove(KEY_PROXY_PASSWORD)
+            .apply()
     }
 
     companion object {

@@ -15,6 +15,7 @@ import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
 import com.novpn.vpn.RuntimePreflightChecker
 import com.novpn.vpn.RuntimePreflightReport
+import com.novpn.vpn.RuntimeLocalProxySession
 import com.novpn.vpn.VpnRuntimeStatusStore
 import com.novpn.vpn.VpnRuntimeRequest
 import com.novpn.xray.AndroidXrayConfigWriter
@@ -184,8 +185,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     suspend fun runNetworkDiagnostics(): String {
-        val runtimeStatus = runtimeStatusStore.load()
-        val localProxy = requireNotNull(runtimeStatus.localProxy) {
+        val localProxy = requireNotNull(RuntimeLocalProxySession.current()) {
             appContext.getString(R.string.diagnostics_runtime_unavailable)
         }
         val profile = profileRepository.loadProfile(currentProfileId())

@@ -12,7 +12,7 @@
     <string name="status_ready">Ready</string>
     <string name="status_connected">Connected</string>
     <string name="invite_code_title">Invite code</string>
-    <string name="invite_code_hint">Paste the one-time code from the admin panel. It will be saved on this device.</string>
+    <string name="invite_code_hint">Paste the invite code from the admin panel. It will be saved on this device.</string>
     <string name="invite_code_placeholder">Enter code</string>
     <string name="activate_invite_code">Activate code</string>
     <string name="invite_code_saved">Invite code saved</string>
@@ -60,7 +60,7 @@
     <string name="preflight_ready">Runtime preflight passed</string>
     <string name="preflight_attention">Runtime preflight needs attention</string>
     <string name="preflight_tun2proxy_ready">Tun2proxy bridge is bundled for live TUN to Xray forwarding.</string>
-    <string name="preflight_local_proxy_hardened">Local SOCKS runtime uses per-launch password auth, a random port, and UDP disabled.</string>
+    <string name="preflight_local_proxy_hardened">Local SOCKS runtime uses per-launch password auth, a random port, UDP disabled, and keeps credentials only in memory.</string>
     <string name="preflight_no_api_surface">No Xray management API is exposed by this Android client config.</string>
     <string name="preflight_tunnel_live">Android traffic is routed through TUN to tun2proxy to the local authenticated Xray SOCKS bridge.</string>
     <string name="notification_title">NoVPN</string>

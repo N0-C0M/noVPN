@@ -87,7 +87,7 @@ http://127.0.0.1:9112/admin
 
 The panel supports:
 
-- creating one-time invites;
+- creating invite codes with both expiry and max-use limits;
 - redeeming invites into per-device client records;
 - downloading per-client profile YAML files;
 - revoking clients;

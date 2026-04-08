@@ -74,6 +74,7 @@ class NoVpnService : VpnService() {
             ACTION_STOP -> {
                 worker.execute {
                     runtimeStatusStore.markStopped(getString(R.string.service_stopped))
+                    RuntimeLocalProxySession.update(null)
                     stopCore()
                     mainHandler.post {
                         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -89,6 +90,7 @@ class NoVpnService : VpnService() {
         worker.execute {
             stopCore()
             runtimeStatusStore.markStopped(getString(R.string.service_stopped))
+            RuntimeLocalProxySession.update(null)
         }
         worker.shutdown()
         super.onDestroy()
@@ -101,6 +103,7 @@ class NoVpnService : VpnService() {
                 status = getString(R.string.status_permission_required),
                 detail = getString(R.string.status_permission_denied_detail)
             )
+            RuntimeLocalProxySession.update(null)
         }
         stopSelf()
     }
@@ -161,9 +164,9 @@ class NoVpnService : VpnService() {
 
         runtimeStatusStore.markRunning(
             status = getString(R.string.runtime_active_profile, effectiveProfile.name),
-            detail = getString(R.string.runtime_running_detail, effectiveProfile.server.address, effectiveProfile.server.port),
-            localProxy = localProxy
+            detail = getString(R.string.runtime_running_detail, effectiveProfile.server.address, effectiveProfile.server.port)
         )
+        RuntimeLocalProxySession.update(localProxy)
         startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
     }
 
@@ -172,6 +175,7 @@ class NoVpnService : VpnService() {
         runtimeManager.stop()
         tunnelInterface?.close()
         tunnelInterface = null
+        RuntimeLocalProxySession.update(null)
     }
 
     private fun applyDisallowedApplications(
