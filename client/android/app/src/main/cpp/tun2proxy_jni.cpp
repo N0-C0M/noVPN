@@ -108,7 +108,7 @@ Java_com_novpn_vpn_Tun2ProxyBridge_nativeRunWithFd(JNIEnv *env,
     const int result = gRunWithFd(
         proxy_url,
         tunFd,
-        true,
+        false,
         false,
         static_cast<unsigned short>(mtu),
         static_cast<Tun2proxyDns>(dnsStrategy),
