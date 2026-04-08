@@ -11,6 +11,7 @@ from .config_builder import XrayConfigBuilder
 from .models import ClientProfile, DesktopSettings, RuntimeStatus
 from .obfuscator_config_builder import ObfuscatorConfigBuilder
 from .runtime_layout import RuntimeLayout
+from .session_obfuscation import SessionObfuscationPlanner
 
 
 class DesktopRuntimeManager:
@@ -44,10 +45,21 @@ class DesktopRuntimeManager:
             selected_apps=list(settings.selected_apps),
             traffic_strategy=settings.traffic_strategy,
             pattern_strategy=settings.pattern_strategy,
+            device_id=settings.device_id,
             output_path=self._layout.xray_config,
         )
-        self._xray_builder.write(profile, runtime_settings)
-        self._obfuscator_builder.write(profile, self._layout.obfuscator_config, self._layout.xray_config)
+        session_plan = SessionObfuscationPlanner.build(
+            profile=profile,
+            device_id=settings.device_id or "desktop-runtime",
+        )
+        self._xray_builder.write(profile, runtime_settings, session_plan)
+        self._obfuscator_builder.write(
+            profile,
+            self._layout.obfuscator_config,
+            self._layout.xray_config,
+            settings.device_id,
+            session_plan,
+        )
 
         self._ensure_binary(self._layout.xray_binary)
         self._ensure_binary(self._layout.obfuscator_binary)

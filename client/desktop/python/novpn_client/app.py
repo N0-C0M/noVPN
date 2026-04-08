@@ -61,6 +61,7 @@ def main() -> int:
             selected_apps=args.exclude_app,
             traffic_strategy=TrafficObfuscationStrategy.BALANCED,
             pattern_strategy=PatternMaskingStrategy.STEADY,
+            device_id=device_identity_store.device_id(),
             output_path=args.output,
         )
         output_path = builder.write(profile, settings)

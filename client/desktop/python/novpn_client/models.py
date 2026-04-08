@@ -69,6 +69,26 @@ class PatternMaskingStrategy(str, Enum):
             self.QUIET_SWEEP: "/favicon.ico",
         }[self]
 
+    @property
+    def jitter_window_ms(self) -> int:
+        return {
+            self.STEADY: 60,
+            self.PULSE: 180,
+            self.RANDOMIZED: 320,
+            self.BURST_FADE: 420,
+            self.QUIET_SWEEP: 240,
+        }[self]
+
+    @property
+    def padding_profile(self) -> str:
+        return {
+            self.STEADY: "steady",
+            self.PULSE: "pulse",
+            self.RANDOMIZED: "randomized",
+            self.BURST_FADE: "burst_fade",
+            self.QUIET_SWEEP: "quiet_sweep",
+        }[self]
+
     @classmethod
     def from_storage(cls, value: str | None) -> "PatternMaskingStrategy":
         for item in cls:
@@ -131,6 +151,7 @@ class DesktopSettings:
     selected_apps: list[str]
     traffic_strategy: TrafficObfuscationStrategy
     pattern_strategy: PatternMaskingStrategy
+    device_id: str
     output_path: Path
 
 

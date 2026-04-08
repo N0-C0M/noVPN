@@ -16,10 +16,14 @@ import (
 const version = "0.1.0-scaffold"
 
 type config struct {
-	Mode        string            `json:"mode"`
-	Seed        string            `json:"seed"`
-	Remote      remoteConfig      `json:"remote"`
-	Integration integrationConfig `json:"integration"`
+	Mode            string              `json:"mode"`
+	Seed            string              `json:"seed"`
+	TrafficStrategy string              `json:"traffic_strategy"`
+	PatternStrategy string              `json:"pattern_strategy"`
+	Remote          remoteConfig        `json:"remote"`
+	Integration     integrationConfig   `json:"integration"`
+	Session         sessionConfig       `json:"session"`
+	PatternTuning   patternTuningConfig `json:"pattern_tuning"`
 }
 
 type remoteConfig struct {
@@ -30,6 +34,26 @@ type remoteConfig struct {
 type integrationConfig struct {
 	XrayConfigPath string `json:"xrayConfigPath"`
 	ExpectedCLI    string `json:"expectedCli"`
+}
+
+type sessionConfig struct {
+	Nonce               string   `json:"nonce"`
+	RotationBucket      int64    `json:"rotation_bucket"`
+	SelectedFingerprint string   `json:"selected_fingerprint"`
+	SelectedSpiderX     string   `json:"selected_spider_x"`
+	FingerprintPool     []string `json:"fingerprint_pool"`
+	CoverPathPool       []string `json:"cover_path_pool"`
+}
+
+type patternTuningConfig struct {
+	PaddingProfile     string `json:"padding_profile"`
+	JitterWindowMs     int    `json:"jitter_window_ms"`
+	PaddingMinBytes    int    `json:"padding_min_bytes"`
+	PaddingMaxBytes    int    `json:"padding_max_bytes"`
+	BurstIntervalMinMs int    `json:"burst_interval_min_ms"`
+	BurstIntervalMaxMs int    `json:"burst_interval_max_ms"`
+	IdleGapMinMs       int    `json:"idle_gap_min_ms"`
+	IdleGapMaxMs       int    `json:"idle_gap_max_ms"`
 }
 
 func main() {
@@ -57,11 +81,43 @@ func main() {
 	log.Printf("starting scaffold runtime")
 	log.Printf("config=%s", absConfigPath)
 	log.Printf("mode=%s remote=%s:%d seed_length=%d", cfg.Mode, cfg.Remote.Address, cfg.Remote.Port, len(cfg.Seed))
+	if cfg.TrafficStrategy != "" || cfg.PatternStrategy != "" {
+		log.Printf("strategies traffic=%s pattern=%s", cfg.TrafficStrategy, cfg.PatternStrategy)
+	}
 	if cfg.Integration.XrayConfigPath != "" {
 		log.Printf("xray_config=%s", cfg.Integration.XrayConfigPath)
 	}
 	if cfg.Integration.ExpectedCLI != "" {
 		log.Printf("expected_cli=%s", cfg.Integration.ExpectedCLI)
+	}
+	if cfg.Session.Nonce != "" {
+		log.Printf(
+			"session nonce=%s rotation_bucket=%d fingerprint=%s spider_x=%s",
+			cfg.Session.Nonce,
+			cfg.Session.RotationBucket,
+			cfg.Session.SelectedFingerprint,
+			cfg.Session.SelectedSpiderX,
+		)
+	}
+	if len(cfg.Session.FingerprintPool) > 0 || len(cfg.Session.CoverPathPool) > 0 {
+		log.Printf(
+			"session_pools fingerprints=%d cover_paths=%d",
+			len(cfg.Session.FingerprintPool),
+			len(cfg.Session.CoverPathPool),
+		)
+	}
+	if cfg.PatternTuning.PaddingProfile != "" || cfg.PatternTuning.JitterWindowMs > 0 {
+		log.Printf(
+			"pattern_tuning padding=%s jitter_ms=%d padding_bytes=%d-%d burst_ms=%d-%d idle_ms=%d-%d",
+			cfg.PatternTuning.PaddingProfile,
+			cfg.PatternTuning.JitterWindowMs,
+			cfg.PatternTuning.PaddingMinBytes,
+			cfg.PatternTuning.PaddingMaxBytes,
+			cfg.PatternTuning.BurstIntervalMinMs,
+			cfg.PatternTuning.BurstIntervalMaxMs,
+			cfg.PatternTuning.IdleGapMinMs,
+			cfg.PatternTuning.IdleGapMaxMs,
+		)
 	}
 	log.Printf("note=this is a placeholder obfuscator binary; replace with the real module 1 implementation when available")
 

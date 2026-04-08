@@ -259,6 +259,7 @@ class MainWindow:
             selected_apps=list(self._state.selected_apps),
             traffic_strategy=self._state.traffic_strategy,
             pattern_strategy=self._state.pattern_strategy,
+            device_id=self._state.device_id,
             output_path=self._output_path,
         )
 

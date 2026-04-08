@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novpn.R
 import com.novpn.data.AppRoutingMode
+import com.novpn.data.DeviceIdentityStore
 import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.ProfileRepository
 import com.novpn.data.TrafficObfuscationStrategy
@@ -24,6 +25,7 @@ import com.novpn.data.requireRuntimeReady
 import com.novpn.data.withObfuscationSeed
 import com.novpn.data.withRuntimeStrategies
 import com.novpn.obfs.ObfuscationSeedStore
+import com.novpn.obfs.SessionObfuscationPlanner
 import com.novpn.ui.MainActivity
 import com.novpn.xray.AndroidXrayConfigWriter
 import java.net.InetAddress
@@ -35,6 +37,7 @@ class NoVpnService : VpnService() {
     private val tun2ProxyBridge by lazy { Tun2ProxyBridge() }
     private val profileRepository by lazy { ProfileRepository(this) }
     private val seedStore by lazy { ObfuscationSeedStore(this) }
+    private val deviceIdentityStore by lazy { DeviceIdentityStore(this) }
     private val xrayConfigWriter by lazy { AndroidXrayConfigWriter(this) }
     private val obfuscatorConfigWriter by lazy { ObfuscatorConfigWriter(this) }
     private val runtimeManager by lazy { EmbeddedRuntimeManager(this) }
@@ -180,8 +183,12 @@ class NoVpnService : VpnService() {
         coreSessionActive = true
 
         try {
-            val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy)
-            val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig)
+            val sessionPlan = SessionObfuscationPlanner.build(
+                profile = effectiveProfile,
+                deviceId = deviceIdentityStore.deviceId()
+            )
+            val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy, sessionPlan)
+            val obfuscatorConfig = obfuscatorConfigWriter.write(effectiveProfile, xrayConfig, sessionPlan)
             runtimeManager.start(xrayConfig, obfuscatorConfig)
             tun2ProxyBridge.waitForLocalProxy(localProxy)
             tunnelInterface = establishTunnel(

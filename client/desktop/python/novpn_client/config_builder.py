@@ -4,12 +4,20 @@ import json
 from pathlib import Path
 
 from .models import ClientProfile, DesktopSettings
+from .session_obfuscation import SessionObfuscationPlan, SessionObfuscationPlanner
 
 
 class XrayConfigBuilder:
-    def build(self, profile: ClientProfile, settings: DesktopSettings) -> dict:
-        selected_fingerprint = self._selected_fingerprint(profile, settings)
-        selected_spider_x = self._selected_spider_x(profile, settings, selected_fingerprint)
+    def build(
+        self,
+        profile: ClientProfile,
+        settings: DesktopSettings,
+        session_plan: SessionObfuscationPlan | None = None,
+    ) -> dict:
+        effective_plan = session_plan or SessionObfuscationPlanner.build(
+            profile=profile,
+            device_id=settings.device_id or "desktop-preview",
+        )
         rules: list[dict] = [
             {
                 "type": "field",
@@ -127,10 +135,10 @@ class XrayConfigBuilder:
                         "security": "reality",
                         "realitySettings": {
                             "serverName": profile.server.server_name,
-                            "fingerprint": selected_fingerprint,
+                            "fingerprint": effective_plan.selected_fingerprint,
                             "publicKey": profile.server.public_key,
                             "shortId": profile.server.short_id,
-                            "spiderX": selected_spider_x,
+                            "spiderX": effective_plan.selected_spider_x,
                         },
                     },
                 },
@@ -149,38 +157,19 @@ class XrayConfigBuilder:
             },
         }
 
-    def write(self, profile: ClientProfile, settings: DesktopSettings) -> Path:
-        document = self.build(profile, settings)
+    def write(
+        self,
+        profile: ClientProfile,
+        settings: DesktopSettings,
+        session_plan: SessionObfuscationPlan | None = None,
+    ) -> Path:
+        document = self.build(profile, settings, session_plan)
         settings.output_path.parent.mkdir(parents=True, exist_ok=True)
         settings.output_path.write_text(
             json.dumps(document, indent=2) + "\n",
             encoding="utf-8",
         )
         return settings.output_path
-
-    def _selected_fingerprint(self, profile: ClientProfile, settings: DesktopSettings) -> str:
-        if settings.traffic_strategy.value == "balanced":
-            return profile.server.fingerprint
-        return settings.traffic_strategy.fingerprint
-
-    def _selected_spider_x(
-        self,
-        profile: ClientProfile,
-        settings: DesktopSettings,
-        selected_fingerprint: str,
-    ) -> str:
-        pattern_strategy = settings.pattern_strategy
-        if pattern_strategy.value == "steady":
-            return profile.server.spider_x
-        if pattern_strategy.value == "pulse":
-            return pattern_strategy.spider_xpath
-        if pattern_strategy.value == "randomized":
-            suffix = profile.server.short_id[-4:] or "edge"
-            return f"{pattern_strategy.spider_xpath}/{suffix}"
-        if pattern_strategy.value == "quiet_sweep":
-            fingerprint_hint = selected_fingerprint[:3].lower()
-            return f"{pattern_strategy.spider_xpath}?fp={fingerprint_hint}"
-        return pattern_strategy.spider_xpath
 
     def _selected_processes(self, selected_apps: list[str]) -> list[str]:
         result: list[str] = []
