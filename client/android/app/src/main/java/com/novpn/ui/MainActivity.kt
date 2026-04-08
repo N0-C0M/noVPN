@@ -42,17 +42,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var activateCodeButton: Button
     private lateinit var serverStrip: LinearLayout
 
-    private val vpnPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            startVpnRuntime()
-        } else {
-            statusTitle.text = getString(R.string.status_permission_required)
-            statusDetail.text = getString(R.string.status_permission_denied_detail)
-        }
-    }
-
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
@@ -98,6 +87,21 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         viewModel.refreshStateFromPreferences()
         renderState(viewModel.state.value)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != VPN_PERMISSION_REQUEST_CODE) {
+            return
+        }
+
+        if (resultCode == Activity.RESULT_OK) {
+            startVpnRuntime()
+        } else {
+            statusTitle.text = getString(R.string.status_permission_required)
+            statusDetail.text = getString(R.string.status_permission_denied_detail)
+        }
     }
 
     private fun buildContentView(): View {
@@ -470,7 +474,7 @@ class MainActivity : ComponentActivity() {
     private fun beginVpnStartFlow() {
         val prepareIntent = VpnService.prepare(this)
         if (prepareIntent != null) {
-            vpnPermissionLauncher.launch(prepareIntent)
+            startActivityForResult(prepareIntent, VPN_PERMISSION_REQUEST_CODE)
         } else {
             startVpnRuntime()
         }
@@ -580,5 +584,9 @@ class MainActivity : ComponentActivity() {
             value,
             resources.displayMetrics
         )
+    }
+
+    companion object {
+        private const val VPN_PERMISSION_REQUEST_CODE = 4107
     }
 }
