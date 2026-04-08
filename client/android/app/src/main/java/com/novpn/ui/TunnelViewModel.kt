@@ -52,7 +52,11 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     fun refreshStateFromPreferences() {
         val availableProfiles = profileRepository.listProfiles()
         val defaultProfileId = profileRepository.defaultProfileId()
-        val selectedProfileId = preferences.selectedProfileId(defaultProfileId)
+        val selectedProfileId = if (defaultProfileId.isBlank()) {
+            ""
+        } else {
+            preferences.selectedProfileId(defaultProfileId)
+        }
         val normalizedProfileId = availableProfiles
             .firstOrNull { it.profileId == selectedProfileId }
             ?.profileId
@@ -133,9 +137,8 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             appContext.getString(R.string.invite_code_missing)
         }
 
-        val bootstrapProfile = profileRepository.loadProfile(currentProfileId())
         val payload = inviteRedeemer.redeem(
-            serverAddress = bootstrapProfile.server.address,
+            serverAddress = profileRepository.bootstrapServerAddress(),
             inviteCode = inviteCode,
             deviceId = deviceIdentityStore.deviceId(),
             deviceName = deviceIdentityStore.deviceName()
@@ -152,8 +155,8 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun generateConfig() {
-        runtimePreflight().requireReady()
-        val profile = profileRepository.loadProfile(currentProfileId())
+        runtimePreflight(requireCurrentProfileId()).requireReady()
+        val profile = profileRepository.loadProfile(requireCurrentProfileId())
         profile.requireRuntimeReady()
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
@@ -164,7 +167,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
 
     fun buildRuntimeRequest(): VpnRuntimeRequest {
         return VpnRuntimeRequest(
-            profileId = currentProfileId(),
+            profileId = requireCurrentProfileId(),
             bypassRu = _state.value.bypassRu,
             appRoutingMode = _state.value.appRoutingMode,
             selectedPackages = _state.value.selectedPackages,
@@ -213,7 +216,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         val localProxy = requireNotNull(RuntimeLocalProxySession.current()) {
             appContext.getString(R.string.diagnostics_runtime_unavailable)
         }
-        val profile = profileRepository.loadProfile(currentProfileId())
+        val profile = profileRepository.loadProfile(requireCurrentProfileId())
         val result = withContext(Dispatchers.IO) {
             diagnosticsRunner.run(profile, localProxy)
         }
@@ -234,7 +237,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun runtimePreflight(): RuntimePreflightReport {
-        return preflightChecker.evaluate(currentProfileId())
+        return runtimePreflight(requireCurrentProfileId())
     }
 
     private fun currentProfileId(): String {
@@ -244,5 +247,17 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             profileRepository.defaultProfileId()
         }
+    }
+
+    private fun requireCurrentProfileId(): String {
+        val profileId = currentProfileId()
+        require(profileId.isNotBlank()) {
+            appContext.getString(R.string.runtime_profile_incomplete)
+        }
+        return profileId
+    }
+
+    private fun runtimePreflight(profileId: String): RuntimePreflightReport {
+        return preflightChecker.evaluate(profileId)
     }
 }

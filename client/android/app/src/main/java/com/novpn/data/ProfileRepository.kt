@@ -13,14 +13,22 @@ class ProfileRepository(private val context: Context) {
     }
 
     fun defaultProfileId(): String {
-        return listProfileEntries().firstOrNull()?.profileId ?: assetProfileId(DEFAULT_ASSET)
+        return listProfileEntries().firstOrNull()?.profileId.orEmpty()
     }
 
     fun loadDefaultProfile(): ClientProfile {
-        return loadProfile(defaultProfileId())
+        val profileId = defaultProfileId()
+        require(profileId.isNotBlank()) { "Сначала активируйте код или импортируйте профиль сервера." }
+        return loadProfile(profileId)
+    }
+
+    fun bootstrapServerAddress(): String {
+        val payload = context.assets.open(DEFAULT_ASSET).bufferedReader().use { it.readText() }
+        return parseClientProfileJson(payload).server.address
     }
 
     fun loadProfile(profileId: String): ClientProfile {
+        require(profileId.isNotBlank()) { "Сначала активируйте код или импортируйте профиль сервера." }
         val entry = resolveProfileEntry(profileId)
         val payload = when (entry.source) {
             ProfileSource.ASSET -> context.assets.open(entry.fileName).bufferedReader().use { it.readText() }
@@ -227,21 +235,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     private fun listProfileEntries(): List<ProfileEntry> {
-        return listImportedProfileEntries() + listAssetProfileEntries()
-    }
-
-    private fun listAssetProfileEntries(): List<ProfileEntry> {
-        return context.assets.list("")
-            .orEmpty()
-            .filter { it.startsWith("profile.") && it.endsWith(".json") }
-            .sorted()
-            .map { fileName ->
-                ProfileEntry(
-                    profileId = assetProfileId(fileName),
-                    fileName = fileName,
-                    source = ProfileSource.ASSET
-                )
-            }
+        return listImportedProfileEntries()
     }
 
     private fun listImportedProfileEntries(): List<ProfileEntry> {
@@ -274,12 +268,7 @@ class ProfileRepository(private val context: Context) {
             File(importedProfilesDir, profileId).exists() -> {
                 ProfileEntry(profileId = fileProfileId(profileId), fileName = profileId, source = ProfileSource.IMPORTED)
             }
-            else -> listProfileEntries().firstOrNull()
-                ?: ProfileEntry(
-                    profileId = assetProfileId(DEFAULT_ASSET),
-                    fileName = DEFAULT_ASSET,
-                    source = ProfileSource.ASSET
-                )
+            else -> throw IllegalArgumentException("Профиль сервера не найден. Импортируйте или активируйте новый профиль.")
         }
     }
 

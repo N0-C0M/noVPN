@@ -44,13 +44,24 @@ class NoVpnService : VpnService() {
         Thread(runnable, "novpn-service-worker").apply { isDaemon = true }
     }
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+    private val coreLock = Any()
     private var tunnelInterface: ParcelFileDescriptor? = null
+    @Volatile
+    private var coreSessionActive = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
                 val profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
-                    ?: profileRepository.defaultProfileId()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: run {
+                        runtimeStatusStore.markFailed(
+                            status = getString(R.string.runtime_start_failed),
+                            detail = getString(R.string.runtime_profile_incomplete)
+                        )
+                        stopSelf()
+                        return START_NOT_STICKY
+                    }
                 val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
                 val appRoutingMode = AppRoutingMode.fromStorage(intent.getStringExtra(EXTRA_APP_ROUTING_MODE))
                 val selectedPackages = intent.getStringArrayListExtra(EXTRA_SELECTED_PACKAGES).orEmpty()
@@ -105,12 +116,10 @@ class NoVpnService : VpnService() {
     }
 
     override fun onDestroy() {
-        worker.execute {
-            stopCore()
-            runtimeStatusStore.markStopped(getString(R.string.service_stopped))
-            RuntimeLocalProxySession.update(null)
-        }
-        worker.shutdown()
+        runCatching { stopCore() }
+        runtimeStatusStore.markStopped(getString(R.string.service_stopped))
+        RuntimeLocalProxySession.update(null)
+        worker.shutdownNow()
         super.onDestroy()
     }
 
@@ -168,6 +177,7 @@ class NoVpnService : VpnService() {
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         ).withRuntimeStrategies(trafficStrategy, patternStrategy)
         val localProxy = RuntimeLocalProxyFactory.create()
+        coreSessionActive = true
 
         try {
             val xrayConfig = xrayConfigWriter.write(effectiveProfile, bypassRu, localProxy)
@@ -194,11 +204,17 @@ class NoVpnService : VpnService() {
     }
 
     private fun stopCore() {
-        tun2ProxyBridge.stop()
-        runtimeManager.stop()
-        tunnelInterface?.close()
-        tunnelInterface = null
-        RuntimeLocalProxySession.update(null)
+        synchronized(coreLock) {
+            if (!coreSessionActive && tunnelInterface == null && !runtimeManager.isRunning()) {
+                return
+            }
+            coreSessionActive = false
+            tun2ProxyBridge.stop()
+            runtimeManager.stop()
+            runCatching { tunnelInterface?.close() }
+            tunnelInterface = null
+            RuntimeLocalProxySession.update(null)
+        }
     }
 
     private fun applyApplicationRouting(

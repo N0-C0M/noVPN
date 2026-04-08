@@ -34,7 +34,7 @@
     <string name="server_section_hint">Выберите сервер ниже. Маршрутизация приложений настраивается в правом верхнем углу.</string>
     <string name="profile_source_imported">Импортированный профиль</string>
     <string name="profile_source_bundled">Встроенный профиль</string>
-    <string name="no_profiles_found">Добавьте файлы `profile.*.json`, чтобы заполнить список серверов.</string>
+    <string name="no_profiles_found">Сначала активируйте код или импортируйте профиль сервера.</string>
     <string name="mode_bypass_ru">Российские сайты идут напрямую</string>
     <string name="mode_full_tunnel">Весь трафик идёт через VPN</string>
     <string name="connect">Подключить</string>
@@ -96,6 +96,6 @@
     <string name="notification_channel_name">Фоновый VPN-рантайм</string>
     <string name="service_stopped">Сервис остановлен</string>
     <string name="connected_to_profile">Подключено к %1$s</string>
-    <string name="default_server">Сервер по умолчанию</string>
+    <string name="default_server">Сервер не выбран</string>
     <string name="tunnel_session_name">NoVPN</string>
 </resources>
