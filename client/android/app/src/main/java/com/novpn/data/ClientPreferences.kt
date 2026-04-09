@@ -49,6 +49,10 @@ class ClientPreferences(context: Context) {
         return preferences.getString(KEY_INVITE_CODE, "").orEmpty()
     }
 
+    fun shouldShowRussianAppsOnboarding(): Boolean {
+        return preferences.getBoolean(KEY_RUSSIAN_APPS_ONBOARDING_PENDING, true)
+    }
+
     fun disguiseIdentity(): DisguiseIdentity {
         val defaultIdentity = DisguiseIdentityGenerator.defaultIdentity()
         return DisguiseIdentity(
@@ -99,6 +103,10 @@ class ClientPreferences(context: Context) {
         preferences.edit().putString(KEY_INVITE_CODE, code.trim()).apply()
     }
 
+    fun markRussianAppsOnboardingHandled() {
+        preferences.edit().putBoolean(KEY_RUSSIAN_APPS_ONBOARDING_PENDING, false).apply()
+    }
+
     fun saveDisguiseIdentity(identity: DisguiseIdentity) {
         preferences.edit()
             .putString(KEY_DISGUISE_APP_NAME, identity.appName)
@@ -118,6 +126,7 @@ class ClientPreferences(context: Context) {
         private const val KEY_PATTERN_STRATEGY = "pattern_strategy"
         private const val KEY_SELECTED_PROFILE = "selected_profile"
         private const val KEY_INVITE_CODE = "invite_code"
+        private const val KEY_RUSSIAN_APPS_ONBOARDING_PENDING = "russian_apps_onboarding_pending"
         private const val KEY_DISGUISE_APP_NAME = "disguise_app_name"
         private const val KEY_DISGUISE_APP_ID = "disguise_app_id"
         private const val KEY_DISGUISE_COMMAND = "disguise_command"

@@ -1,5 +1,6 @@
 package com.novpn.ui
 
+import android.app.AlertDialog
 import android.app.Activity
 import android.animation.ValueAnimator
 import android.content.Intent
@@ -14,8 +15,10 @@ import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -45,8 +48,15 @@ class MainActivity : ComponentActivity() {
     private lateinit var diagnosticsButton: Button
     private lateinit var diagnosticsDetail: TextView
     private lateinit var serverStrip: LinearLayout
+    private lateinit var startupOverlay: View
+    private lateinit var startupCard: LinearLayout
     private var powerPulseAnimator: ValueAnimator? = null
     private var lastPowerVisualState = PowerVisualState.IDLE
+    private var startupDelayElapsed = false
+    private var startupOverlayDismissed = false
+    private var firstRenderCompleted = false
+    private var onboardingChecked = false
+    private var scanProgressDialog: AlertDialog? = null
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -87,12 +97,23 @@ class MainActivity : ComponentActivity() {
         setContentView(buildContentView())
         viewModel.refreshStateFromPreferences()
         renderState(viewModel.state.value)
+        lifecycleScope.launch {
+            delay(650)
+            startupDelayElapsed = true
+            maybeDismissStartupOverlay()
+        }
     }
 
     override fun onResume() {
         super.onResume()
         viewModel.refreshStateFromPreferences()
         renderState(viewModel.state.value)
+    }
+
+    override fun onDestroy() {
+        scanProgressDialog?.dismiss()
+        scanProgressDialog = null
+        super.onDestroy()
     }
 
     @Deprecated("Deprecated in Java")
@@ -111,7 +132,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildContentView(): View {
-        val root = ScrollView(this).apply {
+        val root = FrameLayout(this)
+
+        val scroll = ScrollView(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(Color.parseColor("#02040A"), Color.parseColor("#060B12"))
@@ -122,7 +145,7 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(22), dp(20), dp(28))
         }
-        root.addView(
+        scroll.addView(
             content,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -135,7 +158,64 @@ class MainActivity : ComponentActivity() {
         content.addView(buildDiagnosticsSection())
         content.addView(buildInviteSection())
         content.addView(buildServerSection())
+        root.addView(
+            scroll,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        startupOverlay = buildStartupOverlay()
+        root.addView(
+            startupOverlay,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
         return root
+    }
+
+    private fun buildStartupOverlay(): View {
+        return FrameLayout(this).apply {
+            alpha = 1f
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#04070D"), Color.parseColor("#09131E"))
+            )
+
+            startupCard = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                background = roundedDrawable("#0A1018", "#203040", 36f, 2)
+                setPadding(dp(24), dp(28), dp(24), dp(28))
+                elevation = dp(10).toFloat()
+                addView(
+                    label(getString(R.string.startup_loading_title), 24f, "#F3F6FB", true).apply {
+                        gravity = Gravity.CENTER
+                    }
+                )
+                addView(
+                    label(getString(R.string.startup_loading_detail), 13f, "#7F90A5", false).apply {
+                        gravity = Gravity.CENTER
+                        setPadding(0, dp(10), 0, 0)
+                    }
+                )
+            }
+
+            addView(
+                startupCard,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.CENTER
+                    marginStart = dp(22)
+                    marginEnd = dp(22)
+                }
+            )
+        }
     }
 
     private fun buildHeader(): View {
@@ -501,6 +581,8 @@ class MainActivity : ComponentActivity() {
         }
 
         rebuildServerCards(state.availableProfiles, state.selectedProfileId)
+        firstRenderCompleted = true
+        maybeDismissStartupOverlay()
     }
 
     private fun rebuildServerCards(profiles: List<AvailableProfile>, selectedProfileId: String) {
@@ -567,6 +649,133 @@ class MainActivity : ComponentActivity() {
 
             serverStrip.addView(card)
         }
+    }
+
+    private fun maybeDismissStartupOverlay() {
+        if (!firstRenderCompleted || !startupDelayElapsed || startupOverlayDismissed) {
+            return
+        }
+        startupOverlayDismissed = true
+        startupCard.animate()
+            .alpha(0f)
+            .translationY(-dp(10f))
+            .scaleX(0.98f)
+            .scaleY(0.98f)
+            .setDuration(220)
+            .start()
+        startupOverlay.animate()
+            .alpha(0f)
+            .setDuration(260)
+            .withEndAction {
+                startupOverlay.visibility = View.GONE
+                showRussianAppsOnboardingIfNeeded()
+            }
+            .start()
+    }
+
+    private fun showRussianAppsOnboardingIfNeeded() {
+        if (onboardingChecked || !viewModel.shouldShowRussianAppsOnboarding()) {
+            onboardingChecked = true
+            return
+        }
+        onboardingChecked = true
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.russian_apps_prompt_title))
+            .setMessage(getString(R.string.russian_apps_prompt_message))
+            .setCancelable(false)
+            .setPositiveButton(getString(R.string.russian_apps_prompt_add)) { _, _ ->
+                viewModel.markRussianAppsOnboardingHandled()
+                startRussianAppsScan()
+            }
+            .setNegativeButton(getString(R.string.russian_apps_prompt_later)) { _, _ ->
+                viewModel.markRussianAppsOnboardingHandled()
+            }
+            .show()
+    }
+
+    private fun startRussianAppsScan() {
+        showRussianAppsScanProgress()
+        lifecycleScope.launch {
+            runCatching {
+                viewModel.detectAndApplyRussianAppExclusions()
+            }.onSuccess { result ->
+                dismissRussianAppsScanProgress()
+                renderState(viewModel.state.value)
+                showRussianAppsScanResult(result)
+            }.onFailure { error ->
+                dismissRussianAppsScanProgress()
+                renderState(viewModel.state.value)
+                Toast.makeText(
+                    this@MainActivity,
+                    error.message ?: getString(R.string.russian_apps_scan_failed),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun showRussianAppsScanProgress() {
+        if (scanProgressDialog?.isShowing == true) {
+            return
+        }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(22), dp(18), dp(22), dp(18))
+            addView(
+                ProgressBar(this@MainActivity).apply {
+                    isIndeterminate = true
+                }
+            )
+            addView(
+                label(getString(R.string.russian_apps_scan_detail), 13f, "#1B2430", false).apply {
+                    setPadding(dp(14), 0, 0, 0)
+                }
+            )
+        }
+
+        scanProgressDialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.russian_apps_scan_title))
+            .setView(content)
+            .setCancelable(false)
+            .create()
+        scanProgressDialog?.show()
+    }
+
+    private fun dismissRussianAppsScanProgress() {
+        scanProgressDialog?.dismiss()
+        scanProgressDialog = null
+    }
+
+    private fun showRussianAppsScanResult(result: com.novpn.split.RussianAppsScanResult) {
+        val message = if (result.candidates.isEmpty()) {
+            getString(R.string.russian_apps_scan_none)
+        } else {
+            buildString {
+                append(
+                    getString(
+                        R.string.russian_apps_scan_result,
+                        result.candidates.size,
+                        result.addedPackages.size
+                    )
+                )
+                val preview = result.candidates
+                    .take(6)
+                    .joinToString(", ") { candidate -> candidate.label }
+                if (preview.isNotBlank()) {
+                    append("\n\n")
+                    append(preview)
+                }
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.russian_apps_scan_done_title))
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun toggleRuntime() {

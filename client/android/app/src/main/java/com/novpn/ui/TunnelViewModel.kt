@@ -25,6 +25,8 @@ import com.novpn.vpn.RuntimeLocalProxySession
 import com.novpn.vpn.VpnRuntimeStatusStore
 import com.novpn.vpn.VpnRuntimeRequest
 import com.novpn.xray.AndroidXrayConfigWriter
+import com.novpn.split.RussianAppsDetector
+import com.novpn.split.RussianAppsScanResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +39,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val preferences = ClientPreferences(application)
     private val configWriter = AndroidXrayConfigWriter(application)
     private val appsScanner = InstalledAppsScanner(application)
+    private val russianAppsDetector = RussianAppsDetector(application)
     private val seedStore = ObfuscationSeedStore(application)
     private val preflightChecker = RuntimePreflightChecker(application)
     private val deviceIdentityStore = DeviceIdentityStore(application)
@@ -120,6 +123,14 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         val normalized = value.trim()
         preferences.saveInviteCode(normalized)
         _state.update { it.copy(inviteCode = normalized) }
+    }
+
+    fun shouldShowRussianAppsOnboarding(): Boolean {
+        return preferences.shouldShowRussianAppsOnboarding()
+    }
+
+    fun markRussianAppsOnboardingHandled() {
+        preferences.markRussianAppsOnboardingHandled()
     }
 
     fun selectProfile(profileId: String) {
@@ -252,6 +263,26 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         return result.summary
+    }
+
+    suspend fun detectAndApplyRussianAppExclusions(): RussianAppsScanResult {
+        return withContext(Dispatchers.Default) {
+            val detectedApps = russianAppsDetector.detectLikelyRussianApps()
+            val currentExcluded = preferences.excludedPackages().toMutableSet()
+            val before = currentExcluded.toSet()
+            currentExcluded += detectedApps.map { it.packageName }
+
+            preferences.saveAppRoutingMode(AppRoutingMode.EXCLUDE_SELECTED)
+            preferences.saveExcludedPackages(currentExcluded.toList())
+
+            val result = RussianAppsScanResult(
+                candidates = detectedApps,
+                addedPackages = (currentExcluded - before).sorted(),
+                selectedPackages = currentExcluded.sorted()
+            )
+            refreshStateFromPreferences()
+            result
+        }
     }
 
     fun selectedProfileName(): String {
