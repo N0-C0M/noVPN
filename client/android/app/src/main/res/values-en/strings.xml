@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Safaty Turtle</string>
+    <string name="app_name">Safety Turtle</string>
     <string name="header_profile_label">Активный сервер</string>
     <string name="header_no_server">Сервер не выбран</string>
     <string name="import_profile">Импорт</string>
@@ -108,12 +108,12 @@
     <string name="preflight_local_proxy_hardened">Локальный Xray SOCKS скрыт за obfuscator-sidecar, использует случайный порт и пароль на каждый запуск.</string>
     <string name="preflight_no_api_surface">В этом Android-клиенте нет открытого API управления Xray.</string>
     <string name="preflight_tunnel_live">Android-трафик идёт через TUN в tun2proxy, затем в локальный obfuscator-sidecar и только потом в защищённый Xray SOCKS-мост.</string>
-    <string name="notification_title">Safaty Turtle</string>
+    <string name="notification_title">Safety Turtle</string>
     <string name="notification_channel_name">Фоновый VPN-рантайм</string>
     <string name="service_stopped">Сервис остановлен</string>
     <string name="connected_to_profile">Подключено к %1$s</string>
     <string name="default_server">Сервер не выбран</string>
-    <string name="tunnel_session_name">Safaty Turtle</string>
+    <string name="tunnel_session_name">Safety Turtle</string>
     <string name="startup_stage_profiles_title">Подгружаем профили</string>
     <string name="startup_stage_profiles_detail">Проверяем выбранный сервер и поднимаем состояние клиента.</string>
     <string name="startup_stage_runtime_title">Прогреваем runtime</string>

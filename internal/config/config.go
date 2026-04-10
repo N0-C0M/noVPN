@@ -50,26 +50,41 @@ type CoreConfig struct {
 }
 
 type RealityConfig struct {
-	Enabled           bool                  `yaml:"enabled"`
-	ListenAddr        string                `yaml:"listen_addr"`
-	PublicHost        string                `yaml:"public_host"`
-	PublicPort        int                   `yaml:"public_port"`
-	Target            string                `yaml:"target"`
-	ServerNames       []string              `yaml:"server_names"`
-	UUID              string                `yaml:"uuid"`
-	PrivateKey        string                `yaml:"private_key"`
-	ShortIDs          []string              `yaml:"short_ids"`
-	Flow              string                `yaml:"flow"`
-	UserEmail         string                `yaml:"user_email"`
-	Fingerprint       string                `yaml:"fingerprint"`
-	SpiderX           string                `yaml:"spider_x"`
-	Show              bool                  `yaml:"show"`
-	Xver              int                   `yaml:"xver"`
-	MinClientVer      string                `yaml:"min_client_ver"`
-	MaxClientVer      string                `yaml:"max_client_ver"`
-	MaxTimeDiffMillis int                   `yaml:"max_time_diff_ms"`
-	Sniffing          RealitySniffingConfig `yaml:"sniffing"`
-	Xray              XrayConfig            `yaml:"xray"`
+	Enabled           bool                            `yaml:"enabled"`
+	ListenAddr        string                          `yaml:"listen_addr"`
+	PublicHost        string                          `yaml:"public_host"`
+	PublicPort        int                             `yaml:"public_port"`
+	Target            string                          `yaml:"target"`
+	ServerNames       []string                        `yaml:"server_names"`
+	UUID              string                          `yaml:"uuid"`
+	PrivateKey        string                          `yaml:"private_key"`
+	ShortIDs          []string                        `yaml:"short_ids"`
+	Flow              string                          `yaml:"flow"`
+	UserEmail         string                          `yaml:"user_email"`
+	Fingerprint       string                          `yaml:"fingerprint"`
+	SpiderX           string                          `yaml:"spider_x"`
+	Show              bool                            `yaml:"show"`
+	Xver              int                             `yaml:"xver"`
+	MinClientVer      string                          `yaml:"min_client_ver"`
+	MaxClientVer      string                          `yaml:"max_client_ver"`
+	MaxTimeDiffMillis int                             `yaml:"max_time_diff_ms"`
+	Sniffing          RealitySniffingConfig           `yaml:"sniffing"`
+	AdditionalServers []RealityAdditionalServerConfig `yaml:"additional_servers"`
+	Xray              XrayConfig                      `yaml:"xray"`
+}
+
+type RealityAdditionalServerConfig struct {
+	Name        string   `yaml:"name"`
+	PublicHost  string   `yaml:"public_host"`
+	PublicPort  int      `yaml:"public_port"`
+	ServerNames []string `yaml:"server_names"`
+	PublicKey   string   `yaml:"public_key"`
+	ShortID     string   `yaml:"short_id"`
+	ShortIDs    []string `yaml:"short_ids"`
+	Flow        string   `yaml:"flow"`
+	Fingerprint string   `yaml:"fingerprint"`
+	SpiderX     string   `yaml:"spider_x"`
+	VPNOnly     bool     `yaml:"vpn_only"`
 }
 
 type RealitySniffingConfig struct {
@@ -282,6 +297,40 @@ func (c *RealityConfig) setDefaults() {
 	}
 	if c.Xray.Log.ErrorPath == "" {
 		c.Xray.Log.ErrorPath = "/var/log/xray/error.log"
+	}
+
+	c.applyAdditionalServerDefaults()
+}
+
+func (c *RealityConfig) applyAdditionalServerDefaults() {
+	for i := range c.AdditionalServers {
+		server := &c.AdditionalServers[i]
+		if strings.TrimSpace(server.Name) == "" {
+			server.Name = fmt.Sprintf("VPN node %d", i+2)
+		}
+		if server.PublicPort <= 0 {
+			server.PublicPort = c.PublicPort
+		}
+		if len(server.ServerNames) == 0 {
+			if host := hostPart(server.PublicHost); host != "" {
+				server.ServerNames = []string{host}
+			}
+		}
+		if server.Flow == "" {
+			server.Flow = c.Flow
+		}
+		if server.Fingerprint == "" {
+			server.Fingerprint = c.Fingerprint
+		}
+		if server.SpiderX == "" {
+			server.SpiderX = c.SpiderX
+		}
+		if server.ShortID == "" && len(server.ShortIDs) > 0 {
+			server.ShortID = strings.TrimSpace(server.ShortIDs[0])
+		}
+		if len(server.ShortIDs) == 0 && strings.TrimSpace(server.ShortID) != "" {
+			server.ShortIDs = []string{strings.TrimSpace(server.ShortID)}
+		}
 	}
 }
 

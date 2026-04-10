@@ -44,6 +44,25 @@ class ProfileRepository(private val context: Context) {
         return importProfilePayload(payload, uri.lastPathSegment.orEmpty())
     }
 
+    fun importProfilePayloads(payloads: List<String>, nameHint: String = ""): List<AvailableProfile> {
+        val normalizedPayloads = payloads
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        require(normalizedPayloads.isNotEmpty()) {
+            "No profiles were provided for import."
+        }
+
+        return normalizedPayloads.mapIndexed { index, payload ->
+            val hint = if (nameHint.isBlank()) {
+                "imported-${index + 1}"
+            } else {
+                "$nameHint-${index + 1}"
+            }
+            importProfilePayload(payload, hint)
+        }
+    }
+
     fun importProfilePayload(payload: String, nameHint: String = ""): AvailableProfile {
         val profile = parseImportedPayload(payload)
         profile.requireRuntimeReady()

@@ -101,3 +101,7 @@ func (p *Provisioner) DisconnectDevice(ctx context.Context, deviceID string, cli
 func (p *Provisioner) BuildClientProfileFor(state State, client ClientRecord) ClientProfile {
 	return buildClientProfileFor(p.cfg, state, client)
 }
+
+func (p *Provisioner) BuildClientProfilesFor(state State, client ClientRecord) []ClientProfile {
+	return buildClientProfilesFor(p.cfg, state, client)
+}

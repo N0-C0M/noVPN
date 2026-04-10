@@ -186,6 +186,12 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             }
             ensureRuAppExclusions(launchableEntries, ::publishText)
         }.onFailure {
+            runCatching {
+                val launchableEntries = withContext(Dispatchers.Default) {
+                    appsScanner.loadLaunchableEntries(limit = Int.MAX_VALUE)
+                }
+                ensureRuAppExclusions(launchableEntries, ::publishText)
+            }
             withContext(Dispatchers.Main) {
                 onProgress(
                     StartupWarmupUpdate(
@@ -332,11 +338,18 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
 
         preferences.saveInviteCode(inviteCode)
         if (redeemResult.kind == CodeRedeemKind.INVITE) {
-            val importedProfile = profileRepository.importProfilePayload(
-                payload = redeemResult.profilePayload,
+            val payloads = redeemResult.profilePayloads
+                .ifEmpty { listOf(redeemResult.profilePayload) }
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+
+            val importedProfiles = profileRepository.importProfilePayloads(
+                payloads = payloads,
                 nameHint = "invite-$inviteCode"
             )
-            preferences.saveSelectedProfileId(importedProfile.profileId)
+            importedProfiles.firstOrNull()?.let { profile ->
+                preferences.saveSelectedProfileId(profile.profileId)
+            }
         }
         refreshStateFromPreferences()
         return redeemResult

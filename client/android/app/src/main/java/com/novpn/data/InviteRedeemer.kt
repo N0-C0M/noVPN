@@ -17,6 +17,7 @@ enum class CodeRedeemKind {
 data class CodeRedeemResult(
     val kind: CodeRedeemKind,
     val profilePayload: String = "",
+    val profilePayloads: List<String> = emptyList(),
     val profileName: String = "",
     val bonusBytes: Long = 0L
 )
@@ -70,14 +71,41 @@ class InviteRedeemer {
 
         when (root.optString("kind")) {
             "invite" -> {
-                val payloadText = root.optString("client_profile_yaml").trim()
-                if (payloadText.isBlank()) {
+                val payloads = mutableListOf<String>()
+                root.optJSONArray("client_profiles_yaml")?.let { list ->
+                    for (index in 0 until list.length()) {
+                        list.optString(index)
+                            .trim()
+                            .takeIf { it.isNotBlank() }
+                            ?.let(payloads::add)
+                    }
+                }
+                if (payloads.isEmpty()) {
+                    root.optString("client_profile_yaml")
+                        .trim()
+                        .takeIf { it.isNotBlank() }
+                        ?.let(payloads::add)
+                }
+
+                if (payloads.isEmpty()) {
                     throw IllegalStateException("Server did not return a client profile.")
                 }
+
+                val profileName = root.optJSONObject("client_profile")
+                    ?.optString("name")
+                    .orEmpty()
+                    .ifBlank {
+                        root.optJSONArray("client_profiles")
+                            ?.optJSONObject(0)
+                            ?.optString("name")
+                            .orEmpty()
+                    }
+
                 CodeRedeemResult(
                     kind = CodeRedeemKind.INVITE,
-                    profilePayload = payloadText,
-                    profileName = root.optJSONObject("client_profile")?.optString("name").orEmpty()
+                    profilePayload = payloads.first(),
+                    profilePayloads = payloads,
+                    profileName = profileName
                 )
             }
             "promo" -> {

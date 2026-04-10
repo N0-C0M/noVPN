@@ -170,5 +170,52 @@ func validateReality(c RealityConfig) error {
 	if strings.EqualFold(strings.TrimSpace(c.Xray.Install.Method), "official-script") && filepath.Base(c.Xray.ConfigPath) != "config.json" {
 		return errors.New("core.reality.xray.config_path must end with config.json when using the official installer")
 	}
+	if err := validateAdditionalRealityServers(c.AdditionalServers); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateAdditionalRealityServers(servers []RealityAdditionalServerConfig) error {
+	for index, server := range servers {
+		label := fmt.Sprintf("core.reality.additional_servers[%d]", index)
+		if strings.TrimSpace(server.PublicHost) == "" {
+			return fmt.Errorf("%s.public_host must not be empty", label)
+		}
+		if server.PublicPort <= 0 || server.PublicPort > 65535 {
+			return fmt.Errorf("%s.public_port must be between 1 and 65535", label)
+		}
+		if len(server.ServerNames) == 0 {
+			return fmt.Errorf("%s.server_names must not be empty", label)
+		}
+		for _, value := range server.ServerNames {
+			if strings.TrimSpace(value) == "" {
+				return fmt.Errorf("%s.server_names must not contain empty values", label)
+			}
+		}
+
+		publicKey := strings.TrimSpace(server.PublicKey)
+		if publicKey == "" {
+			return fmt.Errorf("%s.public_key must not be empty", label)
+		}
+		rawKey, err := base64.RawURLEncoding.DecodeString(publicKey)
+		if err != nil {
+			return fmt.Errorf("%s.public_key: %w", label, err)
+		}
+		if _, err := ecdh.X25519().NewPublicKey(rawKey); err != nil {
+			return fmt.Errorf("%s.public_key: %w", label, err)
+		}
+
+		shortIDs := append([]string(nil), server.ShortIDs...)
+		if strings.TrimSpace(server.ShortID) != "" {
+			shortIDs = append(shortIDs, strings.TrimSpace(server.ShortID))
+		}
+		for _, value := range shortIDs {
+			if !shortIDPattern.MatchString(value) || len(value)%2 != 0 {
+				return fmt.Errorf("%s.short_ids contains invalid value %q", label, value)
+			}
+		}
+	}
+
 	return nil
 }

@@ -460,8 +460,18 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		clientProfile := a.reality.BuildClientProfileFor(refreshResult.State, redeemResult.Client)
+		clientProfiles := a.reality.BuildClientProfilesFor(refreshResult.State, redeemResult.Client)
+		if len(clientProfiles) == 0 {
+			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
+			return
+		}
+		clientProfile := clientProfiles[0]
 		yamlPayload, err := marshalClientProfileYAML(clientProfile)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		yamlPayloadList, err := marshalClientProfileYAMLList(clientProfiles)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -475,12 +485,14 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 		}
 
 		a.writeJSONPayload(w, http.StatusCreated, map[string]any{
-			"invite":              redeemResult.Invite,
-			"client":              redeemResult.Client,
-			"client_profile":      clientProfile,
-			"client_profile_yaml": string(yamlPayload),
-			"config_path":         refreshResult.ConfigPath,
-			"client_profile_path": refreshResult.ClientProfilePath,
+			"invite":               redeemResult.Invite,
+			"client":               redeemResult.Client,
+			"client_profile":       clientProfile,
+			"client_profile_yaml":  string(yamlPayload),
+			"client_profiles":      clientProfiles,
+			"client_profiles_yaml": yamlPayloadList,
+			"config_path":          refreshResult.ConfigPath,
+			"client_profile_path":  refreshResult.ClientProfilePath,
 		})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -507,10 +519,20 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 
 	redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceID, payload.DeviceName)
 	if err == nil {
-		clientProfile := a.reality.BuildClientProfileFor(refreshResult.State, redeemResult.Client)
+		clientProfiles := a.reality.BuildClientProfilesFor(refreshResult.State, redeemResult.Client)
+		if len(clientProfiles) == 0 {
+			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
+			return
+		}
+		clientProfile := clientProfiles[0]
 		yamlPayload, yamlErr := marshalClientProfileYAML(clientProfile)
 		if yamlErr != nil {
 			http.Error(w, yamlErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		yamlPayloadList, yamlListErr := marshalClientProfileYAMLList(clientProfiles)
+		if yamlListErr != nil {
+			http.Error(w, yamlListErr.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -521,13 +543,15 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 		}
 
 		a.writeJSONPayload(w, http.StatusCreated, map[string]any{
-			"kind":                "invite",
-			"invite":              redeemResult.Invite,
-			"client":              redeemResult.Client,
-			"client_profile":      clientProfile,
-			"client_profile_yaml": string(yamlPayload),
-			"config_path":         refreshResult.ConfigPath,
-			"client_profile_path": refreshResult.ClientProfilePath,
+			"kind":                 "invite",
+			"invite":               redeemResult.Invite,
+			"client":               redeemResult.Client,
+			"client_profile":       clientProfile,
+			"client_profile_yaml":  string(yamlPayload),
+			"client_profiles":      clientProfiles,
+			"client_profiles_yaml": yamlPayloadList,
+			"config_path":          refreshResult.ConfigPath,
+			"client_profile_path":  refreshResult.ClientProfilePath,
 		})
 		return
 	}
@@ -961,6 +985,18 @@ func marshalClientProfileYAML(profile reality.ClientProfile) ([]byte, error) {
 		return nil, err
 	}
 	return payload, nil
+}
+
+func marshalClientProfileYAMLList(profiles []reality.ClientProfile) ([]string, error) {
+	result := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		payload, err := marshalClientProfileYAML(profile)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, string(payload))
+	}
+	return result, nil
 }
 
 func clampByteCount(raw string, fallback int64, min int64, max int64) int64 {

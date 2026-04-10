@@ -853,6 +853,73 @@ func buildClientProfileFor(cfg config.RealityConfig, state State, client ClientR
 	}
 }
 
+func buildClientProfilesFor(cfg config.RealityConfig, state State, client ClientRecord) []ClientProfile {
+	profiles := []ClientProfile{
+		buildClientProfileFor(cfg, state, client),
+	}
+
+	for index, additional := range cfg.AdditionalServers {
+		address := strings.TrimSpace(additional.PublicHost)
+		if address == "" || additional.PublicPort <= 0 {
+			continue
+		}
+
+		serverName := ""
+		if len(additional.ServerNames) > 0 {
+			serverName = strings.TrimSpace(additional.ServerNames[0])
+		}
+		if serverName == "" && len(cfg.ServerNames) > 0 {
+			serverName = strings.TrimSpace(cfg.ServerNames[0])
+		}
+
+		shortIDs := append([]string(nil), additional.ShortIDs...)
+		if len(shortIDs) == 0 {
+			shortIDs = append([]string(nil), state.ShortIDs...)
+		}
+		shortID := strings.TrimSpace(additional.ShortID)
+		if shortID == "" && len(shortIDs) > 0 {
+			shortID = strings.TrimSpace(shortIDs[0])
+		}
+
+		name := client.Name
+		if strings.TrimSpace(name) == "" {
+			name = client.DeviceName
+		}
+		if strings.TrimSpace(name) == "" {
+			name = "novpn-device"
+		}
+
+		nodeName := strings.TrimSpace(additional.Name)
+		if nodeName == "" {
+			nodeName = fmt.Sprintf("VPN node %d", index+2)
+		}
+		if additional.VPNOnly {
+			nodeName += " (VPN)"
+		}
+		profileName := fmt.Sprintf("%s · %s", name, nodeName)
+
+		profiles = append(profiles, ClientProfile{
+			GeneratedAt: time.Now().UTC(),
+			Name:        profileName,
+			Type:        "vless-reality",
+			Address:     address,
+			Port:        additional.PublicPort,
+			UUID:        client.UUID,
+			Flow:        additional.Flow,
+			Network:     "tcp",
+			Security:    "reality",
+			ServerName:  serverName,
+			Fingerprint: additional.Fingerprint,
+			PublicKey:   strings.TrimSpace(additional.PublicKey),
+			ShortID:     shortID,
+			ShortIDs:    shortIDs,
+			SpiderX:     additional.SpiderX,
+		})
+	}
+
+	return profiles
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

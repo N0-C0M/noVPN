@@ -358,7 +358,7 @@ class NoVpnService : VpnService() {
         private const val TUN_IPV6_ADDRESS = "fdfe:dcba:9876::1"
         private const val TUN_IPV6_PREFIX_LENGTH = 126
         private const val TUN_DNS_PRIMARY = "1.1.1.1"
-        private const val TUN_DNS_SECONDARY = "1.0.0.1"
+        private const val TUN_DNS_SECONDARY = "8.8.8.8"
 
         fun startIntent(
             context: Context,

@@ -11,7 +11,8 @@ data class LocalRuAppCandidate(
     val reasons: List<String>
 )
 
-class LocalRuAppExclusionMatcher(context: Context) {
+@Deprecated("Use LocalRuAppExclusionMatcher from LocalRuAppExclusionMatcherV2.kt")
+class LegacyLocalRuAppExclusionMatcher(context: Context) {
     private val catalog = LocalRuExclusionCatalogLoader.load(context)
 
     suspend fun match(
@@ -41,7 +42,7 @@ class LocalRuAppExclusionMatcher(context: Context) {
     }
 
     fun matchPackageName(packageName: String): List<String> {
-        val normalized = packageName.lowercase(Locale.ROOT)
+        val normalized = packageName.trim().lowercase(Locale.ROOT)
         val reasons = linkedSetOf<String>()
 
         if (normalized in catalog.exactPackages) {

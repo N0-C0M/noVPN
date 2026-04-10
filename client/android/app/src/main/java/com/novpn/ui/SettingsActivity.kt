@@ -505,7 +505,7 @@ class SettingsActivity : ComponentActivity() {
             )
 
             buttons.addView(
-                choiceButton("Reset to Safaty Turtle") {
+                choiceButton("Reset to Safety Turtle") {
                     applySelectionChange {
                         disguiseIdentity = DisguiseIdentityGenerator.defaultIdentity()
                     }

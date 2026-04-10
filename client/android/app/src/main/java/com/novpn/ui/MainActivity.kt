@@ -16,7 +16,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -387,14 +386,10 @@ class MainActivity : ComponentActivity() {
                 }
             )
 
-            val scroll = HorizontalScrollView(this@MainActivity).apply {
-                isHorizontalScrollBarEnabled = false
-            }
             serverStrip = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
+                orientation = LinearLayout.VERTICAL
             }
-            scroll.addView(serverStrip)
-            addView(scroll)
+            addView(serverStrip)
         }
     }
 
@@ -649,8 +644,11 @@ class MainActivity : ComponentActivity() {
                     runCatching { viewModel.generateConfig() }
                     renderState(viewModel.state.value)
                 }
-                layoutParams = LinearLayout.LayoutParams(dp(228), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                    rightMargin = if (index == profiles.lastIndex) 0 else dp(12)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = if (index == profiles.lastIndex) 0 else dp(10)
                 }
             }
 

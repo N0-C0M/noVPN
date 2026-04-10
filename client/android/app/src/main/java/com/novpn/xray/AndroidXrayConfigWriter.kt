@@ -33,6 +33,20 @@ class AndroidXrayConfigWriter(private val context: Context) {
                     .put("outboundTag", "direct")
                     .put("ruleTag", "private-direct")
             )
+            .put(
+                JSONObject()
+                    .put("type", "field")
+                    .put(
+                        "domain",
+                        JSONArray().apply {
+                            GOOGLE_PROXY_DOMAIN_SUFFIXES.forEach { suffix ->
+                                put("domain:$suffix")
+                            }
+                        }
+                    )
+                    .put("outboundTag", "proxy")
+                    .put("ruleTag", "google-proxy")
+            )
 
         if (bypassRu) {
             rules.put(
@@ -159,5 +173,20 @@ class AndroidXrayConfigWriter(private val context: Context) {
         val outputFile = File(configDir, "config.json")
         outputFile.writeText(document.toString(2))
         return outputFile
+    }
+
+    companion object {
+        private val GOOGLE_PROXY_DOMAIN_SUFFIXES = listOf(
+            "google.com",
+            "google.ru",
+            "googleapis.com",
+            "gstatic.com",
+            "gvt1.com",
+            "googlevideo.com",
+            "youtube.com",
+            "ytimg.com",
+            "googleusercontent.com",
+            "ggpht.com"
+        )
     }
 }

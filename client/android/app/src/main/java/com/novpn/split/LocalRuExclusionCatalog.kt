@@ -5,6 +5,7 @@ import java.util.Locale
 
 data class LocalRuExclusionCatalog(
     val extraDomains: List<String>,
+    val exactDomains: Set<String>,
     val exactPackages: Set<String>,
     val companyPrefixes: List<String>
 )
@@ -28,11 +29,13 @@ object LocalRuExclusionCatalogLoader {
                 .bufferedReader()
                 .use { it.readText() }
             val siteDomains = parseSiteDomains(siteText)
-            val exactPackages = parsePackageIds(packageText)
+            val siteDomainSet = siteDomains.toSet()
+            val exactPackages = parsePackageIds("$packageText\n$siteText")
                 .filterTo(linkedSetOf()) { token -> shouldKeepPackageToken(token, siteDomains) }
 
             return LocalRuExclusionCatalog(
                 extraDomains = siteDomains,
+                exactDomains = siteDomainSet,
                 exactPackages = exactPackages,
                 companyPrefixes = buildCompanyPrefixes(exactPackages)
             ).also { cachedCatalog = it }
@@ -50,7 +53,7 @@ object LocalRuExclusionCatalogLoader {
         return DOMAIN_REGEX.findAll(text)
             .map { it.value.lowercase(Locale.ROOT) }
             .mapNotNull(::normalizeSiteToken)
-            .filterNot { it == "google.com" || it == "www.google.com" }
+            .filterNot(::isGoogleOrYoutubeDomain)
             .distinct()
             .sorted()
             .toList()
@@ -121,6 +124,12 @@ object LocalRuExclusionCatalogLoader {
         return host
     }
 
+    private fun isGoogleOrYoutubeDomain(host: String): Boolean {
+        return GOOGLE_AND_YOUTUBE_DOMAIN_SUFFIXES.any { suffix ->
+            host == suffix || host.endsWith(".$suffix")
+        }
+    }
+
     private fun shouldKeepPackageToken(token: String, siteDomains: List<String>): Boolean {
         val parts = token.split('.')
         if (parts.size >= 3) {
@@ -140,5 +149,18 @@ object LocalRuExclusionCatalogLoader {
     private val COMMON_SITE_TLDS = setOf(
         "ru", "com", "org", "net", "io", "cc", "tv", "me", "pro", "one", "travel",
         "life", "cloud", "tech", "games", "app", "ag", "to", "se"
+    )
+    private val GOOGLE_AND_YOUTUBE_DOMAIN_SUFFIXES = setOf(
+        "google.com",
+        "google.ru",
+        "googleapis.com",
+        "gstatic.com",
+        "gvt1.com",
+        "googlevideo.com",
+        "youtube.com",
+        "ytimg.com",
+        "googleusercontent.com",
+        "ggpht.com",
+        "youtubei.googleapis.com"
     )
 }
