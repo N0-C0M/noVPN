@@ -14,6 +14,8 @@ val disguiseAppName = providers.gradleProperty("novpnAppName").orNull
     ?: "Safaty Turtle"
 
 val embeddedRuntimeExecLibsDir = layout.buildDirectory.dir("generated/embeddedRuntimeExecJniLibs")
+val ruExclusionCatalogAssetsDir = layout.buildDirectory.dir("generated/ruExclusionCatalogAssets")
+val repoRootDir = rootProject.projectDir.parentFile?.parentFile ?: rootProject.projectDir
 
 val prepareEmbeddedRuntimeExecutables by tasks.registering(Sync::class) {
     from("src/main/assets/bin") {
@@ -26,6 +28,22 @@ val prepareEmbeddedRuntimeExecutables by tasks.registering(Sync::class) {
         }
     }
     into(embeddedRuntimeExecLibsDir)
+}
+
+val prepareRuExclusionCatalogAssets by tasks.registering(Sync::class) {
+    from(repoRootDir) {
+        include("ru app package.txt", "ru site list.txt")
+        includeEmptyDirs = false
+        eachFile {
+            val normalizedName = when (name) {
+                "ru app package.txt" -> "ru-app-package.txt"
+                "ru site list.txt" -> "ru-site-list.txt"
+                else -> name
+            }
+            relativePath = RelativePath(true, "catalog", normalizedName)
+        }
+    }
+    into(ruExclusionCatalogAssetsDir)
 }
 
 android {
@@ -77,6 +95,7 @@ android {
     }
 
     sourceSets.getByName("main").jniLibs.srcDir(embeddedRuntimeExecLibsDir)
+    sourceSets.getByName("main").assets.srcDir(ruExclusionCatalogAssetsDir)
 
     packaging {
         jniLibs.useLegacyPackaging = true
@@ -94,4 +113,5 @@ dependencies {
 
 tasks.named("preBuild") {
     dependsOn(prepareEmbeddedRuntimeExecutables)
+    dependsOn(prepareRuExclusionCatalogAssets)
 }

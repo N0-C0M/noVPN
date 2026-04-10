@@ -32,26 +32,26 @@ import com.novpn.data.DisguiseIdentityGenerator
 import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.TrafficObfuscationStrategy
 import com.novpn.split.InstalledAppsScanner
-import com.novpn.split.RuStoreAppCandidate
-import com.novpn.split.RuStoreInstalledAppsMatcher
+import com.novpn.split.LocalRuAppCandidate
+import com.novpn.split.LocalRuAppExclusionMatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-private data class RuStoreCandidateRow(
-    val candidate: RuStoreAppCandidate,
+private data class RuCatalogCandidateRow(
+    val candidate: LocalRuAppCandidate,
     val icon: Drawable?
 )
 
 class SettingsActivity : ComponentActivity() {
     private val preferences by lazy { ClientPreferences(this) }
     private val appScanner by lazy { InstalledAppsScanner(this) }
-    private val ruStoreMatcher by lazy { RuStoreInstalledAppsMatcher(this) }
+    private val ruCatalogMatcher by lazy { LocalRuAppExclusionMatcher(this) }
 
     private val selectedPackages = linkedSetOf<String>()
     private val ruStoreSelectedPackages = linkedSetOf<String>()
-    private val ruStoreCandidateRows = mutableListOf<RuStoreCandidateRow>()
+    private val ruStoreCandidateRows = mutableListOf<RuCatalogCandidateRow>()
 
     private lateinit var bypassRuCheckBox: CheckBox
     private lateinit var forceServerIpCheckBox: CheckBox
@@ -97,15 +97,6 @@ class SettingsActivity : ComponentActivity() {
         setContentView(buildContentView())
         refreshSelectionViews()
         renderRuStoreCandidates()
-        if (intent.getBooleanExtra(EXTRA_OPEN_RUSSIAN_APPS_MANAGER, false)) {
-            window.decorView.post {
-                startRuStoreScan()
-            }
-        }
-    }
-
-    companion object {
-        const val EXTRA_OPEN_RUSSIAN_APPS_MANAGER = "extra_open_russian_apps_manager"
     }
 
     private fun buildContentView(): ScrollView {
@@ -630,8 +621,8 @@ class SettingsActivity : ComponentActivity() {
             val iconByPackage = entries.associateBy { it.packageName }
 
             runCatching {
-                ruStoreMatcher.match(entries) { completed, total, currentLabel ->
-                    runOnUiThread {
+                ruCatalogMatcher.match(entries) { completed, total, currentLabel ->
+                    withContext(Dispatchers.Main) {
                         ruStoreSummary.text = getString(
                             R.string.rustore_apps_progress_summary,
                             completed,
@@ -643,7 +634,7 @@ class SettingsActivity : ComponentActivity() {
             }.onSuccess { matches ->
                 ruStoreCandidateRows.clear()
                 ruStoreCandidateRows += matches.map { candidate ->
-                    RuStoreCandidateRow(
+                    RuCatalogCandidateRow(
                         candidate = candidate,
                         icon = iconByPackage[candidate.packageName]?.icon
                     )

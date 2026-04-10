@@ -34,6 +34,15 @@
             android:name=".ui.SettingsActivity"
             android:exported="false" />
 
+        <receiver
+            android:name=".split.RuAppInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".vpn.NoVpnService"
             android:exported="false"

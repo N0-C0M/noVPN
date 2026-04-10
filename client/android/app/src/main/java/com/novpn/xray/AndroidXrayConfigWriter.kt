@@ -5,6 +5,7 @@ import com.novpn.data.ClientProfile
 import com.novpn.data.DeviceIdentityStore
 import com.novpn.obfs.SessionObfuscationPlan
 import com.novpn.obfs.SessionObfuscationPlanner
+import com.novpn.split.LocalRuExclusionCatalogLoader
 import com.novpn.vpn.RuntimeLocalProxyConfig
 import com.novpn.vpn.RuntimeLocalProxyFactory
 import org.json.JSONArray
@@ -23,6 +24,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
             profile = profile,
             deviceId = DeviceIdentityStore(context).deviceId()
         )
+        val localCatalog = LocalRuExclusionCatalogLoader.load(context)
         val rules = JSONArray()
             .put(
                 JSONObject()
@@ -40,19 +42,24 @@ class AndroidXrayConfigWriter(private val context: Context) {
                         "domain",
                         JSONArray()
                             .put("domain:ru")
-                            .put("domain:su")
                             .put("domain:xn--p1ai")
                     )
                     .put("outboundTag", "direct")
                     .put("ruleTag", "ru-domain-direct")
             )
-            rules.put(
-                JSONObject()
-                    .put("type", "field")
-                    .put("ip", JSONArray().put("geoip:ru"))
-                    .put("outboundTag", "direct")
-                    .put("ruleTag", "ru-ip-direct")
-            )
+            if (localCatalog.extraDomains.isNotEmpty()) {
+                val extraDomains = JSONArray()
+                localCatalog.extraDomains.forEach { domain ->
+                    extraDomains.put("domain:$domain")
+                }
+                rules.put(
+                    JSONObject()
+                        .put("type", "field")
+                        .put("domain", extraDomains)
+                        .put("outboundTag", "direct")
+                        .put("ruleTag", "catalog-domain-direct")
+                )
+            }
         }
 
         rules.put(

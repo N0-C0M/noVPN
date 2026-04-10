@@ -1,6 +1,5 @@
 package com.novpn.ui
 
-import android.app.AlertDialog
 import android.app.Activity
 import android.animation.ValueAnimator
 import android.content.Intent
@@ -31,12 +30,14 @@ import androidx.lifecycle.lifecycleScope
 import com.novpn.R
 import com.novpn.data.AvailableProfile
 import com.novpn.data.CodeRedeemKind
+import com.novpn.data.ClientPreferences
 import com.novpn.vpn.NoVpnService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<TunnelViewModel>()
+    private val preferences by lazy { ClientPreferences(this) }
 
     private lateinit var headerLabel: TextView
     private lateinit var headerServer: TextView
@@ -61,7 +62,6 @@ class MainActivity : ComponentActivity() {
     private var startupOverlayDismissed = false
     private var firstRenderCompleted = false
     private var startupWarmupReady = false
-    private var onboardingChecked = false
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -704,34 +704,8 @@ class MainActivity : ComponentActivity() {
             .setDuration(260)
             .withEndAction {
                 startupOverlay.visibility = View.GONE
-                showRussianAppsOnboardingIfNeeded()
             }
             .start()
-    }
-
-    private fun showRussianAppsOnboardingIfNeeded() {
-        if (onboardingChecked || !viewModel.shouldShowRussianAppsOnboarding()) {
-            onboardingChecked = true
-            return
-        }
-        onboardingChecked = true
-
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.russian_apps_prompt_title))
-            .setMessage(getString(R.string.russian_apps_prompt_message))
-            .setCancelable(false)
-            .setPositiveButton(getString(R.string.russian_apps_prompt_add)) { _, _ ->
-                viewModel.markRussianAppsOnboardingHandled()
-                settingsLauncher.launch(
-                    Intent(this, SettingsActivity::class.java).apply {
-                        putExtra(SettingsActivity.EXTRA_OPEN_RUSSIAN_APPS_MANAGER, true)
-                    }
-                )
-            }
-            .setNegativeButton(getString(R.string.russian_apps_prompt_later)) { _, _ ->
-                viewModel.markRussianAppsOnboardingHandled()
-            }
-            .show()
     }
 
     private fun updateStartupProgress(update: StartupWarmupUpdate) {
@@ -739,7 +713,13 @@ class MainActivity : ComponentActivity() {
             return
         }
         startupTitleLabel.text = update.title
-        startupDetailLabel.text = update.detail
+        startupDetailLabel.text = buildString {
+            append(update.detail)
+            if (preferences.isInitialRuAppAuditPending()) {
+                append("\n\n")
+                append(getString(R.string.startup_ru_audit_mandatory))
+            }
+        }
         startupProgressBar.progress = update.progressPercent.coerceIn(0, 100)
         startupProgressPercent.text = "${update.progressPercent.coerceIn(0, 100)}%"
     }

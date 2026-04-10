@@ -49,8 +49,16 @@ class ClientPreferences(context: Context) {
         return preferences.getString(KEY_INVITE_CODE, "").orEmpty()
     }
 
-    fun shouldShowRussianAppsOnboarding(): Boolean {
-        return preferences.getBoolean(KEY_RUSSIAN_APPS_ONBOARDING_PENDING, true)
+    fun isInitialRuAppAuditPending(): Boolean {
+        return preferences.getBoolean(KEY_INITIAL_RU_APP_AUDIT_PENDING, true)
+    }
+
+    fun knownInstalledPackages(): Set<String> {
+        return preferences.getStringSet(KEY_KNOWN_INSTALLED_PACKAGES, emptySet())
+            .orEmpty()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
     }
 
     fun disguiseIdentity(): DisguiseIdentity {
@@ -103,8 +111,14 @@ class ClientPreferences(context: Context) {
         preferences.edit().putString(KEY_INVITE_CODE, code.trim()).apply()
     }
 
-    fun markRussianAppsOnboardingHandled() {
-        preferences.edit().putBoolean(KEY_RUSSIAN_APPS_ONBOARDING_PENDING, false).apply()
+    fun markInitialRuAppAuditCompleted() {
+        preferences.edit().putBoolean(KEY_INITIAL_RU_APP_AUDIT_PENDING, false).apply()
+    }
+
+    fun saveKnownInstalledPackages(packageNames: Collection<String>) {
+        preferences.edit()
+            .putStringSet(KEY_KNOWN_INSTALLED_PACKAGES, packageNames.map { it.trim() }.filter { it.isNotBlank() }.toSet())
+            .apply()
     }
 
     fun saveDisguiseIdentity(identity: DisguiseIdentity) {
@@ -126,7 +140,8 @@ class ClientPreferences(context: Context) {
         private const val KEY_PATTERN_STRATEGY = "pattern_strategy"
         private const val KEY_SELECTED_PROFILE = "selected_profile"
         private const val KEY_INVITE_CODE = "invite_code"
-        private const val KEY_RUSSIAN_APPS_ONBOARDING_PENDING = "russian_apps_onboarding_pending"
+        private const val KEY_INITIAL_RU_APP_AUDIT_PENDING = "initial_ru_app_audit_pending"
+        private const val KEY_KNOWN_INSTALLED_PACKAGES = "known_installed_packages"
         private const val KEY_DISGUISE_APP_NAME = "disguise_app_name"
         private const val KEY_DISGUISE_APP_ID = "disguise_app_id"
         private const val KEY_DISGUISE_COMMAND = "disguise_command"

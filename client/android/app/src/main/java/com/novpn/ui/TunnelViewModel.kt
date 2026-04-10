@@ -18,6 +18,8 @@ import com.novpn.data.withRuntimeStrategies
 import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
+import com.novpn.split.InstalledAppEntry
+import com.novpn.split.LocalRuAppExclusionMatcher
 import com.novpn.data.TrafficObfuscationStrategy
 import com.novpn.vpn.EmbeddedRuntimeManager
 import com.novpn.vpn.RuntimePreflightChecker
@@ -44,6 +46,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val preferences = ClientPreferences(application)
     private val configWriter = AndroidXrayConfigWriter(application)
     private val appsScanner = InstalledAppsScanner(application)
+    private val ruAppMatcher = LocalRuAppExclusionMatcher(application)
     private val seedStore = ObfuscationSeedStore(application)
     private val preflightChecker = RuntimePreflightChecker(application)
     private val deviceIdentityStore = DeviceIdentityStore(application)
@@ -125,7 +128,21 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
+        suspend fun publishText(progress: Int, title: String, detail: String) {
+            withContext(Dispatchers.Main) {
+                onProgress(
+                    StartupWarmupUpdate(
+                        progressPercent = progress,
+                        title = title,
+                        detail = detail
+                    )
+                )
+            }
+        }
+
         runCatching {
+            refreshStateFromPreferences()
+
             publish(
                 progress = 14,
                 titleResId = R.string.startup_stage_profiles_title,
@@ -164,9 +181,10 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 titleResId = R.string.startup_stage_apps_title,
                 detailResId = R.string.startup_stage_apps_detail
             )
-            withContext(Dispatchers.Default) {
-                appsScanner.loadLaunchableApps(limit = 32)
+            val launchableEntries = withContext(Dispatchers.Default) {
+                appsScanner.loadLaunchableEntries(limit = Int.MAX_VALUE)
             }
+            ensureRuAppExclusions(launchableEntries, ::publishText)
         }.onFailure {
             withContext(Dispatchers.Main) {
                 onProgress(
@@ -191,6 +209,65 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         startupWarmupCompleted = true
+    }
+
+    private suspend fun ensureRuAppExclusions(
+        launchableEntries: List<InstalledAppEntry>,
+        publishText: suspend (progress: Int, title: String, detail: String) -> Unit
+    ) {
+        val installedPackages = launchableEntries.map { it.packageName }.sorted()
+        val knownPackages = preferences.knownInstalledPackages()
+        val initialAuditPending = preferences.isInitialRuAppAuditPending()
+        val entriesToCheck = if (initialAuditPending) {
+            launchableEntries
+        } else {
+            launchableEntries.filter { it.packageName !in knownPackages }
+        }
+
+        if (entriesToCheck.isEmpty()) {
+            preferences.saveKnownInstalledPackages(installedPackages)
+            if (initialAuditPending) {
+                preferences.markInitialRuAppAuditCompleted()
+            }
+            return
+        }
+
+        val title = appContext.getString(
+            if (initialAuditPending) R.string.startup_stage_ru_audit_title else R.string.startup_stage_new_apps_title
+        )
+        val baseDetail = appContext.getString(
+            if (initialAuditPending) R.string.startup_stage_ru_audit_detail else R.string.startup_stage_new_apps_detail
+        )
+        publishText(88, title, baseDetail)
+
+        val matches = ruAppMatcher.match(entriesToCheck) { completed, total, currentLabel ->
+            val progress = 88 + if (total <= 0) 10 else ((completed * 10) / total)
+            publishText(
+                progress.coerceIn(88, 98),
+                title,
+                appContext.getString(
+                    R.string.startup_stage_ru_audit_progress,
+                    completed,
+                    total,
+                    currentLabel
+                )
+            )
+        }
+
+        if (matches.isNotEmpty()) {
+            val updatedExcludedPackages = (preferences.excludedPackages() + matches.map { it.packageName })
+                .distinct()
+                .sorted()
+            preferences.saveAppRoutingMode(AppRoutingMode.EXCLUDE_SELECTED)
+            preferences.saveExcludedPackages(updatedExcludedPackages)
+        }
+
+        preferences.saveKnownInstalledPackages(installedPackages)
+        if (initialAuditPending) {
+            preferences.markInitialRuAppAuditCompleted()
+        }
+
+        refreshStateFromPreferences()
     }
 
     fun setBypassRu(value: Boolean) {
@@ -223,14 +300,6 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         val normalized = value.trim()
         preferences.saveInviteCode(normalized)
         _state.update { it.copy(inviteCode = normalized) }
-    }
-
-    fun shouldShowRussianAppsOnboarding(): Boolean {
-        return preferences.shouldShowRussianAppsOnboarding()
-    }
-
-    fun markRussianAppsOnboardingHandled() {
-        preferences.markRussianAppsOnboardingHandled()
     }
 
     fun selectProfile(profileId: String) {
