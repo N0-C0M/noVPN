@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.app.Activity
 import android.animation.ValueAnimator
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -50,13 +51,17 @@ class MainActivity : ComponentActivity() {
     private lateinit var serverStrip: LinearLayout
     private lateinit var startupOverlay: View
     private lateinit var startupCard: LinearLayout
+    private lateinit var startupTitleLabel: TextView
+    private lateinit var startupDetailLabel: TextView
+    private lateinit var startupProgressBar: ProgressBar
+    private lateinit var startupProgressPercent: TextView
     private var powerPulseAnimator: ValueAnimator? = null
     private var lastPowerVisualState = PowerVisualState.IDLE
     private var startupDelayElapsed = false
     private var startupOverlayDismissed = false
     private var firstRenderCompleted = false
+    private var startupWarmupReady = false
     private var onboardingChecked = false
-    private var scanProgressDialog: AlertDialog? = null
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -102,6 +107,11 @@ class MainActivity : ComponentActivity() {
             startupDelayElapsed = true
             maybeDismissStartupOverlay()
         }
+        lifecycleScope.launch {
+            viewModel.runStartupWarmup(::updateStartupProgress)
+            startupWarmupReady = true
+            maybeDismissStartupOverlay()
+        }
     }
 
     override fun onResume() {
@@ -111,8 +121,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        scanProgressDialog?.dismiss()
-        scanProgressDialog = null
         super.onDestroy()
     }
 
@@ -191,17 +199,45 @@ class MainActivity : ComponentActivity() {
                 background = roundedDrawable("#0A1018", "#203040", 36f, 2)
                 setPadding(dp(24), dp(28), dp(24), dp(28))
                 elevation = dp(10).toFloat()
-                addView(
-                    label(getString(R.string.startup_loading_title), 24f, "#F3F6FB", true).apply {
-                        gravity = Gravity.CENTER
+                startupTitleLabel = label(getString(R.string.startup_loading_title), 24f, "#F3F6FB", true).apply {
+                    gravity = Gravity.CENTER
+                }
+                addView(startupTitleLabel)
+
+                startupDetailLabel = label(getString(R.string.startup_loading_detail), 13f, "#7F90A5", false).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(10), 0, 0)
+                }
+                addView(startupDetailLabel)
+
+                val progressRow = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(18), 0, 0)
+                }
+
+                startupProgressBar = ProgressBar(
+                    this@MainActivity,
+                    null,
+                    android.R.attr.progressBarStyleHorizontal
+                ).apply {
+                    max = 100
+                    progress = 6
+                    progressTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                    progressBackgroundTintList = ColorStateList.valueOf(Color.parseColor("#213244"))
+                    layoutParams = LinearLayout.LayoutParams(
+                        0,
+                        dp(8),
+                        1f
+                    ).apply {
+                        marginEnd = dp(12)
                     }
-                )
-                addView(
-                    label(getString(R.string.startup_loading_detail), 13f, "#7F90A5", false).apply {
-                        gravity = Gravity.CENTER
-                        setPadding(0, dp(10), 0, 0)
-                    }
-                )
+                }
+                progressRow.addView(startupProgressBar)
+
+                startupProgressPercent = label("6%", 12f, "#A8BAD0", true)
+                progressRow.addView(startupProgressPercent)
+                addView(progressRow)
             }
 
             addView(
@@ -652,7 +688,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun maybeDismissStartupOverlay() {
-        if (!firstRenderCompleted || !startupDelayElapsed || startupOverlayDismissed) {
+        if (!firstRenderCompleted || !startupDelayElapsed || !startupWarmupReady || startupOverlayDismissed) {
             return
         }
         startupOverlayDismissed = true
@@ -686,7 +722,11 @@ class MainActivity : ComponentActivity() {
             .setCancelable(false)
             .setPositiveButton(getString(R.string.russian_apps_prompt_add)) { _, _ ->
                 viewModel.markRussianAppsOnboardingHandled()
-                startRussianAppsScan()
+                settingsLauncher.launch(
+                    Intent(this, SettingsActivity::class.java).apply {
+                        putExtra(SettingsActivity.EXTRA_OPEN_RUSSIAN_APPS_MANAGER, true)
+                    }
+                )
             }
             .setNegativeButton(getString(R.string.russian_apps_prompt_later)) { _, _ ->
                 viewModel.markRussianAppsOnboardingHandled()
@@ -694,88 +734,14 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
-    private fun startRussianAppsScan() {
-        showRussianAppsScanProgress()
-        lifecycleScope.launch {
-            runCatching {
-                viewModel.detectAndApplyRussianAppExclusions()
-            }.onSuccess { result ->
-                dismissRussianAppsScanProgress()
-                renderState(viewModel.state.value)
-                showRussianAppsScanResult(result)
-            }.onFailure { error ->
-                dismissRussianAppsScanProgress()
-                renderState(viewModel.state.value)
-                Toast.makeText(
-                    this@MainActivity,
-                    error.message ?: getString(R.string.russian_apps_scan_failed),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
-    private fun showRussianAppsScanProgress() {
-        if (scanProgressDialog?.isShowing == true) {
+    private fun updateStartupProgress(update: StartupWarmupUpdate) {
+        if (!::startupProgressBar.isInitialized) {
             return
         }
-
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(22), dp(18), dp(22), dp(18))
-            addView(
-                ProgressBar(this@MainActivity).apply {
-                    isIndeterminate = true
-                }
-            )
-            addView(
-                label(getString(R.string.russian_apps_scan_detail), 13f, "#1B2430", false).apply {
-                    setPadding(dp(14), 0, 0, 0)
-                }
-            )
-        }
-
-        scanProgressDialog = AlertDialog.Builder(this)
-            .setTitle(getString(R.string.russian_apps_scan_title))
-            .setView(content)
-            .setCancelable(false)
-            .create()
-        scanProgressDialog?.show()
-    }
-
-    private fun dismissRussianAppsScanProgress() {
-        scanProgressDialog?.dismiss()
-        scanProgressDialog = null
-    }
-
-    private fun showRussianAppsScanResult(result: com.novpn.split.RussianAppsScanResult) {
-        val message = if (result.candidates.isEmpty()) {
-            getString(R.string.russian_apps_scan_none)
-        } else {
-            buildString {
-                append(
-                    getString(
-                        R.string.russian_apps_scan_result,
-                        result.candidates.size,
-                        result.addedPackages.size
-                    )
-                )
-                val preview = result.candidates
-                    .take(6)
-                    .joinToString(", ") { candidate -> candidate.label }
-                if (preview.isNotBlank()) {
-                    append("\n\n")
-                    append(preview)
-                }
-            }
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.russian_apps_scan_done_title))
-            .setMessage(message)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        startupTitleLabel.text = update.title
+        startupDetailLabel.text = update.detail
+        startupProgressBar.progress = update.progressPercent.coerceIn(0, 100)
+        startupProgressPercent.text = "${update.progressPercent.coerceIn(0, 100)}%"
     }
 
     private fun toggleRuntime() {

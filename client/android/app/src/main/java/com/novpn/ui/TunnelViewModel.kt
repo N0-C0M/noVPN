@@ -19,19 +19,24 @@ import com.novpn.data.withObfuscationSeed
 import com.novpn.obfs.ObfuscationSeedStore
 import com.novpn.split.InstalledAppsScanner
 import com.novpn.data.TrafficObfuscationStrategy
+import com.novpn.vpn.EmbeddedRuntimeManager
 import com.novpn.vpn.RuntimePreflightChecker
 import com.novpn.vpn.RuntimePreflightReport
 import com.novpn.vpn.RuntimeLocalProxySession
 import com.novpn.vpn.VpnRuntimeStatusStore
 import com.novpn.vpn.VpnRuntimeRequest
 import com.novpn.xray.AndroidXrayConfigWriter
-import com.novpn.split.RussianAppsDetector
-import com.novpn.split.RussianAppsScanResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+
+data class StartupWarmupUpdate(
+    val progressPercent: Int,
+    val title: String,
+    val detail: String
+)
 
 class TunnelViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application
@@ -39,13 +44,15 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val preferences = ClientPreferences(application)
     private val configWriter = AndroidXrayConfigWriter(application)
     private val appsScanner = InstalledAppsScanner(application)
-    private val russianAppsDetector = RussianAppsDetector(application)
     private val seedStore = ObfuscationSeedStore(application)
     private val preflightChecker = RuntimePreflightChecker(application)
     private val deviceIdentityStore = DeviceIdentityStore(application)
     private val inviteRedeemer = InviteRedeemer()
     private val runtimeStatusStore = VpnRuntimeStatusStore(application)
     private val diagnosticsRunner = NetworkDiagnosticsRunner()
+    private val runtimeManager = EmbeddedRuntimeManager(application)
+    @Volatile
+    private var startupWarmupCompleted = false
 
     private val _state = MutableStateFlow(TunnelState())
     val state: StateFlow<TunnelState> = _state
@@ -81,7 +88,6 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 selectedPackages = preferences.excludedPackages(),
                 trafficStrategy = preferences.trafficObfuscationStrategy(),
                 patternStrategy = preferences.patternMaskingStrategy(),
-                installedApps = appsScanner.loadLaunchableApps(),
                 availableProfiles = availableProfiles,
                 selectedProfileId = normalizedProfileId,
                 runtimeRunning = runtimeStatus.running,
@@ -91,6 +97,100 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 runtimeDetail = runtimeStatus.detail
             )
         }
+    }
+
+    suspend fun runStartupWarmup(onProgress: (StartupWarmupUpdate) -> Unit) {
+        if (startupWarmupCompleted) {
+            withContext(Dispatchers.Main) {
+                onProgress(
+                    StartupWarmupUpdate(
+                        progressPercent = 100,
+                        title = appContext.getString(R.string.startup_stage_ready_title),
+                        detail = appContext.getString(R.string.startup_stage_ready_detail)
+                    )
+                )
+            }
+            return
+        }
+
+        suspend fun publish(progress: Int, titleResId: Int, detailResId: Int) {
+            withContext(Dispatchers.Main) {
+                onProgress(
+                    StartupWarmupUpdate(
+                        progressPercent = progress,
+                        title = appContext.getString(titleResId),
+                        detail = appContext.getString(detailResId)
+                    )
+                )
+            }
+        }
+
+        runCatching {
+            publish(
+                progress = 14,
+                titleResId = R.string.startup_stage_profiles_title,
+                detailResId = R.string.startup_stage_profiles_detail
+            )
+            withContext(Dispatchers.IO) {
+                profileRepository.listProfiles()
+            }
+            val selectedProfileId = currentProfileId()
+
+            publish(
+                progress = 38,
+                titleResId = R.string.startup_stage_runtime_title,
+                detailResId = R.string.startup_stage_runtime_detail
+            )
+            withContext(Dispatchers.IO) {
+                runtimeManager.prepare()
+            }
+
+            publish(
+                progress = 63,
+                titleResId = R.string.startup_stage_identity_title,
+                detailResId = R.string.startup_stage_identity_detail
+            )
+            withContext(Dispatchers.IO) {
+                deviceIdentityStore.deviceId()
+                if (selectedProfileId.isNotBlank()) {
+                    val profile = profileRepository.loadProfile(selectedProfileId)
+                    seedStore.loadOrSaveDefault(profile.obfuscation.seed)
+                    preflightChecker.evaluate(selectedProfileId)
+                }
+            }
+
+            publish(
+                progress = 84,
+                titleResId = R.string.startup_stage_apps_title,
+                detailResId = R.string.startup_stage_apps_detail
+            )
+            withContext(Dispatchers.Default) {
+                appsScanner.loadLaunchableApps(limit = 32)
+            }
+        }.onFailure {
+            withContext(Dispatchers.Main) {
+                onProgress(
+                    StartupWarmupUpdate(
+                        progressPercent = 100,
+                        title = appContext.getString(R.string.startup_stage_partial_title),
+                        detail = appContext.getString(R.string.startup_stage_partial_detail)
+                    )
+                )
+            }
+            startupWarmupCompleted = true
+            return
+        }
+
+        withContext(Dispatchers.Main) {
+            onProgress(
+                StartupWarmupUpdate(
+                    progressPercent = 100,
+                    title = appContext.getString(R.string.startup_stage_ready_title),
+                    detail = appContext.getString(R.string.startup_stage_ready_detail)
+                )
+            )
+        }
+        startupWarmupCompleted = true
     }
 
     fun setBypassRu(value: Boolean) {
@@ -263,26 +363,6 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         return result.summary
-    }
-
-    suspend fun detectAndApplyRussianAppExclusions(): RussianAppsScanResult {
-        return withContext(Dispatchers.Default) {
-            val detectedApps = russianAppsDetector.detectLikelyRussianApps()
-            val currentExcluded = preferences.excludedPackages().toMutableSet()
-            val before = currentExcluded.toSet()
-            currentExcluded += detectedApps.map { it.packageName }
-
-            preferences.saveAppRoutingMode(AppRoutingMode.EXCLUDE_SELECTED)
-            preferences.saveExcludedPackages(currentExcluded.toList())
-
-            val result = RussianAppsScanResult(
-                candidates = detectedApps,
-                addedPackages = (currentExcluded - before).sorted(),
-                selectedPackages = currentExcluded.sorted()
-            )
-            refreshStateFromPreferences()
-            result
-        }
     }
 
     fun selectedProfileName(): String {

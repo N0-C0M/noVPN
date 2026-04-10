@@ -10,17 +10,32 @@ class EmbeddedRuntimeManager(private val context: Context) {
     private val logsDir = File(runtimeRoot, "logs")
     private val xrayLogFile = File(logsDir, "xray.log")
     private val obfuscatorLogFile = File(logsDir, "obfuscator.log")
+    private val prepareLock = Any()
     private var xrayProcess: Process? = null
     private var obfuscatorProcess: Process? = null
+    @Volatile
+    private var prepared = false
+
+    fun prepare() {
+        synchronized(prepareLock) {
+            runtimeRoot.mkdirs()
+            binDir.mkdirs()
+            logsDir.mkdirs()
+
+            resolveRuntimeExecutable("xray")
+            installAssetFileIfNeeded("bin/geoip.dat", "geoip.dat")
+            installAssetFileIfNeeded("bin/geosite.dat", "geosite.dat")
+            resolveRuntimeExecutable("obfuscator")
+            prepared = true
+        }
+    }
 
     fun start(xrayConfig: File, obfuscatorConfig: File) {
-        runtimeRoot.mkdirs()
-        binDir.mkdirs()
-        logsDir.mkdirs()
+        if (!prepared) {
+            prepare()
+        }
 
         val xrayBinary = resolveRuntimeExecutable("xray")
-        installAssetFile("bin/geoip.dat", "geoip.dat")
-        installAssetFile("bin/geosite.dat", "geosite.dat")
         val obfuscatorBinary = resolveRuntimeExecutable("obfuscator")
 
         obfuscatorProcess = ProcessBuilder(
@@ -101,9 +116,11 @@ class EmbeddedRuntimeManager(private val context: Context) {
         return targetFile
     }
 
-    private fun installAssetFile(assetPath: String, targetName: String): File {
+    private fun installAssetFileIfNeeded(assetPath: String, targetName: String): File {
         val targetFile = File(binDir, targetName)
-        copyAssetToFile(assetPath, targetFile)
+        if (!targetFile.exists() || targetFile.length() == 0L) {
+            copyAssetToFile(assetPath, targetFile)
+        }
         targetFile.setReadable(true)
         return targetFile
     }
