@@ -8,7 +8,7 @@ plugins {
 
 val disguiseAppId = providers.gradleProperty("novpnAppId").orNull
     ?: System.getenv("NOVPN_APP_ID")
-    ?: "safety.turtle"
+    ?: "safaty.turtle"
 val disguiseAppName = providers.gradleProperty("novpnAppName").orNull
     ?: System.getenv("NOVPN_APP_NAME")
     ?: "Safaty Turtle"

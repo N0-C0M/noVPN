@@ -179,7 +179,7 @@ class NoVpnService : VpnService() {
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         ).withRuntimeStrategies(trafficStrategy, patternStrategy)
-        val localProxy = RuntimeLocalProxyFactory.createOpen()
+        val localProxy = RuntimeLocalProxyFactory.createProtected()
         val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected()
         coreSessionActive = true
 

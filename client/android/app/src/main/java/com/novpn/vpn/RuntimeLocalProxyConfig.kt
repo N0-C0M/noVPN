@@ -23,17 +23,7 @@ object RuntimeLocalProxyFactory {
     private const val LOOPBACK_HOST = "127.0.0.1"
 
     fun create(): RuntimeLocalProxyConfig {
-        return createOpen()
-    }
-
-    fun createOpen(): RuntimeLocalProxyConfig {
-        return RuntimeLocalProxyConfig(
-            listenHost = LOOPBACK_HOST,
-            socksPort = reserveTcpPort(),
-            username = "",
-            password = "",
-            udpEnabled = false
-        )
+        return createProtected()
     }
 
     fun createProtected(): RuntimeLocalProxyConfig {

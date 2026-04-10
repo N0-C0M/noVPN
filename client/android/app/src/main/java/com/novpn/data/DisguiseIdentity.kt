@@ -33,7 +33,7 @@ object DisguiseIdentityGenerator {
     )
 
     fun defaultIdentity(): DisguiseIdentity {
-        return buildIdentity(appName = "Safaty Turtle", applicationId = "safety.turtle")
+        return buildIdentity(appName = "Safaty Turtle", applicationId = "safaty.turtle")
     }
 
     fun randomIdentity(): DisguiseIdentity {
