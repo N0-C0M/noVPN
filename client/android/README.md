@@ -79,13 +79,13 @@ Build workflow:
 
 Current limitation:
 
-- the app now supports real server profile import and validation, but the full Android
-  `TUN -> Xray` traffic pipeline is still incomplete in this scaffold. The runtime starts
-  `VpnService`, `xray`, and the obfuscator sidecar, but a production-ready packet forwarding
-  path still needs a dedicated Android integration layer.
-- the local loopback Xray SOCKS inbound is now hardened to reduce localhost scanning abuse from
-  untrusted apps, but it is still only one layer of defense; the long-term fix is a complete
-  Android-native `TUN -> Xray` datapath.
+- the runtime already uses an Android packet path (`TUN -> tun2proxy -> local Xray SOCKS ->
+  VLESS/REALITY`), so the basic datapath is live.
+- the obfuscator sidecar currently handles SOCKS `CONNECT` (TCP) only. Full end-to-end UDP/QUIC
+  forwarding is not implemented in this Android chain yet; some apps that strongly prefer QUIC
+  (for example YouTube) may degrade or fail until a UDP-capable sidecar path is shipped.
+- local loopback SOCKS remains a hardening boundary, not an absolute one. Current defenses are
+  per-launch credentials, random loopback host/port, and UDP disabled on the local Xray inbound.
 
 Runtime preflight:
 
@@ -94,5 +94,5 @@ Runtime preflight:
   - ABI-compatible embedded `xray` and `obfuscator` binaries;
   - required `geoip.dat` and `geosite.dat` assets.
 - config generation and service startup both refuse to proceed when preflight is not ready.
-- the preflight panel also keeps the current implementation boundary explicit by warning that the
-  full `TUN -> Xray` packet path still is not implemented in this scaffold.
+- the preflight panel keeps implementation boundaries explicit (notably current UDP/QUIC limits in
+  the Android sidecar chain).

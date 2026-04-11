@@ -1,6 +1,7 @@
 package com.novpn.vpn
 
 import java.net.ServerSocket
+import java.security.SecureRandom
 import java.util.UUID
 
 data class RuntimeLocalProxyConfig(
@@ -20,19 +21,22 @@ data class RuntimeLocalProxyConfig(
 }
 
 object RuntimeLocalProxyFactory {
-    private const val LOOPBACK_HOST = "127.0.0.1"
+    private const val LOOPBACK_PREFIX = "127"
+    private const val LOOPBACK_MIN_OCTET = 1
+    private const val LOOPBACK_MAX_OCTET = 254
+    private val secureRandom = SecureRandom()
 
     fun create(): RuntimeLocalProxyConfig {
         return createProtected()
     }
 
-    fun createProtected(): RuntimeLocalProxyConfig {
+    fun createProtected(udpEnabled: Boolean = false): RuntimeLocalProxyConfig {
         return RuntimeLocalProxyConfig(
-            listenHost = LOOPBACK_HOST,
+            listenHost = randomLoopbackHost(),
             socksPort = reserveTcpPort(),
             username = randomToken("u"),
             password = randomToken("p"),
-            udpEnabled = false
+            udpEnabled = udpEnabled
         )
     }
 
@@ -45,5 +49,12 @@ object RuntimeLocalProxyFactory {
 
     private fun randomToken(prefix: String): String {
         return prefix + UUID.randomUUID().toString().replace("-", "")
+    }
+
+    private fun randomLoopbackHost(): String {
+        val octet2 = secureRandom.nextInt(LOOPBACK_MAX_OCTET - LOOPBACK_MIN_OCTET + 1) + LOOPBACK_MIN_OCTET
+        val octet3 = secureRandom.nextInt(LOOPBACK_MAX_OCTET - LOOPBACK_MIN_OCTET + 1) + LOOPBACK_MIN_OCTET
+        val octet4 = secureRandom.nextInt(LOOPBACK_MAX_OCTET - LOOPBACK_MIN_OCTET + 1) + LOOPBACK_MIN_OCTET
+        return "$LOOPBACK_PREFIX.$octet2.$octet3.$octet4"
     }
 }

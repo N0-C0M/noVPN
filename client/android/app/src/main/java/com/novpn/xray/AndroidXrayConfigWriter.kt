@@ -81,7 +81,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
         rules.put(
             JSONObject()
                 .put("type", "field")
-                .put("network", "tcp")
+                .put("network", "tcp,udp")
                 .put("outboundTag", "proxy")
                 .put("ruleTag", "default-proxy")
         )
@@ -197,7 +197,9 @@ class AndroidXrayConfigWriter(private val context: Context) {
             "gvt2.com",
             "googlevideo.com",
             "youtube.com",
+            "youtu.be",
             "ytimg.com",
+            "youtubei.googleapis.com",
             "googleusercontent.com",
             "ggpht.com"
         )
