@@ -79,11 +79,13 @@ Build workflow:
 
 Current limitation:
 
-- the runtime already uses an Android packet path (`TUN -> tun2proxy -> local Xray SOCKS ->
-  VLESS/REALITY`), so the basic datapath is live.
+- the runtime already uses an Android packet path (`TUN -> tun2proxy -> local obfuscator SOCKS ->
+  local Xray SOCKS -> VLESS/REALITY`), so the basic datapath is live.
 - the obfuscator sidecar currently handles SOCKS `CONNECT` (TCP) only. Full end-to-end UDP/QUIC
   forwarding is not implemented in this Android chain yet; some apps that strongly prefer QUIC
   (for example YouTube) may degrade or fail until a UDP-capable sidecar path is shipped.
+- to keep Google/YouTube usable without changing the global tunnel model, the Android app applies
+  a soft bypass for a small fixed package set (YouTube + core Google Play packages).
 - local loopback SOCKS remains a hardening boundary, not an absolute one. Current defenses are
   per-launch credentials, random loopback host/port, and UDP disabled on the local Xray inbound.
 

@@ -156,6 +156,7 @@ class NoVpnService : VpnService() {
             .addDnsServer(TUN_DNS_SECONDARY)
             .allowFamily(android.system.OsConstants.AF_INET)
             .allowFamily(android.system.OsConstants.AF_INET6)
+            .allowBypass()
 
         applyUpstreamBypassRoutes(builder, upstreamAddress)
         applyApplicationRouting(builder, appRoutingMode, packageNames)
@@ -179,7 +180,7 @@ class NoVpnService : VpnService() {
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         ).withRuntimeStrategies(trafficStrategy, patternStrategy)
         val localProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = false)
-        val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
+        val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = false)
         coreSessionActive = true
 
         try {
@@ -201,16 +202,14 @@ class NoVpnService : VpnService() {
                 sessionPlan
             )
             runtimeManager.start(xrayConfig, obfuscatorConfig)
-            // Route TUN traffic directly into local Xray SOCKS (UDP enabled) to keep
-            // Google/YouTube and other QUIC-heavy clients functional.
-            tun2ProxyBridge.waitForLocalProxy(xrayInboundProxy)
+            tun2ProxyBridge.waitForLocalProxy(localProxy)
             tunnelInterface = establishTunnel(
                 appRoutingMode = appRoutingMode,
                 packageNames = selectedPackages,
                 upstreamAddress = effectiveProfile.server.address
             )
             tunnelInterface?.let {
-                tun2ProxyBridge.start(it, xrayInboundProxy, TUN_MTU)
+                tun2ProxyBridge.start(it, localProxy, TUN_MTU)
                 tun2ProxyBridge.confirmStarted()
             }
                 ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
@@ -222,7 +221,7 @@ class NoVpnService : VpnService() {
             status = getString(R.string.runtime_active_profile, effectiveProfile.name),
             detail = getString(R.string.runtime_running_detail)
         )
-        RuntimeLocalProxySession.update(xrayInboundProxy)
+        RuntimeLocalProxySession.update(localProxy)
         startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
     }
 
@@ -245,19 +244,20 @@ class NoVpnService : VpnService() {
         mode: AppRoutingMode,
         packageNames: List<String>
     ) {
+        val softBypassInstalledPackages = SOFT_BYPASS_PACKAGES.filter(::isInstalled)
         when (mode) {
             AppRoutingMode.EXCLUDE_SELECTED -> {
-                (packageNames + packageName).distinct().forEach { packageName ->
-                    if (isInstalled(packageName) && !isForceVpnPackage(packageName)) {
-                        builder.addDisallowedApplication(packageName)
+                (packageNames + packageName + softBypassInstalledPackages).distinct().forEach { candidatePackage ->
+                    if (isInstalled(candidatePackage)) {
+                        builder.addDisallowedApplication(candidatePackage)
                     }
                 }
             }
 
             AppRoutingMode.ONLY_SELECTED -> {
-                packageNames.distinct().forEach { packageName ->
-                    if (isInstalled(packageName)) {
-                        builder.addAllowedApplication(packageName)
+                packageNames.distinct().forEach { candidatePackage ->
+                    if (isInstalled(candidatePackage) && candidatePackage !in softBypassInstalledPackages) {
+                        builder.addAllowedApplication(candidatePackage)
                     }
                 }
             }
@@ -271,15 +271,6 @@ class NoVpnService : VpnService() {
         } catch (_: PackageManager.NameNotFoundException) {
             false
         }
-    }
-
-    private fun isForceVpnPackage(packageName: String): Boolean {
-        return packageName == "com.google.android.youtube" ||
-            packageName == "com.google.android.gms" ||
-            packageName == "com.google.android.gsf" ||
-            packageName == "com.android.vending" ||
-            packageName.startsWith("com.google.android.apps.") ||
-            packageName.startsWith("com.google.")
     }
 
     private fun applyUpstreamBypassRoutes(builder: Builder, upstreamAddress: String) {
@@ -369,6 +360,14 @@ class NoVpnService : VpnService() {
         private const val TUN_IPV6_PREFIX_LENGTH = 126
         private const val TUN_DNS_PRIMARY = "1.1.1.1"
         private const val TUN_DNS_SECONDARY = "8.8.8.8"
+        private val SOFT_BYPASS_PACKAGES = setOf(
+            "com.google.android.youtube",
+            "com.google.android.apps.youtube.music",
+            "com.google.android.apps.youtube.kids",
+            "com.google.android.gms",
+            "com.google.android.gsf",
+            "com.android.vending"
+        )
 
         fun startIntent(
             context: Context,
