@@ -179,8 +179,13 @@ class NoVpnService : VpnService() {
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         ).withRuntimeStrategies(trafficStrategy, patternStrategy)
+        val useSimplifiedYoutubePath = shouldUseSimplifiedYoutubePath(
+            appRoutingMode = appRoutingMode,
+            selectedPackages = selectedPackages
+        )
         val localProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = false)
-        val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = false)
+        val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = useSimplifiedYoutubePath)
+        val bridgeProxy = if (useSimplifiedYoutubePath) xrayInboundProxy else localProxy
         coreSessionActive = true
 
         try {
@@ -202,14 +207,14 @@ class NoVpnService : VpnService() {
                 sessionPlan
             )
             runtimeManager.start(xrayConfig, obfuscatorConfig)
-            tun2ProxyBridge.waitForLocalProxy(localProxy)
+            tun2ProxyBridge.waitForLocalProxy(bridgeProxy)
             tunnelInterface = establishTunnel(
                 appRoutingMode = appRoutingMode,
                 packageNames = selectedPackages,
                 upstreamAddress = effectiveProfile.server.address
             )
             tunnelInterface?.let {
-                tun2ProxyBridge.start(it, localProxy, TUN_MTU)
+                tun2ProxyBridge.start(it, bridgeProxy, TUN_MTU)
                 tun2ProxyBridge.confirmStarted()
             }
                 ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
@@ -221,7 +226,7 @@ class NoVpnService : VpnService() {
             status = getString(R.string.runtime_active_profile, effectiveProfile.name),
             detail = getString(R.string.runtime_running_detail)
         )
-        RuntimeLocalProxySession.update(localProxy)
+        RuntimeLocalProxySession.update(bridgeProxy)
         startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
     }
 
@@ -244,10 +249,9 @@ class NoVpnService : VpnService() {
         mode: AppRoutingMode,
         packageNames: List<String>
     ) {
-        val softBypassInstalledPackages = SOFT_BYPASS_PACKAGES.filter(::isInstalled)
         when (mode) {
             AppRoutingMode.EXCLUDE_SELECTED -> {
-                (packageNames + packageName + softBypassInstalledPackages).distinct().forEach { candidatePackage ->
+                (packageNames + packageName).distinct().forEach { candidatePackage ->
                     if (isInstalled(candidatePackage)) {
                         builder.addDisallowedApplication(candidatePackage)
                     }
@@ -256,12 +260,48 @@ class NoVpnService : VpnService() {
 
             AppRoutingMode.ONLY_SELECTED -> {
                 packageNames.distinct().forEach { candidatePackage ->
-                    if (isInstalled(candidatePackage) && candidatePackage !in softBypassInstalledPackages) {
+                    if (isInstalled(candidatePackage)) {
                         builder.addAllowedApplication(candidatePackage)
                     }
                 }
             }
         }
+    }
+
+    private fun shouldUseSimplifiedYoutubePath(
+        appRoutingMode: AppRoutingMode,
+        selectedPackages: List<String>
+    ): Boolean {
+        val youtubePackages = resolveInstalledYoutubePackages()
+        if (youtubePackages.isEmpty()) {
+            return false
+        }
+
+        val selectedSet = selectedPackages.toSet()
+        return when (appRoutingMode) {
+            AppRoutingMode.EXCLUDE_SELECTED -> youtubePackages.any { it !in selectedSet }
+            AppRoutingMode.ONLY_SELECTED -> youtubePackages.any { it in selectedSet }
+        }
+    }
+
+    private fun resolveInstalledYoutubePackages(): Set<String> {
+        val installedPackages = runCatching {
+            packageManager.getInstalledPackages(0).map { it.packageName }
+        }.getOrDefault(emptyList())
+
+        return installedPackages.filterTo(linkedSetOf()) { packageName ->
+            isYoutubePackage(packageName)
+        }
+    }
+
+    private fun isYoutubePackage(packageName: String): Boolean {
+        if (packageName in YOUTUBE_EXACT_PACKAGES) {
+            return true
+        }
+        if (YOUTUBE_PREFIXES.any { prefix -> packageName.startsWith(prefix) }) {
+            return true
+        }
+        return packageName.contains(".youtube") || packageName.contains("youtube.")
     }
 
     private fun isInstalled(packageName: String): Boolean {
@@ -360,13 +400,18 @@ class NoVpnService : VpnService() {
         private const val TUN_IPV6_PREFIX_LENGTH = 126
         private const val TUN_DNS_PRIMARY = "1.1.1.1"
         private const val TUN_DNS_SECONDARY = "8.8.8.8"
-        private val SOFT_BYPASS_PACKAGES = setOf(
+        private val YOUTUBE_EXACT_PACKAGES = setOf(
             "com.google.android.youtube",
             "com.google.android.apps.youtube.music",
             "com.google.android.apps.youtube.kids",
-            "com.google.android.gms",
-            "com.google.android.gsf",
-            "com.android.vending"
+            "com.google.android.youtube.tv",
+            "com.google.android.youtube.googletv"
+        )
+        private val YOUTUBE_PREFIXES = setOf(
+            "com.google.android.apps.youtube.",
+            "com.vanced.",
+            "app.revanced.",
+            "app.rvx."
         )
 
         fun startIntent(

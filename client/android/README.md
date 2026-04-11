@@ -84,8 +84,9 @@ Current limitation:
 - the obfuscator sidecar currently handles SOCKS `CONNECT` (TCP) only. Full end-to-end UDP/QUIC
   forwarding is not implemented in this Android chain yet; some apps that strongly prefer QUIC
   (for example YouTube) may degrade or fail until a UDP-capable sidecar path is shipped.
-- to keep Google/YouTube usable without changing the global tunnel model, the Android app applies
-  a soft bypass for a small fixed package set (YouTube + core Google Play packages).
+- when YouTube is routed through VPN, runtime switches to a simplified in-VPN path for that
+  session (`TUN -> tun2proxy -> local Xray SOCKS with UDP -> VLESS/REALITY`) so YouTube traffic
+  stays encrypted/protected while avoiding the TCP-only obfuscator bottleneck.
 - local loopback SOCKS remains a hardening boundary, not an absolute one. Current defenses are
   per-launch credentials, random loopback host/port, and UDP disabled on the local Xray inbound.
 
