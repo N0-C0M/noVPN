@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ type adminApp struct {
 type dashboardView struct {
 	BasePath          string
 	GeneratedAt       time.Time
+	PanelVersion      string
 	Summary           reality.RegistrySummary
 	Clients           []reality.ClientRecord
 	Invites           []reality.InviteRecord
@@ -281,6 +283,7 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	view := dashboardView{
 		BasePath:          a.basePath,
 		GeneratedAt:       time.Now().UTC(),
+		PanelVersion:      adminPanelVersion(),
 		Summary:           summary,
 		Clients:           clients,
 		Invites:           invites,
@@ -1095,6 +1098,55 @@ func sortClients(clients []reality.ClientRecord, sortBy string) {
 	}
 }
 
+func adminPanelVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+
+	version := strings.TrimSpace(info.Main.Version)
+	if version == "" {
+		version = "devel"
+	}
+
+	revision := buildSetting(info, "vcs.revision")
+	if revision != "" && len(revision) > 12 {
+		revision = revision[:12]
+	}
+
+	modified := buildSetting(info, "vcs.modified") == "true"
+	vcsTime := strings.TrimSpace(buildSetting(info, "vcs.time"))
+	if parsed, err := time.Parse(time.RFC3339, vcsTime); err == nil {
+		vcsTime = parsed.UTC().Format("2006-01-02 15:04 UTC")
+	} else {
+		vcsTime = ""
+	}
+
+	meta := make([]string, 0, 3)
+	if revision != "" {
+		meta = append(meta, revision)
+	}
+	if modified {
+		meta = append(meta, "dirty")
+	}
+	if vcsTime != "" {
+		meta = append(meta, vcsTime)
+	}
+	if len(meta) == 0 {
+		return version
+	}
+	return fmt.Sprintf("%s (%s)", version, strings.Join(meta, ", "))
+}
+
+func buildSetting(info *debug.BuildInfo, key string) string {
+	for _, setting := range info.Settings {
+		if setting.Key == key {
+			return setting.Value
+		}
+	}
+	return ""
+}
+
 func locateSiteImagePath(storagePath string) string {
 	candidates := []string{
 		filepath.Join(".", "image.png"),
@@ -1171,6 +1223,7 @@ const adminDashboardTemplate = `
       <h1 class="title">NoVPN Admin</h1>
       <div class="sub">Registry, reusable invite codes, promo traffic bonuses, device-bound client records, and runtime monitoring.</div>
       <div class="topline" style="margin-top:12px;">
+        <span class="chip">Panel: {{.PanelVersion}}</span>
         <span class="chip">Traffic sync: approximate</span>
         <span class="chip">Client sort: {{.ClientSort}}</span>
       </div>

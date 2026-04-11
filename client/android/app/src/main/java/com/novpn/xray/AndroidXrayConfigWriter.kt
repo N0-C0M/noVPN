@@ -39,6 +39,8 @@ class AndroidXrayConfigWriter(private val context: Context) {
                     .put(
                         "domain",
                         JSONArray().apply {
+                            // Prefer geosite to keep Google service coverage broad (Play Services, APIs, media, etc.).
+                            put(GOOGLE_GEOSITE_SELECTOR)
                             GOOGLE_PROXY_DOMAIN_SUFFIXES.forEach { suffix ->
                                 put("domain:$suffix")
                             }
@@ -176,12 +178,23 @@ class AndroidXrayConfigWriter(private val context: Context) {
     }
 
     companion object {
+        private const val GOOGLE_GEOSITE_SELECTOR = "geosite:google"
+
         private val GOOGLE_PROXY_DOMAIN_SUFFIXES = listOf(
+            "1e100.net",
+            "app-measurement.com",
+            "doubleclick.net",
+            "firebaseio.com",
             "google.com",
             "google.ru",
+            "googleadservices.com",
             "googleapis.com",
+            "googlesyndication.com",
+            "googletagmanager.com",
+            "googletagservices.com",
             "gstatic.com",
             "gvt1.com",
+            "gvt2.com",
             "googlevideo.com",
             "youtube.com",
             "ytimg.com",
