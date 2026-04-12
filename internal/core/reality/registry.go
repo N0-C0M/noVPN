@@ -65,6 +65,7 @@ type PromoRecord struct {
 	CreatedAt      time.Time         `json:"created_at"`
 	ExpiresAt      *time.Time        `json:"expires_at,omitempty"`
 	BonusBytes     int64             `json:"bonus_bytes"`
+	MaxUses        int               `json:"max_uses,omitempty"`
 	RedeemedUses   int               `json:"redeemed_uses,omitempty"`
 	LastRedeemedAt *time.Time        `json:"last_redeemed_at,omitempty"`
 	Redemptions    []PromoRedemption `json:"redemptions,omitempty"`
@@ -124,9 +125,11 @@ type InviteCreateRequest struct {
 }
 
 type PromoCreateRequest struct {
+	Code         string
 	Name         string
 	Note         string
 	BonusBytes   int64
+	MaxUses      int
 	ExpiresAfter time.Duration
 }
 
@@ -381,11 +384,29 @@ func (s *RegistryStore) CreatePromo(input PromoCreateRequest) (PromoRecord, erro
 	var created PromoRecord
 	_, err := s.Update(func(registry *Registry) error {
 		now := time.Now().UTC()
+		promoCode := strings.TrimSpace(input.Code)
+		if promoCode == "" {
+			promoCode = generateRegistryToken("promo")
+			for registry.hasCode(promoCode) {
+				promoCode = generateRegistryToken("promo")
+			}
+		} else {
+			normalizedCode, err := normalizeCustomPromoCode(promoCode)
+			if err != nil {
+				return err
+			}
+			if registry.hasCode(normalizedCode) {
+				return fmt.Errorf("code %q is already in use", normalizedCode)
+			}
+			promoCode = normalizedCode
+		}
+
 		created = PromoRecord{
-			Code:       generateRegistryToken("promo"),
+			Code:       promoCode,
 			Name:       firstNonEmpty(strings.TrimSpace(input.Name), "Free traffic"),
 			Note:       strings.TrimSpace(input.Note),
 			BonusBytes: normalizeTrafficBytes(input.BonusBytes),
+			MaxUses:    normalizePromoMaxUses(input.MaxUses),
 			CreatedAt:  now,
 			Active:     true,
 		}
@@ -469,7 +490,7 @@ func (s *RegistryStore) RedeemPromo(code string, deviceID string, deviceName str
 	var result PromoRedeemResult
 	_, err := s.Update(func(registry *Registry) error {
 		now := time.Now().UTC()
-		promo := registry.findPromo(code)
+		promo := registry.findPromo(strings.TrimSpace(strings.ToLower(code)))
 		if promo == nil {
 			return errors.New("promo code not found")
 		}
@@ -727,9 +748,11 @@ func (r *Registry) normalize() {
 	}
 
 	for i := range r.Promos {
+		r.Promos[i].Code = strings.TrimSpace(strings.ToLower(r.Promos[i].Code))
 		if r.Promos[i].BonusBytes < 0 {
 			r.Promos[i].BonusBytes = 0
 		}
+		r.Promos[i].MaxUses = normalizePromoMaxUses(r.Promos[i].MaxUses)
 		if r.Promos[i].RedeemedUses < len(r.Promos[i].Redemptions) {
 			r.Promos[i].RedeemedUses = len(r.Promos[i].Redemptions)
 		}
@@ -759,12 +782,34 @@ func (r *Registry) findInvite(code string) *InviteRecord {
 }
 
 func (r *Registry) findPromo(code string) *PromoRecord {
+	needle := strings.TrimSpace(strings.ToLower(code))
+	if needle == "" {
+		return nil
+	}
 	for i := range r.Promos {
-		if r.Promos[i].Code == code {
+		if strings.TrimSpace(strings.ToLower(r.Promos[i].Code)) == needle {
 			return &r.Promos[i]
 		}
 	}
 	return nil
+}
+
+func (r *Registry) hasCode(code string) bool {
+	needle := strings.TrimSpace(strings.ToLower(code))
+	if needle == "" {
+		return false
+	}
+	for _, invite := range r.Invites {
+		if strings.TrimSpace(strings.ToLower(invite.Code)) == needle {
+			return true
+		}
+	}
+	for _, promo := range r.Promos {
+		if strings.TrimSpace(strings.ToLower(promo.Code)) == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Registry) findClient(id string) *ClientRecord {
@@ -936,6 +981,13 @@ func normalizeInviteMaxUses(value int) int {
 	return value
 }
 
+func normalizePromoMaxUses(value int) int {
+	if value <= 0 {
+		return 0
+	}
+	return value
+}
+
 func normalizeTrafficBytes(value int64) int64 {
 	if value <= 0 {
 		return 0
@@ -974,7 +1026,13 @@ func (p PromoRecord) isRedeemable(now time.Time) bool {
 	if p.ExpiresAt != nil && now.After(*p.ExpiresAt) {
 		return false
 	}
-	return p.BonusBytes > 0
+	if p.BonusBytes <= 0 {
+		return false
+	}
+	if p.MaxUses > 0 && p.RedeemedUses >= p.MaxUses {
+		return false
+	}
+	return true
 }
 
 func (p PromoRecord) redeemError(now time.Time) error {
@@ -983,6 +1041,8 @@ func (p PromoRecord) redeemError(now time.Time) error {
 		return errors.New("promo code expired")
 	case p.BonusBytes <= 0:
 		return errors.New("promo code has no traffic bonus configured")
+	case p.MaxUses > 0 && p.RedeemedUses >= p.MaxUses:
+		return errors.New("promo usage limit reached")
 	default:
 		return errors.New("promo code is inactive")
 	}
@@ -1072,4 +1132,24 @@ func generateRegistryToken(prefix string) string {
 		return prefix + "-" + time.Now().UTC().Format("20060102150405")
 	}
 	return prefix + "-" + hex.EncodeToString(buffer)
+}
+
+func normalizeCustomPromoCode(raw string) (string, error) {
+	code := strings.TrimSpace(strings.ToLower(raw))
+	if code == "" {
+		return "", errors.New("promo code is empty")
+	}
+	if len(code) < 4 || len(code) > 64 {
+		return "", errors.New("promo code must be 4..64 characters")
+	}
+	for _, r := range code {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_' || r == '.':
+		default:
+			return "", errors.New("promo code supports only [a-z0-9-_.]")
+		}
+	}
+	return code, nil
 }

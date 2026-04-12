@@ -15,8 +15,8 @@
 
 Важно:
 
-- `gateway` в текущем виде — PoC c `noop` auth/ACL (см. `internal/auth/manager.go`, `internal/acl/evaluator.go`).
-- obfuscator в текущем коде работает только через SOCKS5 `CONNECT` (TCP), без SOCKS UDP ASSOCIATE.
+- `gateway` по умолчанию использует `source_ip_allowlist` для auth и `policy` для ACL (см. `internal/config/config.go`, `internal/auth/source_ip_allowlist.go`, `internal/acl/policy.go`).
+- obfuscator поддерживает SOCKS5 `CONNECT` (TCP) и `UDP ASSOCIATE` path.
 - Android содержит полноценный TUN-путь (`VpnService + tun2proxy`), desktop-клиент в этом репозитории работает как локальный runtime с SOCKS/HTTP и UI-оркестрацией, без системного TUN.
 
 ---
@@ -257,7 +257,24 @@ Registry хранит:
 
 См. `internal/server/admin.go`.
 
-## 6.3 Disconnect устройства
+## 6.3 Создание кастомных и временных промокодов
+
+Промокоды теперь поддерживают:
+
+- кастомный `code` при создании;
+- ограничение по количеству активаций `max_uses` (`0 = unlimited`);
+- ограничение по времени `expires_minutes` (временный промокод).
+
+Поведение:
+
+- если `code` пустой, сервер генерирует код автоматически;
+- кастомный код нормализуется к lowercase и проверяется на уникальность среди invite/promo кодов;
+- при достижении `max_uses` промокод становится неактивным;
+- при истечении `expires_minutes` промокод перестаёт активироваться.
+
+Поля доступны и в HTML-форме админки, и в JSON API `POST /admin/api/promos`.
+
+## 6.4 Disconnect устройства
 
 Эндпоинт:
 
@@ -428,10 +445,11 @@ Matcher:
 ## 9.2 Runtime поведение
 
 1. слушает SOCKS5 на `listen`.
-2. принимает `CONNECT`.
+2. обрабатывает `CONNECT` и `UDP ASSOCIATE`.
 3. при необходимости делает auth (`username/password`).
-4. устанавливает upstream SOCKS CONNECT.
-5. запускает двунаправленную relay с `relayPlan`.
+4. для `CONNECT`: устанавливает upstream SOCKS CONNECT.
+5. для `UDP ASSOCIATE`: поднимает UDP relay path через upstream SOCKS.
+6. запускает relay с `relayPlan`.
 
 См. `cmd/obfuscator/runtime.go`.
 
@@ -453,10 +471,8 @@ PRNG seed:
 
 ## 9.4 Ограничения
 
-- поддерживается только SOCKS `CONNECT` (TCP);
-- UDP forwarding через obfuscator отсутствует.
-
-Это отражено как в реализации, так и в Android README ограничениях.
+- обфускация применяется к SOCKS TCP relay; UDP path ограничен семантикой SOCKS `UDP ASSOCIATE` и возможностями upstream;
+- качество UDP зависит от доступности/поведения upstream SOCKS сервера.
 
 ---
 
@@ -579,11 +595,11 @@ Server side endpoints:
 
 ## 13. Ограничения и риски текущей реализации
 
-1. Obfuscator: только TCP CONNECT, без UDP path.
-2. Desktop scaffold: без полноценного системного VPN/TUN path.
-3. Gateway auth/ACL по умолчанию noop (PoC режим).
-4. Invite/promo API в клиентах вызывается через HTTP.
-5. Android bypass RU relies на локальном каталоге и доменных правилах; качество зависит от актуальности каталога.
+1. Desktop scaffold: без полноценного системного VPN/TUN path.
+2. Invite/promo API в клиентах вызывается через HTTP.
+3. Android bypass RU relies на локальном каталоге и доменных правилах; качество зависит от актуальности каталога.
+4. Нужен внешний контур защиты админки (SSH tunnel/VPN/reverse proxy + TLS), если панель не только localhost.
+5. При ослаблении security-конфига (`auth=noop`, `acl=allow_all`) gateway возвращается в PoC-режим и должен считаться небезопасным для публичной экспозиции.
 
 ---
 
@@ -597,7 +613,7 @@ Server side endpoints:
 - `geosite.dat`;
 - локальный RU каталог.
 4. Синхронизировать planner-логику Android/desktop.
-5. Автоматизировать regression-tests obfuscator runtime (TCP correctness + perf budgets).
+5. Автоматизировать regression-tests obfuscator runtime (TCP+UDP correctness + perf budgets).
 6. Для desktop production рассмотреть системный tunnel backend (Wintun/WFP) вместо только локального proxy orchestration.
 
 ---
@@ -638,4 +654,3 @@ Desktop:
 - planner: `client/desktop/python/novpn_client/session_obfuscation.py`
 - build: `client/desktop/python/build_windows.ps1`
 - installer script: `client/desktop/installer/novpn-desktop.iss`
-

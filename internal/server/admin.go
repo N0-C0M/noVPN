@@ -92,6 +92,7 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		"formatBytes":         formatTrafficBytes,
 		"formatTrafficLimit":  formatTrafficLimit,
 		"formatTrafficRemain": formatTrafficRemain,
+		"formatPromoUses":     formatPromoUses,
 		"joinLines":           strings.Join,
 	}
 	app.dashboardTpl = template.Must(template.New("dashboard").Funcs(funcs).Parse(adminDashboardTemplate))
@@ -1138,18 +1139,28 @@ func splitMultilineList(raw string) []string {
 func decodePromoCreateRequest(r *http.Request) (reality.PromoCreateRequest, error) {
 	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		var payload struct {
+			Code           string  `json:"code"`
 			Name           string  `json:"name"`
 			Note           string  `json:"note"`
 			BonusGB        float64 `json:"bonus_gb"`
+			MaxUses        int     `json:"max_uses"`
 			ExpiresMinutes int     `json:"expires_minutes"`
 		}
 		if err := decodeJSON(r, &payload); err != nil {
 			return reality.PromoCreateRequest{}, err
 		}
+		if payload.ExpiresMinutes < 0 {
+			return reality.PromoCreateRequest{}, errors.New("expires_minutes must not be negative")
+		}
+		if payload.MaxUses < 0 {
+			return reality.PromoCreateRequest{}, errors.New("max_uses must not be negative")
+		}
 		return reality.PromoCreateRequest{
+			Code:         payload.Code,
 			Name:         payload.Name,
 			Note:         payload.Note,
 			BonusBytes:   trafficGBToBytes(payload.BonusGB),
+			MaxUses:      payload.MaxUses,
 			ExpiresAfter: time.Duration(payload.ExpiresMinutes) * time.Minute,
 		}, nil
 	}
@@ -1157,15 +1168,24 @@ func decodePromoCreateRequest(r *http.Request) (reality.PromoCreateRequest, erro
 	if err := r.ParseForm(); err != nil {
 		return reality.PromoCreateRequest{}, err
 	}
-	minutes, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("expires_minutes")))
+	minutes, err := parseOptionalNonNegativeInt(r.FormValue("expires_minutes"), "expires_minutes")
+	if err != nil {
+		return reality.PromoCreateRequest{}, err
+	}
+	maxUses, err := parseOptionalNonNegativeInt(r.FormValue("max_uses"), "max_uses")
+	if err != nil {
+		return reality.PromoCreateRequest{}, err
+	}
 	bonusGB, err := parseOptionalFloat(r.FormValue("bonus_gb"))
 	if err != nil {
 		return reality.PromoCreateRequest{}, err
 	}
 	return reality.PromoCreateRequest{
+		Code:         r.FormValue("code"),
 		Name:         r.FormValue("name"),
 		Note:         r.FormValue("note"),
 		BonusBytes:   trafficGBToBytes(bonusGB),
+		MaxUses:      maxUses,
 		ExpiresAfter: time.Duration(minutes) * time.Minute,
 	}, nil
 }
@@ -1257,6 +1277,21 @@ func parseOptionalFloat(raw string) (float64, error) {
 	return value, nil
 }
 
+func parseOptionalNonNegativeInt(raw string, field string) (int, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(trimmed)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a number", field)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("%s must not be negative", field)
+	}
+	return value, nil
+}
+
 func trafficGBToBytes(value float64) int64 {
 	if value <= 0 {
 		return 0
@@ -1292,6 +1327,13 @@ func formatTrafficRemain(client reality.ClientRecord) string {
 		return "unlimited"
 	}
 	return formatTrafficBytes(client.TrafficRemainingBytes())
+}
+
+func formatPromoUses(promo reality.PromoRecord) string {
+	if promo.MaxUses <= 0 {
+		return fmt.Sprintf("%d / unlimited", promo.RedeemedUses)
+	}
+	return fmt.Sprintf("%d / %d", promo.RedeemedUses, promo.MaxUses)
 }
 
 func normalizeClientSort(raw string) string {
@@ -1491,9 +1533,11 @@ const adminDashboardTemplate = `
     <div class="card">
       <h2>Create promo code</h2>
       <form method="post" action="{{.BasePath}}/api/promos" class="stack">
+        <input name="code" placeholder="Custom code (optional), e.g. spring-2026">
         <input name="name" placeholder="Promo name, e.g. Spring bonus">
         <textarea name="note" rows="3" placeholder="Note"></textarea>
         <input name="bonus_gb" type="number" min="0" step="0.1" value="1" placeholder="Bonus traffic in GiB">
+        <input name="max_uses" type="number" min="0" value="0" placeholder="Max uses, 0 = unlimited">
         <input name="expires_minutes" type="number" min="0" placeholder="Expires in minutes, 0 = no expiry">
         <button type="submit">Create promo</button>
       </form>
@@ -1635,7 +1679,7 @@ const adminDashboardTemplate = `
           <td>{{.Name}}<div class="muted small">{{.Note}}</div></td>
           <td>{{if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}</td>
           <td class="small">{{formatBytes .BonusBytes}}</td>
-          <td class="small">{{.RedeemedUses}}</td>
+          <td class="small">{{formatPromoUses .}}</td>
           <td class="small">{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02 15:04:05"}}{{else}}never{{end}}</td>
         </tr>
       {{end}}
