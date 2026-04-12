@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -37,8 +38,11 @@ type Gateway struct {
 func New(cfg config.Config, logger *slog.Logger) (*Gateway, error) {
 	metrics := observability.NewMetrics()
 	dialer := upstream.NewDirectDialer(cfg.Server.UpstreamDialTimeout)
-	authManager := auth.NoopManager{}
-	aclEvaluator := acl.AllowAllEvaluator{}
+	authManager, err := buildAuthManager(cfg.Security.Auth)
+	if err != nil {
+		return nil, err
+	}
+	aclEvaluator := buildACLEvaluator(cfg.Security.ACL)
 
 	gateway := &Gateway{
 		cfg:     cfg,
@@ -101,6 +105,32 @@ func New(cfg config.Config, logger *slog.Logger) (*Gateway, error) {
 	}
 
 	return gateway, nil
+}
+
+func buildAuthManager(cfg config.GatewayAuthConfig) (auth.Manager, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.Mode)) {
+	case "", "source_ip_allowlist":
+		manager, err := auth.NewSourceIPAllowlistManager(cfg.AllowedCIDRs)
+		if err != nil {
+			return nil, fmt.Errorf("build source_ip_allowlist auth manager: %w", err)
+		}
+		return manager, nil
+	case "noop":
+		return auth.NoopManager{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported security.auth.mode %q", cfg.Mode)
+	}
+}
+
+func buildACLEvaluator(cfg config.GatewayACLConfig) acl.Evaluator {
+	switch strings.ToLower(strings.TrimSpace(cfg.Mode)) {
+	case "", "policy":
+		return acl.NewPolicyEvaluator(cfg.AllowedNetworks, cfg.AllowedUpstreams)
+	case "allow_all":
+		return acl.AllowAllEvaluator{}
+	default:
+		return acl.NewPolicyEvaluator(cfg.AllowedNetworks, cfg.AllowedUpstreams)
+	}
 }
 
 func (g *Gateway) Start(_ context.Context) (err error) {

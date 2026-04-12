@@ -13,6 +13,7 @@ import com.novpn.data.ProfileRepository
 import com.novpn.data.NetworkDiagnosticsRunner
 import com.novpn.data.CodeRedeemKind
 import com.novpn.data.CodeRedeemResult
+import com.novpn.data.GatewayPolicyService
 import com.novpn.data.requireRuntimeReady
 import com.novpn.data.withRuntimeStrategies
 import com.novpn.data.withObfuscationSeed
@@ -54,6 +55,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val runtimeStatusStore = VpnRuntimeStatusStore(application)
     private val diagnosticsRunner = NetworkDiagnosticsRunner()
     private val runtimeManager = EmbeddedRuntimeManager(application)
+    private val gatewayPolicyService = GatewayPolicyService()
     @Volatile
     private var startupWarmupCompleted = false
 
@@ -87,6 +89,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             it.copy(
                 bypassRu = preferences.isBypassRuEnabled(),
                 inviteCode = preferences.inviteCode(),
+                defaultWhitelistEnabled = preferences.isDefaultWhitelistEnabled(),
                 appRoutingMode = preferences.appRoutingMode(),
                 selectedPackages = preferences.excludedPackages(),
                 trafficStrategy = preferences.trafficObfuscationStrategy(),
@@ -260,7 +263,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
 
-        if (matches.isNotEmpty()) {
+        if (matches.isNotEmpty() && !preferences.isDefaultWhitelistEnabled()) {
             val updatedExcludedPackages = (preferences.excludedPackages() + matches.map { it.packageName })
                 .distinct()
                 .sorted()
@@ -279,6 +282,17 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     fun setBypassRu(value: Boolean) {
         preferences.saveBypassRu(value)
         _state.update { it.copy(bypassRu = value) }
+    }
+
+    fun setDefaultWhitelistEnabled(value: Boolean) {
+        preferences.saveDefaultWhitelistEnabled(value)
+        if (value) {
+            preferences.saveAppRoutingMode(AppRoutingMode.ONLY_SELECTED)
+            if (preferences.excludedPackages().isEmpty()) {
+                preferences.saveExcludedPackages(preferences.defaultWhitelistPackages())
+            }
+        }
+        refreshStateFromPreferences()
     }
 
     fun setExcludedPackages(value: List<String>) {
@@ -445,6 +459,35 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         return result.summary
+    }
+
+    suspend fun refreshGatewayPolicy() {
+        val serverAddress = runCatching {
+            profileRepository.loadProfile(currentProfileId()).server.address
+        }.getOrDefault(profileRepository.bootstrapServerAddress())
+
+        if (serverAddress.isBlank()) {
+            _state.update {
+                it.copy(
+                    blockedSitesCount = 0,
+                    blockedAppsCount = 0,
+                    mandatoryNotices = emptyList()
+                )
+            }
+            return
+        }
+
+        runCatching {
+            gatewayPolicyService.fetch(serverAddress)
+        }.onSuccess { snapshot ->
+            _state.update {
+                it.copy(
+                    blockedSitesCount = snapshot.blockedSitesCount,
+                    blockedAppsCount = snapshot.blockedAppsCount,
+                    mandatoryNotices = snapshot.mandatoryNotices
+                )
+            }
+        }
     }
 
     fun selectedProfileName(): String {

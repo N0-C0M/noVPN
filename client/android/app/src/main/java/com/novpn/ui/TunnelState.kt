@@ -8,6 +8,7 @@ import com.novpn.data.TrafficObfuscationStrategy
 data class TunnelState(
     val bypassRu: Boolean = true,
     val inviteCode: String = "",
+    val defaultWhitelistEnabled: Boolean = true,
     val appRoutingMode: AppRoutingMode = AppRoutingMode.EXCLUDE_SELECTED,
     val selectedPackages: List<String> = emptyList(),
     val trafficStrategy: TrafficObfuscationStrategy = TrafficObfuscationStrategy.BALANCED,
@@ -18,6 +19,9 @@ data class TunnelState(
     val runtimeRunning: Boolean = false,
     val runtimeStatus: String = "",
     val runtimeDetail: String = "",
+    val blockedSitesCount: Int = 0,
+    val blockedAppsCount: Int = 0,
+    val mandatoryNotices: List<String> = emptyList(),
     val diagnosticsRunning: Boolean = false,
     val diagnosticsSummary: String = ""
 )

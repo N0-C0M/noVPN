@@ -36,6 +36,13 @@ Endpoints gateway:
 - `GET /readyz`
 - `GET /metrics`
 
+Gateway security defaults are now hardened:
+
+- `security.auth.mode: source_ip_allowlist`
+- `security.acl.mode: policy`
+
+If you expose listeners publicly, update `security.auth.allowed_cidrs` explicitly in your config.
+
 ## Client Profile Sync
 
 The server bootstrap exports a client profile YAML to

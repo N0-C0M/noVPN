@@ -15,6 +15,7 @@ type Config struct {
 	Server        ServerConfig        `yaml:"server"`
 	Observability ObservabilityConfig `yaml:"observability"`
 	Admin         AdminConfig         `yaml:"admin"`
+	Security      SecurityConfig      `yaml:"security"`
 	Listeners     ListenerSet         `yaml:"listeners"`
 	Core          CoreConfig          `yaml:"core"`
 }
@@ -38,6 +39,22 @@ type AdminConfig struct {
 	StoragePath string `yaml:"storage_path"`
 	Token       string `yaml:"token"`
 	BasePath    string `yaml:"base_path"`
+}
+
+type SecurityConfig struct {
+	Auth GatewayAuthConfig `yaml:"auth"`
+	ACL  GatewayACLConfig  `yaml:"acl"`
+}
+
+type GatewayAuthConfig struct {
+	Mode         string   `yaml:"mode"`
+	AllowedCIDRs []string `yaml:"allowed_cidrs"`
+}
+
+type GatewayACLConfig struct {
+	Mode             string   `yaml:"mode"`
+	AllowedNetworks  []string `yaml:"allowed_networks"`
+	AllowedUpstreams []string `yaml:"allowed_upstreams"`
 }
 
 type ListenerSet struct {
@@ -203,6 +220,19 @@ func (c *Config) setDefaults() {
 		c.Admin.BasePath = "/admin"
 	}
 
+	if strings.TrimSpace(c.Security.Auth.Mode) == "" {
+		c.Security.Auth.Mode = "source_ip_allowlist"
+	}
+	if len(c.Security.Auth.AllowedCIDRs) == 0 {
+		c.Security.Auth.AllowedCIDRs = []string{"127.0.0.1/32", "::1/128"}
+	}
+	if strings.TrimSpace(c.Security.ACL.Mode) == "" {
+		c.Security.ACL.Mode = "policy"
+	}
+	if len(c.Security.ACL.AllowedNetworks) == 0 {
+		c.Security.ACL.AllowedNetworks = []string{"tcp", "udp"}
+	}
+
 	for i := range c.Listeners.TCP {
 		if c.Listeners.TCP[i].Timeouts.Dial <= 0 {
 			c.Listeners.TCP[i].Timeouts.Dial = 5 * time.Second
@@ -231,6 +261,32 @@ func (c *Config) setDefaults() {
 		if c.Listeners.UDP[i].Limits.MaxPacketSize <= 0 {
 			c.Listeners.UDP[i].Limits.MaxPacketSize = 1500
 		}
+	}
+
+	if len(c.Security.ACL.AllowedUpstreams) == 0 {
+		allowed := make([]string, 0, len(c.Listeners.TCP)+len(c.Listeners.UDP))
+		seen := make(map[string]struct{}, len(allowed))
+		for _, listener := range c.Listeners.TCP {
+			if !listener.Enabled || strings.TrimSpace(listener.UpstreamAddr) == "" {
+				continue
+			}
+			if _, exists := seen[listener.UpstreamAddr]; exists {
+				continue
+			}
+			seen[listener.UpstreamAddr] = struct{}{}
+			allowed = append(allowed, listener.UpstreamAddr)
+		}
+		for _, listener := range c.Listeners.UDP {
+			if !listener.Enabled || strings.TrimSpace(listener.UpstreamAddr) == "" {
+				continue
+			}
+			if _, exists := seen[listener.UpstreamAddr]; exists {
+				continue
+			}
+			seen[listener.UpstreamAddr] = struct{}{}
+			allowed = append(allowed, listener.UpstreamAddr)
+		}
+		c.Security.ACL.AllowedUpstreams = allowed
 	}
 
 	c.Core.Reality.setDefaults()

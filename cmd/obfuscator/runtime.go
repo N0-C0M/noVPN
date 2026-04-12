@@ -23,7 +23,8 @@ const (
 	socksAuthUsernamePassword   = 0x02
 	socksAuthNoAcceptableMethod = 0xff
 
-	socksCommandConnect = 0x01
+	socksCommandConnect      = 0x01
+	socksCommandUDPAssociate = 0x03
 
 	socksReplySucceeded             = 0x00
 	socksReplyGeneralFailure        = 0x01
@@ -32,6 +33,7 @@ const (
 )
 
 type socksRequest struct {
+	command      byte
 	host         string
 	port         int
 	addressBytes []byte
@@ -102,9 +104,13 @@ func handleClientSession(ctx context.Context, cfg *config, clientConn net.Conn, 
 		_ = tcpConn.SetNoDelay(true)
 	}
 
-	request, err := acceptClientConnect(clientConn, cfg.Listen)
+	request, err := acceptClientRequest(clientConn, cfg.Listen)
 	if err != nil {
 		return err
+	}
+
+	if request.command == socksCommandUDPAssociate {
+		return handleClientUDPAssociate(ctx, cfg, clientConn, sessionID, request)
 	}
 
 	destination := request.destination()
@@ -157,7 +163,184 @@ func handleClientSession(ctx context.Context, cfg *config, clientConn net.Conn, 
 	return nil
 }
 
-func acceptClientConnect(conn net.Conn, endpoint socksEndpoint) (socksRequest, error) {
+func handleClientUDPAssociate(
+	ctx context.Context,
+	cfg *config,
+	clientConn net.Conn,
+	sessionID uint64,
+	request socksRequest,
+) error {
+	udpListener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		_ = writeSocksReply(clientConn, socksReplyGeneralFailure)
+		return fmt.Errorf("open UDP relay listener: %w", err)
+	}
+	defer udpListener.Close()
+
+	replyAddr := advertisedUDPRelayAddress(clientConn.LocalAddr(), udpListener.LocalAddr().(*net.UDPAddr))
+	if err := writeSocksReplyWithBindAddress(clientConn, socksReplySucceeded, replyAddr); err != nil {
+		return fmt.Errorf("respond UDP ASSOCIATE: %w", err)
+	}
+
+	upstreamAssociation, err := dialUpstreamUDPAssociate(ctx, cfg.Upstream)
+	if err != nil {
+		return fmt.Errorf("dial upstream UDP ASSOCIATE via %s: %w", cfg.Upstream.address(), err)
+	}
+	defer upstreamAssociation.controlConn.Close()
+	defer upstreamAssociation.udpConn.Close()
+
+	log.Printf(
+		"session=%d udp_associate established client=%s client_request=%s upstream=%s",
+		sessionID,
+		clientConn.RemoteAddr(),
+		request.destination(),
+		cfg.Upstream.address(),
+	)
+
+	errCh := make(chan error, 3)
+	done := make(chan struct{})
+	defer close(done)
+
+	var clientUDPAddr atomic.Value
+	clientUDPAddr.Store((*net.UDPAddr)(nil))
+
+	go func() {
+		errCh <- forwardClientUDPToUpstream(ctx, udpListener, upstreamAssociation.udpConn, &clientUDPAddr)
+	}()
+	go func() {
+		errCh <- forwardUpstreamUDPToClient(ctx, udpListener, upstreamAssociation.udpConn, &clientUDPAddr)
+	}()
+	go func() {
+		errCh <- waitForConnectionClose(clientConn)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case relayErr := <-errCh:
+		if relayErr == nil || errors.Is(relayErr, io.EOF) || errors.Is(relayErr, net.ErrClosed) {
+			return nil
+		}
+		return relayErr
+	}
+}
+
+func forwardClientUDPToUpstream(
+	ctx context.Context,
+	clientUDP *net.UDPConn,
+	upstreamUDP *net.UDPConn,
+	clientAddrHolder *atomic.Value,
+) error {
+	buffer := make([]byte, 64*1024)
+	for {
+		if err := clientUDP.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+			return err
+		}
+		n, sourceAddr, err := clientUDP.ReadFromUDP(buffer)
+		if err != nil {
+			if isTimeoutError(err) {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					continue
+				}
+			}
+			return err
+		}
+		if n <= 0 {
+			continue
+		}
+		if n < 4 || buffer[2] != 0x00 {
+			continue
+		}
+
+		clientAddrHolder.Store(sourceAddr)
+		if _, err := upstreamUDP.Write(buffer[:n]); err != nil {
+			return err
+		}
+	}
+}
+
+func forwardUpstreamUDPToClient(
+	ctx context.Context,
+	clientUDP *net.UDPConn,
+	upstreamUDP *net.UDPConn,
+	clientAddrHolder *atomic.Value,
+) error {
+	buffer := make([]byte, 64*1024)
+	for {
+		if err := upstreamUDP.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+			return err
+		}
+		n, err := upstreamUDP.Read(buffer)
+		if err != nil {
+			if isTimeoutError(err) {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					continue
+				}
+			}
+			return err
+		}
+		if n <= 0 {
+			continue
+		}
+
+		value := clientAddrHolder.Load()
+		if value == nil {
+			continue
+		}
+		clientAddr, _ := value.(*net.UDPAddr)
+		if clientAddr == nil {
+			continue
+		}
+		if _, err := clientUDP.WriteToUDP(buffer[:n], clientAddr); err != nil {
+			return err
+		}
+	}
+}
+
+func waitForConnectionClose(conn net.Conn) error {
+	buffer := make([]byte, 1)
+	for {
+		if _, err := conn.Read(buffer); err != nil {
+			return err
+		}
+	}
+}
+
+func isTimeoutError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+func advertisedUDPRelayAddress(clientLocalAddr net.Addr, listenerAddr *net.UDPAddr) *net.UDPAddr {
+	if listenerAddr == nil {
+		return &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+	}
+
+	bindIP := listenerAddr.IP
+	switch value := clientLocalAddr.(type) {
+	case *net.TCPAddr:
+		if value.IP != nil && !value.IP.IsUnspecified() {
+			bindIP = value.IP
+		}
+	case *net.UDPAddr:
+		if value.IP != nil && !value.IP.IsUnspecified() {
+			bindIP = value.IP
+		}
+	}
+
+	if bindIP == nil || bindIP.IsUnspecified() {
+		bindIP = net.IPv4(127, 0, 0, 1)
+	}
+	return &net.UDPAddr{IP: bindIP, Port: listenerAddr.Port}
+}
+
+func acceptClientRequest(conn net.Conn, endpoint socksEndpoint) (socksRequest, error) {
 	methods, err := readClientGreeting(conn)
 	if err != nil {
 		return socksRequest{}, fmt.Errorf("read greeting: %w", err)
@@ -178,7 +361,7 @@ func acceptClientConnect(conn net.Conn, endpoint socksEndpoint) (socksRequest, e
 		}
 	}
 
-	request, replyCode, err := readSocksConnectRequest(conn)
+	request, replyCode, err := readSocksRequest(conn)
 	if err != nil {
 		if replyCode != 0 {
 			_ = writeSocksReply(conn, replyCode)
@@ -256,7 +439,7 @@ func authenticateClient(conn net.Conn, endpoint socksEndpoint) error {
 	return nil
 }
 
-func readSocksConnectRequest(conn net.Conn) (socksRequest, byte, error) {
+func readSocksRequest(conn net.Conn) (socksRequest, byte, error) {
 	header := make([]byte, 4)
 	if _, err := io.ReadFull(conn, header); err != nil {
 		return socksRequest{}, 0, fmt.Errorf("read connect request header: %w", err)
@@ -264,7 +447,7 @@ func readSocksConnectRequest(conn net.Conn) (socksRequest, byte, error) {
 	if header[0] != socksVersion {
 		return socksRequest{}, 0, fmt.Errorf("unexpected connect request version %d", header[0])
 	}
-	if header[1] != socksCommandConnect {
+	if header[1] != socksCommandConnect && header[1] != socksCommandUDPAssociate {
 		return socksRequest{}, socksReplyCommandNotSupported, fmt.Errorf("unsupported command %d", header[1])
 	}
 
@@ -280,6 +463,7 @@ func readSocksConnectRequest(conn net.Conn) (socksRequest, byte, error) {
 	port := int(binary.BigEndian.Uint16(portBytes))
 
 	return socksRequest{
+		command:      header[1],
 		host:         host,
 		port:         port,
 		addressBytes: append(addressBytes, portBytes...),
@@ -322,66 +506,115 @@ func dialUpstreamConnect(ctx context.Context, endpoint socksEndpoint, request so
 		return nil, err
 	}
 
-	if err := negotiateUpstreamConnect(conn, endpoint, request); err != nil {
+	if _, _, err := negotiateUpstreamRequest(conn, endpoint, request, socksCommandConnect); err != nil {
 		conn.Close()
 		return nil, err
 	}
 	return conn, nil
 }
 
-func negotiateUpstreamConnect(conn net.Conn, endpoint socksEndpoint, request socksRequest) error {
+type upstreamUDPAssociation struct {
+	controlConn net.Conn
+	udpConn     *net.UDPConn
+}
+
+func dialUpstreamUDPAssociate(ctx context.Context, endpoint socksEndpoint) (*upstreamUDPAssociation, error) {
+	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+	controlConn, err := dialer.DialContext(ctx, "tcp", endpoint.address())
+	if err != nil {
+		return nil, err
+	}
+
+	bindHost, bindPort, err := negotiateUpstreamRequest(controlConn, endpoint, socksRequest{
+		command: socksCommandUDPAssociate,
+		host:    "0.0.0.0",
+		port:    0,
+		addressBytes: []byte{
+			0x01, 0, 0, 0, 0, 0, 0,
+		},
+	}, socksCommandUDPAssociate)
+	if err != nil {
+		_ = controlConn.Close()
+		return nil, err
+	}
+
+	udpAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(bindHost, strconv.Itoa(bindPort)))
+	if err != nil {
+		_ = controlConn.Close()
+		return nil, fmt.Errorf("resolve upstream UDP relay %s:%d: %w", bindHost, bindPort, err)
+	}
+
+	udpConn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		_ = controlConn.Close()
+		return nil, fmt.Errorf("dial upstream UDP relay %s: %w", udpAddr.String(), err)
+	}
+
+	return &upstreamUDPAssociation{
+		controlConn: controlConn,
+		udpConn:     udpConn,
+	}, nil
+}
+
+func negotiateUpstreamRequest(
+	conn net.Conn,
+	endpoint socksEndpoint,
+	request socksRequest,
+	command byte,
+) (string, int, error) {
 	if endpoint.requiresAuth() {
 		if _, err := conn.Write([]byte{socksVersion, 0x01, socksAuthUsernamePassword}); err != nil {
-			return fmt.Errorf("write upstream greeting: %w", err)
+			return "", 0, fmt.Errorf("write upstream greeting: %w", err)
 		}
 	} else {
 		if _, err := conn.Write([]byte{socksVersion, 0x01, socksAuthNone}); err != nil {
-			return fmt.Errorf("write upstream greeting: %w", err)
+			return "", 0, fmt.Errorf("write upstream greeting: %w", err)
 		}
 	}
 
 	reply := make([]byte, 2)
 	if _, err := io.ReadFull(conn, reply); err != nil {
-		return fmt.Errorf("read upstream greeting reply: %w", err)
+		return "", 0, fmt.Errorf("read upstream greeting reply: %w", err)
 	}
 	if reply[0] != socksVersion {
-		return fmt.Errorf("unexpected upstream SOCKS version %d", reply[0])
+		return "", 0, fmt.Errorf("unexpected upstream SOCKS version %d", reply[0])
 	}
 	switch reply[1] {
 	case socksAuthNone:
 		// nothing to do
 	case socksAuthUsernamePassword:
 		if err := writeUpstreamCredentials(conn, endpoint); err != nil {
-			return err
+			return "", 0, err
 		}
 	default:
-		return fmt.Errorf("upstream rejected auth method %d", reply[1])
+		return "", 0, fmt.Errorf("upstream rejected auth method %d", reply[1])
 	}
 
-	connectRequest := append([]byte{socksVersion, socksCommandConnect, 0x00}, request.addressBytes...)
+	connectRequest := append([]byte{socksVersion, command, 0x00}, request.addressBytes...)
 	if _, err := conn.Write(connectRequest); err != nil {
-		return fmt.Errorf("write upstream connect: %w", err)
+		return "", 0, fmt.Errorf("write upstream request: %w", err)
 	}
 
 	connectReply := make([]byte, 4)
 	if _, err := io.ReadFull(conn, connectReply); err != nil {
-		return fmt.Errorf("read upstream connect reply: %w", err)
+		return "", 0, fmt.Errorf("read upstream request reply: %w", err)
 	}
 	if connectReply[0] != socksVersion {
-		return fmt.Errorf("unexpected upstream connect reply version %d", connectReply[0])
+		return "", 0, fmt.Errorf("unexpected upstream request reply version %d", connectReply[0])
 	}
 	if connectReply[1] != socksReplySucceeded {
-		return fmt.Errorf("upstream connect failed with code %d", connectReply[1])
+		return "", 0, fmt.Errorf("upstream request failed with code %d", connectReply[1])
 	}
 
-	if _, _, err := readSocksAddress(conn, connectReply[3]); err != nil {
-		return fmt.Errorf("read upstream bind address: %w", err)
+	_, bindHost, err := readSocksAddress(conn, connectReply[3])
+	if err != nil {
+		return "", 0, fmt.Errorf("read upstream bind address: %w", err)
 	}
 	portBytes := make([]byte, 2)
 	if _, err := io.ReadFull(conn, portBytes); err != nil {
-		return fmt.Errorf("read upstream bind port: %w", err)
+		return "", 0, fmt.Errorf("read upstream bind port: %w", err)
 	}
-	return nil
+	return bindHost, int(binary.BigEndian.Uint16(portBytes)), nil
 }
 
 func writeUpstreamCredentials(conn net.Conn, endpoint socksEndpoint) error {
@@ -674,7 +907,36 @@ func sleepWithContext(ctx context.Context, duration time.Duration) error {
 }
 
 func writeSocksReply(conn net.Conn, replyCode byte) error {
-	_, err := conn.Write([]byte{socksVersion, replyCode, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+	return writeSocksReplyWithBindAddress(conn, replyCode, &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+}
+
+func writeSocksReplyWithBindAddress(conn net.Conn, replyCode byte, addr *net.UDPAddr) error {
+	if addr == nil {
+		addr = &net.UDPAddr{IP: net.IPv4zero, Port: 0}
+	}
+	ip := addr.IP
+	if ip == nil || ip.IsUnspecified() {
+		ip = net.IPv4zero
+	}
+	if ipv4 := ip.To4(); ipv4 != nil {
+		payload := []byte{socksVersion, replyCode, 0x00, 0x01}
+		payload = append(payload, ipv4...)
+		portBytes := make([]byte, 2)
+		binary.BigEndian.PutUint16(portBytes, uint16(addr.Port))
+		payload = append(payload, portBytes...)
+		_, err := conn.Write(payload)
+		return err
+	}
+	ipv6 := ip.To16()
+	if ipv6 == nil {
+		ipv6 = net.IPv6zero
+	}
+	payload := []byte{socksVersion, replyCode, 0x00, 0x04}
+	payload = append(payload, ipv6...)
+	portBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(portBytes, uint16(addr.Port))
+	payload = append(payload, portBytes...)
+	_, err := conn.Write(payload)
 	return err
 }
 

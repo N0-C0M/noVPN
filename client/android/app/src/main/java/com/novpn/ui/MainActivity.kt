@@ -102,6 +102,10 @@ class MainActivity : ComponentActivity() {
         viewModel.refreshStateFromPreferences()
         renderState(viewModel.state.value)
         lifecycleScope.launch {
+            viewModel.refreshGatewayPolicy()
+            renderState(viewModel.state.value)
+        }
+        lifecycleScope.launch {
             delay(650)
             startupDelayElapsed = true
             maybeDismissStartupOverlay()
@@ -117,6 +121,10 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         viewModel.refreshStateFromPreferences()
         renderState(viewModel.state.value)
+        lifecycleScope.launch {
+            viewModel.refreshGatewayPolicy()
+            renderState(viewModel.state.value)
+        }
     }
 
     override fun onDestroy() {
@@ -539,11 +547,15 @@ class MainActivity : ComponentActivity() {
         } else {
             getString(R.string.mode_full_tunnel)
         }
-        val appsLine = when (state.appRoutingMode) {
-            com.novpn.data.AppRoutingMode.EXCLUDE_SELECTED ->
-                getString(R.string.apps_selection_summary_exclude, state.selectedPackages.size)
-            com.novpn.data.AppRoutingMode.ONLY_SELECTED ->
-                getString(R.string.apps_selection_summary_include, state.selectedPackages.size)
+        val appsLine = if (state.defaultWhitelistEnabled) {
+            "Default whitelist enabled: VPN only for ${state.selectedPackages.size} apps"
+        } else {
+            when (state.appRoutingMode) {
+                com.novpn.data.AppRoutingMode.EXCLUDE_SELECTED ->
+                    getString(R.string.apps_selection_summary_exclude, state.selectedPackages.size)
+                com.novpn.data.AppRoutingMode.ONLY_SELECTED ->
+                    getString(R.string.apps_selection_summary_include, state.selectedPackages.size)
+            }
         }
         val strategyLine = getString(
             R.string.strategy_summary_format,
@@ -575,12 +587,29 @@ class MainActivity : ComponentActivity() {
             appendLine(locationLine)
             appendLine(modeLine)
             appendLine(appsLine)
+            appendLine("Server blocklist: sites ${state.blockedSitesCount}, apps ${state.blockedAppsCount}")
             append(strategyLine)
         }
-        val statusDetailText = if (state.runtimeDetail.isBlank()) {
+        val mandatoryNoticesBlock = if (state.mandatoryNotices.isEmpty()) {
+            ""
+        } else {
+            buildString {
+                appendLine("Mandatory notices:")
+                state.mandatoryNotices.forEach { notice ->
+                    appendLine("- $notice")
+                }
+            }.trimEnd()
+        }
+
+        val runtimeAndBaseline = if (state.runtimeDetail.isBlank()) {
             baselineDetail
         } else {
             state.runtimeDetail + "\n\n" + baselineDetail
+        }
+        val statusDetailText = if (mandatoryNoticesBlock.isBlank()) {
+            runtimeAndBaseline
+        } else {
+            mandatoryNoticesBlock + "\n\n" + runtimeAndBaseline
         }
         updateTextWithFade(statusTitle, statusTitleText)
         updateTextWithFade(statusDetail, statusDetailText)
@@ -643,6 +672,10 @@ class MainActivity : ComponentActivity() {
                     viewModel.selectProfile(profile.profileId)
                     runCatching { viewModel.generateConfig() }
                     renderState(viewModel.state.value)
+                    lifecycleScope.launch {
+                        viewModel.refreshGatewayPolicy()
+                        renderState(viewModel.state.value)
+                    }
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -755,6 +788,10 @@ class MainActivity : ComponentActivity() {
                 viewModel.activateInviteCode()
             }.onSuccess { redeemResult ->
                 renderState(viewModel.state.value)
+                lifecycleScope.launch {
+                    viewModel.refreshGatewayPolicy()
+                    renderState(viewModel.state.value)
+                }
                 when (redeemResult.kind) {
                     CodeRedeemKind.INVITE -> {
                         val profileName = redeemResult.profileName.ifBlank { viewModel.selectedProfileName() }

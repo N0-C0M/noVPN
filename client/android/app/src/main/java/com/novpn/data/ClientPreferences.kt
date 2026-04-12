@@ -11,6 +11,11 @@ class ClientPreferences(context: Context) {
     }
 
     fun excludedPackages(): List<String> {
+        val hasStoredSelection = preferences.contains(KEY_SELECTED_PACKAGES) || preferences.contains(KEY_EXCLUDED_PACKAGES)
+        if (!hasStoredSelection && isDefaultWhitelistEnabled()) {
+            return defaultWhitelistPackages()
+        }
+
         return preferences.getStringSet(
             KEY_SELECTED_PACKAGES,
             preferences.getStringSet(KEY_EXCLUDED_PACKAGES, emptySet())
@@ -20,9 +25,20 @@ class ClientPreferences(context: Context) {
     }
 
     fun appRoutingMode(): AppRoutingMode {
+        if (!preferences.contains(KEY_APP_ROUTING_MODE)) {
+            return if (isDefaultWhitelistEnabled()) {
+                AppRoutingMode.ONLY_SELECTED
+            } else {
+                AppRoutingMode.EXCLUDE_SELECTED
+            }
+        }
         return AppRoutingMode.fromStorage(
-            preferences.getString(KEY_APP_ROUTING_MODE, AppRoutingMode.EXCLUDE_SELECTED.storageValue)
+            preferences.getString(KEY_APP_ROUTING_MODE, AppRoutingMode.ONLY_SELECTED.storageValue)
         )
+    }
+
+    fun isDefaultWhitelistEnabled(): Boolean {
+        return preferences.getBoolean(KEY_DEFAULT_WHITELIST_ENABLED, true)
     }
 
     fun forceServerIpMode(): Boolean {
@@ -91,6 +107,10 @@ class ClientPreferences(context: Context) {
         preferences.edit().putString(KEY_APP_ROUTING_MODE, mode.storageValue).apply()
     }
 
+    fun saveDefaultWhitelistEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_DEFAULT_WHITELIST_ENABLED, enabled).apply()
+    }
+
     fun saveForceServerIpMode(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_FORCE_SERVER_IP_MODE, enabled).apply()
     }
@@ -133,6 +153,7 @@ class ClientPreferences(context: Context) {
         private const val PREFERENCE_FILE = "novpn_client_preferences"
         private const val KEY_BYPASS_RU = "bypass_ru"
         private const val KEY_APP_ROUTING_MODE = "app_routing_mode"
+        private const val KEY_DEFAULT_WHITELIST_ENABLED = "default_whitelist_enabled"
         private const val KEY_FORCE_SERVER_IP_MODE = "force_server_ip_mode"
         private const val KEY_SELECTED_PACKAGES = "selected_packages"
         private const val KEY_EXCLUDED_PACKAGES = "excluded_packages"
@@ -145,5 +166,25 @@ class ClientPreferences(context: Context) {
         private const val KEY_DISGUISE_APP_NAME = "disguise_app_name"
         private const val KEY_DISGUISE_APP_ID = "disguise_app_id"
         private const val KEY_DISGUISE_COMMAND = "disguise_command"
+
+        private val DEFAULT_WHITELIST_PACKAGES = listOf(
+            "com.google.android.youtube",
+            "com.google.android.apps.youtube.music",
+            "com.google.android.apps.youtube.kids",
+            "com.supercell.brawlstars",
+            "org.telegram.messenger",
+            "org.telegram.plus",
+            "com.instagram.android",
+            "com.twitter.android",
+            "com.supercell.clashroyale",
+            "com.supercell.clashofclans",
+            "mega.privacy.android.app",
+            "com.openai.chatgpt",
+            "com.google.android.apps.bard"
+        ).sorted()
+    }
+
+    fun defaultWhitelistPackages(): List<String> {
+        return DEFAULT_WHITELIST_PACKAGES
     }
 }

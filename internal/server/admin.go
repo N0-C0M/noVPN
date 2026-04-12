@@ -30,6 +30,7 @@ type adminApp struct {
 	reality       *reality.Provisioner
 	metrics       *observability.Metrics
 	logger        *slog.Logger
+	policyStore   *clientPolicyStore
 	dashboardTpl  *template.Template
 	loginTpl      *template.Template
 	basePath      string
@@ -61,6 +62,10 @@ type dashboardView struct {
 	SiteImageURL      string
 	Ready             bool
 	Notice            string
+	ClientPolicy      clientPolicySnapshot
+	MandatoryNotices  []mandatoryNoticeRecord
+	ClientPolicyURL   string
+	ClientNoticesURL  string
 }
 
 type metricRow struct {
@@ -74,6 +79,7 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		reality:       realityProvisioner,
 		metrics:       metrics,
 		logger:        logger.With("component", "admin"),
+		policyStore:   newClientPolicyStore(cfg.StoragePath),
 		basePath:      strings.TrimRight(cfg.BasePath, "/"),
 		token:         strings.TrimSpace(cfg.Token),
 		cookieName:    "novpn_admin_token",
@@ -86,6 +92,7 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		"formatBytes":         formatTrafficBytes,
 		"formatTrafficLimit":  formatTrafficLimit,
 		"formatTrafficRemain": formatTrafficRemain,
+		"joinLines":           strings.Join,
 	}
 	app.dashboardTpl = template.Must(template.New("dashboard").Funcs(funcs).Parse(adminDashboardTemplate))
 	app.loginTpl = template.Must(template.New("login").Funcs(funcs).Parse(adminLoginTemplate))
@@ -132,6 +139,14 @@ func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/disconnect") {
 		a.handlePublicDisconnect(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/client/policy") {
+		a.handlePublicClientPolicy(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/client/notices") {
+		a.handlePublicMandatoryNotices(w, r)
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/logout") {
@@ -276,6 +291,16 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	clientPolicy, err := a.policyStore.LoadBlocklist()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	mandatoryNotices, err := a.policyStore.ListNotices(true)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	realityCfg := a.reality.Config()
 	clientSort := normalizeClientSort(r.URL.Query().Get("clients_sort"))
 	sortClients(clients, clientSort)
@@ -302,6 +327,10 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		SiteImageURL:      "/image.png",
 		Ready:             true,
 		Notice:            "",
+		ClientPolicy:      clientPolicy,
+		MandatoryNotices:  mandatoryNotices,
+		ClientPolicyURL:   a.basePath + "/client/policy",
+		ClientNoticesURL:  a.basePath + "/client/notices",
 	}
 
 	if len(state.ShortIDs) == 0 {
@@ -366,6 +395,12 @@ func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
+	case r.URL.Path == a.basePath+"/api/policy/blocklist":
+		a.handleBlocklistPolicyAPI(w, r)
+	case r.URL.Path == a.basePath+"/api/policy/notices":
+		a.handleMandatoryNoticesAPI(w, r)
+	case strings.HasPrefix(r.URL.Path, a.basePath+"/api/policy/notices/"):
+		a.handleMandatoryNoticeAction(w, r)
 	case strings.HasPrefix(r.URL.Path, a.basePath+"/api/invites/"):
 		a.handleInviteAction(w, r)
 	case strings.HasPrefix(r.URL.Path, a.basePath+"/api/clients/"):
@@ -373,6 +408,121 @@ func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (a *adminApp) handleBlocklistPolicyAPI(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		a.writeJSON(w, r, func() (any, error) {
+			return a.policyStore.LoadBlocklist()
+		})
+	case http.MethodPost:
+		sites, apps, err := decodeBlocklistUpdateRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		snapshot, err := a.policyStore.SaveBlocklist(sites, apps)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if wantsHTML(r) {
+			http.Redirect(w, r, a.basePath+"/dashboard", http.StatusSeeOther)
+			return
+		}
+		a.writeJSONPayload(w, http.StatusOK, snapshot)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *adminApp) handleMandatoryNoticesAPI(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		a.writeJSON(w, r, func() (any, error) {
+			notices, err := a.policyStore.ListNotices(true)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{
+				"observed_at": time.Now().UTC(),
+				"notices":     notices,
+			}, nil
+		})
+	case http.MethodPost:
+		title, message, expiresAfter, err := decodeMandatoryNoticeCreateRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		notice, err := a.policyStore.CreateNotice(title, message, expiresAfter)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if wantsHTML(r) {
+			http.Redirect(w, r, a.basePath+"/dashboard", http.StatusSeeOther)
+			return
+		}
+		a.writeJSONPayload(w, http.StatusCreated, notice)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *adminApp) handleMandatoryNoticeAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, a.basePath+"/api/policy/notices/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) != 2 || parts[1] != "deactivate" {
+		http.NotFound(w, r)
+		return
+	}
+
+	notice, err := a.policyStore.DeactivateNotice(parts[0])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if wantsHTML(r) {
+		http.Redirect(w, r, a.basePath+"/dashboard", http.StatusSeeOther)
+		return
+	}
+	a.writeJSONPayload(w, http.StatusOK, notice)
+}
+
+func (a *adminApp) handlePublicClientPolicy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	policy, err := a.policyStore.LoadBlocklist()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	a.writeJSONPayload(w, http.StatusOK, policy)
+}
+
+func (a *adminApp) handlePublicMandatoryNotices(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	notices, err := a.policyStore.ListNotices(false)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	a.writeJSONPayload(w, http.StatusOK, map[string]any{
+		"observed_at": time.Now().UTC(),
+		"notices":     notices,
+	})
 }
 
 func (a *adminApp) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
@@ -909,6 +1059,82 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 	}, nil
 }
 
+func decodeBlocklistUpdateRequest(r *http.Request) ([]string, []string, error) {
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var payload struct {
+			BlockedSites []string `json:"blocked_sites"`
+			BlockedApps  []string `json:"blocked_apps"`
+		}
+		if err := decodeJSON(r, &payload); err != nil {
+			return nil, nil, err
+		}
+		return payload.BlockedSites, payload.BlockedApps, nil
+	}
+
+	if err := r.ParseForm(); err != nil {
+		return nil, nil, err
+	}
+	return splitMultilineList(r.FormValue("blocked_sites")), splitMultilineList(r.FormValue("blocked_apps")), nil
+}
+
+func decodeMandatoryNoticeCreateRequest(r *http.Request) (string, string, time.Duration, error) {
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var payload struct {
+			Title          string `json:"title"`
+			Message        string `json:"message"`
+			ExpiresMinutes int    `json:"expires_minutes"`
+		}
+		if err := decodeJSON(r, &payload); err != nil {
+			return "", "", 0, err
+		}
+		title := strings.TrimSpace(payload.Title)
+		message := strings.TrimSpace(payload.Message)
+		if title == "" {
+			return "", "", 0, errors.New("title is required")
+		}
+		if message == "" {
+			return "", "", 0, errors.New("message is required")
+		}
+		if payload.ExpiresMinutes < 0 {
+			return "", "", 0, errors.New("expires_minutes must not be negative")
+		}
+		return title, message, time.Duration(payload.ExpiresMinutes) * time.Minute, nil
+	}
+
+	if err := r.ParseForm(); err != nil {
+		return "", "", 0, err
+	}
+	title := strings.TrimSpace(r.FormValue("title"))
+	message := strings.TrimSpace(r.FormValue("message"))
+	if title == "" {
+		return "", "", 0, errors.New("title is required")
+	}
+	if message == "" {
+		return "", "", 0, errors.New("message is required")
+	}
+	minutes, err := strconv.Atoi(strings.TrimSpace(r.FormValue("expires_minutes")))
+	if err != nil && strings.TrimSpace(r.FormValue("expires_minutes")) != "" {
+		return "", "", 0, errors.New("expires_minutes must be a number")
+	}
+	if minutes < 0 {
+		return "", "", 0, errors.New("expires_minutes must not be negative")
+	}
+	return title, message, time.Duration(minutes) * time.Minute, nil
+}
+
+func splitMultilineList(raw string) []string {
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ',' || r == ';'
+	})
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 func decodePromoCreateRequest(r *http.Request) (reality.PromoCreateRequest, error) {
 	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		var payload struct {
@@ -1293,6 +1519,50 @@ const adminDashboardTemplate = `
           · <span>{{.UploadURL}} (POST)</span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Client Blocklist</h2>
+      <div class="muted small">Public API: <a href="{{.ClientPolicyURL}}" target="_blank" rel="noreferrer">{{.ClientPolicyURL}}</a></div>
+      <form method="post" action="{{.BasePath}}/api/policy/blocklist" class="stack" style="margin-top:12px;">
+        <label class="muted small">Blocked sites/domains (one per line)</label>
+        <textarea name="blocked_sites" rows="6" placeholder="example.com&#10;bad-site.net">{{joinLines .ClientPolicy.BlockedSites "\n"}}</textarea>
+        <label class="muted small">Blocked app package IDs (one per line)</label>
+        <textarea name="blocked_apps" rows="6" placeholder="com.example.app">{{joinLines .ClientPolicy.BlockedApps "\n"}}</textarea>
+        <button type="submit">Save blocklist</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Mandatory Notifications</h2>
+      <div class="muted small">Public API: <a href="{{.ClientNoticesURL}}" target="_blank" rel="noreferrer">{{.ClientNoticesURL}}</a></div>
+      <form method="post" action="{{.BasePath}}/api/policy/notices" class="stack" style="margin-top:12px;">
+        <input name="title" placeholder="Title">
+        <textarea name="message" rows="4" placeholder="Message shown to users"></textarea>
+        <input name="expires_minutes" type="number" min="0" placeholder="Expires in minutes, 0 = no expiry">
+        <button type="submit">Push notification</button>
+      </form>
+      <table class="table" style="margin-top:14px;">
+        <thead><tr><th>Title</th><th>Status</th><th>Created</th><th>Expiry</th><th>Action</th></tr></thead>
+        <tbody>
+        {{range .MandatoryNotices}}
+          <tr>
+            <td>{{.Title}}<div class="muted small">{{.Message}}</div></td>
+            <td>{{if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}</td>
+            <td class="small">{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+            <td class="small">{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02 15:04:05"}}{{else}}never{{end}}</td>
+            <td>
+              {{if .Active}}
+              <form method="post" action="{{$.BasePath}}/api/policy/notices/{{.ID}}/deactivate">
+                <button type="submit">Deactivate</button>
+              </form>
+              {{else}}<span class="muted small">-</span>{{end}}
+            </td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
     </div>
   </div>
 

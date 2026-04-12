@@ -54,6 +54,7 @@ class SettingsActivity : ComponentActivity() {
     private val ruStoreCandidateRows = mutableListOf<RuCatalogCandidateRow>()
 
     private lateinit var bypassRuCheckBox: CheckBox
+    private lateinit var defaultWhitelistCheckBox: CheckBox
     private lateinit var forceServerIpCheckBox: CheckBox
     private lateinit var modeExcludeButton: Button
     private lateinit var modeOnlySelectedButton: Button
@@ -80,6 +81,7 @@ class SettingsActivity : ComponentActivity() {
     private lateinit var disguiseCommandValue: TextView
 
     private var appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
+    private var defaultWhitelistEnabled = true
     private var trafficStrategy = TrafficObfuscationStrategy.BALANCED
     private var patternStrategy = PatternMaskingStrategy.STEADY
     private var disguiseIdentity = DisguiseIdentityGenerator.defaultIdentity()
@@ -90,7 +92,14 @@ class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         selectedPackages += preferences.excludedPackages()
+        defaultWhitelistEnabled = preferences.isDefaultWhitelistEnabled()
         appRoutingMode = preferences.appRoutingMode()
+        if (defaultWhitelistEnabled) {
+            appRoutingMode = AppRoutingMode.ONLY_SELECTED
+            if (selectedPackages.isEmpty()) {
+                selectedPackages += preferences.defaultWhitelistPackages()
+            }
+        }
         trafficStrategy = preferences.trafficObfuscationStrategy()
         patternStrategy = preferences.patternMaskingStrategy()
         disguiseIdentity = preferences.disguiseIdentity()
@@ -172,6 +181,27 @@ class SettingsActivity : ComponentActivity() {
             }
             addView(bypassRuCheckBox)
 
+            defaultWhitelistCheckBox = CheckBox(this@SettingsActivity).apply {
+                text = "Default whitelist mode (YouTube, Telegram, Instagram, X, Supercell, MEGA, ChatGPT, Gemini)"
+                isChecked = defaultWhitelistEnabled
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 14f
+                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                setPadding(0, dp(10), 0, 0)
+                setOnCheckedChangeListener { _, checked ->
+                    applySelectionChange {
+                        defaultWhitelistEnabled = checked
+                        if (checked) {
+                            appRoutingMode = AppRoutingMode.ONLY_SELECTED
+                            if (selectedPackages.isEmpty()) {
+                                selectedPackages += preferences.defaultWhitelistPackages()
+                            }
+                        }
+                    }
+                }
+            }
+            addView(defaultWhitelistCheckBox)
+
             forceServerIpCheckBox = CheckBox(this@SettingsActivity).apply {
                 text = "Use server IP while the domain is not active"
                 isChecked = preferences.forceServerIpMode()
@@ -200,6 +230,9 @@ class SettingsActivity : ComponentActivity() {
                 orientation = LinearLayout.VERTICAL
             }
             modeExcludeButton = choiceButton(getString(R.string.apps_mode_exclude)) {
+                if (defaultWhitelistEnabled) {
+                    return@choiceButton
+                }
                 applySelectionChange {
                     appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
                 }
@@ -668,7 +701,9 @@ class SettingsActivity : ComponentActivity() {
 
         val beforeCount = selectedPackages.size
         applySelectionChange {
-            appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
+            if (!defaultWhitelistEnabled) {
+                appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
+            }
             selectedPackages += ruStoreSelectedPackages
         }
         val addedCount = selectedPackages.size - beforeCount
@@ -760,8 +795,11 @@ class SettingsActivity : ComponentActivity() {
     }
 
     private fun refreshSelectionViews() {
+        defaultWhitelistCheckBox.isChecked = defaultWhitelistEnabled
         applyChoiceButtonStyle(modeExcludeButton, appRoutingMode == AppRoutingMode.EXCLUDE_SELECTED)
         applyChoiceButtonStyle(modeOnlySelectedButton, appRoutingMode == AppRoutingMode.ONLY_SELECTED)
+        modeExcludeButton.isEnabled = !defaultWhitelistEnabled
+        modeOnlySelectedButton.isEnabled = !defaultWhitelistEnabled
 
         applyChoiceButtonStyle(trafficBalancedButton, trafficStrategy == TrafficObfuscationStrategy.BALANCED)
         applyChoiceButtonStyle(trafficCdnButton, trafficStrategy == TrafficObfuscationStrategy.CDN_MIMIC)
@@ -775,9 +813,13 @@ class SettingsActivity : ComponentActivity() {
         applyChoiceButtonStyle(patternBurstButton, patternStrategy == PatternMaskingStrategy.BURST_FADE)
         applyChoiceButtonStyle(patternQuietButton, patternStrategy == PatternMaskingStrategy.QUIET_SWEEP)
 
-        appsSummary.text = when (appRoutingMode) {
-            AppRoutingMode.EXCLUDE_SELECTED -> getString(R.string.apps_selection_summary_exclude, selectedPackages.size)
-            AppRoutingMode.ONLY_SELECTED -> getString(R.string.apps_selection_summary_include, selectedPackages.size)
+        appsSummary.text = if (defaultWhitelistEnabled) {
+            "Whitelist mode enabled: VPN is active only for ${selectedPackages.size} selected apps."
+        } else {
+            when (appRoutingMode) {
+                AppRoutingMode.EXCLUDE_SELECTED -> getString(R.string.apps_selection_summary_exclude, selectedPackages.size)
+                AppRoutingMode.ONLY_SELECTED -> getString(R.string.apps_selection_summary_include, selectedPackages.size)
+            }
         }
         appsToggleButton.text = if (appsExpanded) {
             getString(R.string.apps_hide_list)
@@ -794,6 +836,7 @@ class SettingsActivity : ComponentActivity() {
 
     private fun persistSettings() {
         preferences.saveBypassRu(bypassRuCheckBox.isChecked)
+        preferences.saveDefaultWhitelistEnabled(defaultWhitelistEnabled)
         preferences.saveForceServerIpMode(forceServerIpCheckBox.isChecked)
         preferences.saveAppRoutingMode(appRoutingMode)
         preferences.saveExcludedPackages(selectedPackages.toList())

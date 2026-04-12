@@ -37,6 +37,9 @@ func (c Config) Validate() error {
 			return errors.New("admin.storage_path must not be empty")
 		}
 	}
+	if err := validateSecurity(c.Security); err != nil {
+		return err
+	}
 
 	enabled := 0
 	seenNames := make(map[string]struct{})
@@ -90,6 +93,49 @@ func validateCommon(c CommonListenerConfig) error {
 	if c.UpstreamAddr == "" {
 		return errors.New("upstream_addr must not be empty")
 	}
+	return nil
+}
+
+func validateSecurity(c SecurityConfig) error {
+	authMode := strings.ToLower(strings.TrimSpace(c.Auth.Mode))
+	switch authMode {
+	case "", "source_ip_allowlist", "noop":
+	default:
+		return fmt.Errorf("security.auth.mode must be one of source_ip_allowlist, noop")
+	}
+	if authMode == "source_ip_allowlist" {
+		if len(c.Auth.AllowedCIDRs) == 0 {
+			return errors.New("security.auth.allowed_cidrs must not be empty when using source_ip_allowlist mode")
+		}
+		for _, raw := range c.Auth.AllowedCIDRs {
+			if strings.TrimSpace(raw) == "" {
+				return errors.New("security.auth.allowed_cidrs must not contain empty values")
+			}
+			if _, _, err := net.ParseCIDR(strings.TrimSpace(raw)); err != nil {
+				return fmt.Errorf("security.auth.allowed_cidrs contains invalid CIDR %q: %w", raw, err)
+			}
+		}
+	}
+
+	aclMode := strings.ToLower(strings.TrimSpace(c.ACL.Mode))
+	switch aclMode {
+	case "", "policy", "allow_all":
+	default:
+		return fmt.Errorf("security.acl.mode must be one of policy, allow_all")
+	}
+	if aclMode == "policy" {
+		if len(c.ACL.AllowedNetworks) == 0 {
+			return errors.New("security.acl.allowed_networks must not be empty when using policy mode")
+		}
+		for _, network := range c.ACL.AllowedNetworks {
+			switch strings.ToLower(strings.TrimSpace(network)) {
+			case "tcp", "udp":
+			default:
+				return fmt.Errorf("security.acl.allowed_networks contains unsupported network %q", network)
+			}
+		}
+	}
+
 	return nil
 }
 

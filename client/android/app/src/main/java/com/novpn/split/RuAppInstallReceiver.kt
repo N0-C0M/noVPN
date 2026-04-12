@@ -26,6 +26,10 @@ class RuAppInstallReceiver : BroadcastReceiver() {
         }
 
         val preferences = ClientPreferences(context)
+        if (preferences.isDefaultWhitelistEnabled()) {
+            preferences.saveKnownInstalledPackages(preferences.knownInstalledPackages() + packageName)
+            return
+        }
         val updatedExcluded = (preferences.excludedPackages() + packageName)
             .distinct()
             .sorted()
