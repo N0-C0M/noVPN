@@ -17,11 +17,12 @@ from .session_obfuscation import SessionObfuscationPlanner
 class DesktopRuntimeManager:
     def __init__(
         self,
-        repo_root: Path,
+        runtime_root: Path,
+        generated_root: Path | None = None,
         xray_binary: Path | None = None,
         obfuscator_binary: Path | None = None,
     ) -> None:
-        self._layout = RuntimeLayout.detect(repo_root, xray_binary, obfuscator_binary)
+        self._layout = RuntimeLayout.detect(runtime_root, generated_root, xray_binary, obfuscator_binary)
         self._xray_builder = XrayConfigBuilder()
         self._obfuscator_builder = ObfuscatorConfigBuilder()
         self._xray_process: subprocess.Popen[str] | None = None

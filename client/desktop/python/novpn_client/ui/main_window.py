@@ -128,14 +128,56 @@ class MainWindow:
         return 0
 
     def _build_layout(self) -> None:
-        shell = tk.Frame(self._root, bg=self.BG, padx=26, pady=22)
-        shell.pack(fill=tk.BOTH, expand=True)
+        shell = self._create_scrollable_surface(self._root, bg=self.BG, padx=26, pady=22)
 
         self._build_header(shell).pack(fill=tk.X)
         self._build_hero(shell).pack(fill=tk.X, pady=(20, 0))
         self._build_diagnostics(shell).pack(fill=tk.X, pady=(18, 0))
         self._build_code_section(shell).pack(fill=tk.X, pady=(18, 0))
         self._build_servers(shell).pack(fill=tk.BOTH, expand=True, pady=(18, 0))
+
+    def _create_scrollable_surface(
+        self,
+        parent: tk.Widget,
+        bg: str,
+        padx: int,
+        pady: int,
+    ) -> tk.Frame:
+        host = tk.Frame(parent, bg=bg)
+        host.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(host, bg=bg, highlightthickness=0, bd=0)
+        scrollbar = tk.Scrollbar(host, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        content = tk.Frame(canvas, bg=bg, padx=padx, pady=pady)
+        window_id = canvas.create_window((0, 0), window=content, anchor="nw")
+        content.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window_id, width=event.width))
+        self._bind_canvas_wheel(canvas, content)
+        return content
+
+    def _bind_canvas_wheel(self, canvas: tk.Canvas, *targets: tk.Widget) -> None:
+        def on_mouse_wheel(event: tk.Event) -> None:
+            delta = int(event.delta / 120) if event.delta else 0
+            if delta:
+                canvas.yview_scroll(-delta, "units")
+
+        def on_button_up(_event: tk.Event) -> None:
+            canvas.yview_scroll(-1, "units")
+
+        def on_button_down(_event: tk.Event) -> None:
+            canvas.yview_scroll(1, "units")
+
+        bind_targets = (canvas, *targets)
+        for target in bind_targets:
+            target.bind("<Enter>", lambda _event: canvas.bind_all("<MouseWheel>", on_mouse_wheel))
+            target.bind("<Leave>", lambda _event: canvas.unbind_all("<MouseWheel>"))
+        canvas.bind("<Destroy>", lambda _event: canvas.unbind_all("<MouseWheel>"))
+        canvas.bind("<Button-4>", on_button_up)
+        canvas.bind("<Button-5>", on_button_down)
 
     def _build_header(self, parent: tk.Widget) -> tk.Frame:
         row = tk.Frame(parent, bg=self.BG)
@@ -560,8 +602,7 @@ class MainWindow:
         window.configure(bg=self.SURFACE)
         self._settings_window = window
 
-        panel = tk.Frame(window, bg=self.SURFACE, padx=22, pady=22)
-        panel.pack(fill=tk.BOTH, expand=True)
+        panel = self._create_scrollable_surface(window, bg=self.SURFACE, padx=22, pady=22)
         tk.Label(panel, text="Живые настройки", bg=self.SURFACE, fg=self.TEXT, font=("Segoe UI Semibold", 18)).pack(anchor="w")
         tk.Label(panel, text="Все изменения сохраняются сразу. Кнопка сохранения не нужна.", bg=self.SURFACE, fg=self.TEXT_MUTED, font=("Segoe UI", 10)).pack(anchor="w", pady=(6, 18))
 
@@ -570,6 +611,7 @@ class MainWindow:
         routing_var = tk.StringVar(master=window, value=self._state.app_routing_mode.value)
         traffic_var = tk.StringVar(master=window, value=self._state.traffic_strategy.value)
         pattern_var = tk.StringVar(master=window, value=self._state.pattern_strategy.value)
+        ru_catalog_summary = tk.StringVar(master=window, value="Автоподбор ещё не запускался.")
 
         tk.Checkbutton(
             panel,
@@ -677,6 +719,39 @@ class MainWindow:
                 activeforeground=self.TEXT,
                 font=("Segoe UI", 10),
             ).pack(anchor="w")
+
+        self._group_label(panel, "Каталог RU-приложений").pack(anchor="w", pady=(18, 8))
+        tk.Label(
+            panel,
+            text="Ищет установленные Windows-приложения и отмечает кандидатов как в Android-клиенте.",
+            bg=self.SURFACE,
+            fg=self.TEXT_MUTED,
+            font=("Segoe UI", 10),
+        ).pack(anchor="w")
+
+        ru_tools = tk.Frame(panel, bg=self.SURFACE)
+        ru_tools.pack(fill=tk.X, pady=(10, 0))
+        self._action_button(
+            ru_tools,
+            "Сканировать и отметить",
+            lambda: self._apply_ru_catalog_selection(
+                app_list,
+                bypass_var,
+                force_ip_var,
+                routing_var,
+                traffic_var,
+                pattern_var,
+                ru_catalog_summary,
+            ),
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            panel,
+            textvariable=ru_catalog_summary,
+            bg=self.SURFACE,
+            fg=self.TEXT_MUTED,
+            font=("Segoe UI", 10),
+            justify="left",
+        ).pack(anchor="w", pady=(10, 0))
 
         self._group_label(panel, "Приложения Windows").pack(anchor="w", pady=(18, 8))
         app_list = tk.Listbox(
@@ -806,6 +881,40 @@ class MainWindow:
             selected_apps=selected,
         )
         self._fill_app_list(listbox)
+
+    def _apply_ru_catalog_selection(
+        self,
+        listbox: tk.Listbox,
+        bypass_var: tk.BooleanVar,
+        force_ip_var: tk.BooleanVar,
+        routing_var: tk.StringVar,
+        traffic_var: tk.StringVar,
+        pattern_var: tk.StringVar,
+        summary_var: tk.StringVar,
+    ) -> None:
+        suggested_apps, matched_labels = self._catalog.suggest_ru_candidates(self._state.selected_apps)
+        if not suggested_apps:
+            summary_var.set("Совпадений не найдено. Добавьте приложение вручную через кнопку «Добавить EXE».")
+            return
+
+        current = list(self._state.selected_apps)
+        selected = self._dedupe([*current, *suggested_apps])
+        added_count = len([item for item in selected if item not in current])
+        self._apply_settings(
+            bypass_var.get(),
+            force_ip_var.get(),
+            AppRoutingMode.from_storage(routing_var.get()),
+            TrafficObfuscationStrategy.from_storage(traffic_var.get()),
+            PatternMaskingStrategy.from_storage(pattern_var.get()),
+            selected_apps=selected,
+        )
+        self._fill_app_list(listbox)
+
+        preview_labels = ", ".join(matched_labels[:3])
+        if preview_labels:
+            summary_var.set(f"Добавлено {added_count} приложений. Найдены: {preview_labels}.")
+        else:
+            summary_var.set(f"Добавлено {added_count} приложений из локального каталога.")
 
     def _clear_apps(
         self,

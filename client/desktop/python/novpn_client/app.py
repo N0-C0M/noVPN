@@ -5,6 +5,7 @@ import signal
 import time
 from pathlib import Path
 
+from .app_paths import resolve_app_paths
 from .app_catalog_service import AppCatalogService
 from .config_builder import XrayConfigBuilder
 from .device_identity_store import DeviceIdentityStore
@@ -19,17 +20,15 @@ from .ui.main_window import MainWindow
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parents[4]
-    default_profile = root / "client" / "common" / "profiles" / "reality" / "default.profile.json"
-    bootstrap_profile = root / "client" / "android" / "app" / "src" / "main" / "assets" / "bootstrap.json"
-    generated_root = root / "client" / "desktop" / "python" / "generated"
+    paths = resolve_app_paths()
+    generated_root = paths.generated_root
     imported_profiles_dir = generated_root / "profiles"
     state_path = generated_root / "client_state.json"
     device_identity_path = generated_root / "device_identity.json"
-    default_output = root / "client" / "desktop" / "python" / "generated" / "config.json"
+    default_output = generated_root / "config.json"
 
     parser = argparse.ArgumentParser(description="NoVPN desktop client")
-    parser.add_argument("--profile", type=Path, default=default_profile)
+    parser.add_argument("--profile", type=Path, default=paths.default_profile)
     parser.add_argument("--output", type=Path, default=default_output)
     parser.add_argument("--bypass-ru", action="store_true")
     parser.add_argument("--exclude-app", action="append", default=[])
@@ -39,11 +38,12 @@ def main() -> int:
     parser.add_argument("--obfuscator-bin", type=Path)
     args = parser.parse_args()
 
-    store = ProfileStore(args.profile, imported_profiles_dir, bootstrap_profile)
+    store = ProfileStore(args.profile, imported_profiles_dir, paths.bootstrap_profile)
     builder = XrayConfigBuilder()
     catalog = AppCatalogService()
     runtime_manager = DesktopRuntimeManager(
-        repo_root=root,
+        runtime_root=paths.runtime_root,
+        generated_root=paths.runtime_generated_root,
         xray_binary=args.xray_bin,
         obfuscator_binary=args.obfuscator_bin,
     )
