@@ -803,11 +803,21 @@ class MainActivity : ComponentActivity() {
                         beginVpnStartFlow()
                     }
                     CodeRedeemKind.PROMO -> {
+                        val trialIssued = redeemResult.activationMode == "trial" ||
+                            redeemResult.profilePayloads.isNotEmpty() ||
+                            redeemResult.profilePayload.isNotBlank()
                         Toast.makeText(
                             this@MainActivity,
-                            "Promo activated: +${formatBytes(redeemResult.bonusBytes)}",
+                            if (trialIssued) {
+                                "Promo activated: trial profile issued (${formatBytes(redeemResult.bonusBytes)})."
+                            } else {
+                                "Promo activated: +${formatBytes(redeemResult.bonusBytes)}"
+                            },
                             Toast.LENGTH_SHORT
                         ).show()
+                        if (trialIssued) {
+                            beginVpnStartFlow()
+                        }
                     }
                 }
             }.onFailure { error ->

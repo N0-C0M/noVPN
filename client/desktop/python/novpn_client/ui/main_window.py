@@ -470,7 +470,7 @@ class MainWindow:
                 device_name=self._device_identity_store.device_name(),
             )
             profile_key = ""
-            if result.kind == CodeRedeemKind.INVITE:
+            if result.profile_payload.strip():
                 option = self._profile_store.import_profile_payload(result.profile_payload, f"invite-{code}")
                 profile_key = option.key
             return result, profile_key

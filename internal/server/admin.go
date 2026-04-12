@@ -712,20 +712,53 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 
 	promoResult, promoRefreshResult, promoErr := a.reality.RedeemPromo(r.Context(), code, payload.DeviceID, payload.DeviceName)
 	if promoErr != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, promoErr.Error(), http.StatusBadRequest)
 		return
 	}
 
-	a.writeJSONPayload(w, http.StatusCreated, map[string]any{
+	responsePayload := map[string]any{
 		"kind":                "promo",
 		"promo":               promoResult.Promo,
 		"client":              promoResult.Client,
+		"activation_mode":     promoResult.ActivationMode,
 		"bonus_bytes":         promoResult.Promo.BonusBytes,
 		"traffic_used_bytes":  promoResult.Client.TrafficUsedBytes,
 		"traffic_limit_bytes": promoResult.Client.TrafficLimitBytes,
 		"config_path":         promoRefreshResult.ConfigPath,
 		"client_profile_path": promoRefreshResult.ClientProfilePath,
-	})
+	}
+
+	if promoResult.ActivationMode == reality.PromoActivationModeTrial {
+		clientProfiles := a.reality.BuildClientProfilesFor(promoRefreshResult.State, promoResult.Client)
+		if len(clientProfiles) == 0 {
+			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
+			return
+		}
+		clientProfile := clientProfiles[0]
+		yamlPayload, yamlErr := marshalClientProfileYAML(clientProfile)
+		if yamlErr != nil {
+			http.Error(w, yamlErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		yamlPayloadList, yamlListErr := marshalClientProfileYAMLList(clientProfiles)
+		if yamlListErr != nil {
+			http.Error(w, yamlListErr.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if wantsYAML(r) {
+			w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
+			_, _ = w.Write(yamlPayload)
+			return
+		}
+
+		responsePayload["client_profile"] = clientProfile
+		responsePayload["client_profile_yaml"] = string(yamlPayload)
+		responsePayload["client_profiles"] = clientProfiles
+		responsePayload["client_profiles_yaml"] = yamlPayloadList
+	}
+
+	a.writeJSONPayload(w, http.StatusCreated, responsePayload)
 }
 
 type disconnectDeviceRequest struct {
@@ -1489,7 +1522,7 @@ const adminDashboardTemplate = `
   <div class="hero">
     <div class="hero-copy">
       <h1 class="title">NoVPN Admin</h1>
-      <div class="sub">Registry, reusable invite codes, promo traffic bonuses, device-bound client records, and runtime monitoring.</div>
+      <div class="sub">Registry, reusable invite codes, promo traffic bonuses with trial activation, device-bound client records, and runtime monitoring.</div>
       <div class="topline" style="margin-top:12px;">
         <span class="chip">Panel: {{.PanelVersion}}</span>
         <span class="chip">Traffic sync: approximate</span>
@@ -1536,7 +1569,7 @@ const adminDashboardTemplate = `
         <input name="code" placeholder="Custom code (optional), e.g. spring-2026">
         <input name="name" placeholder="Promo name, e.g. Spring bonus">
         <textarea name="note" rows="3" placeholder="Note"></textarea>
-        <input name="bonus_gb" type="number" min="0" step="0.1" value="1" placeholder="Bonus traffic in GiB">
+        <input name="bonus_gb" type="number" min="0" step="0.1" value="1" placeholder="Bonus traffic in GiB (also used as trial limit for new devices)">
         <input name="max_uses" type="number" min="0" value="0" placeholder="Max uses, 0 = unlimited">
         <input name="expires_minutes" type="number" min="0" placeholder="Expires in minutes, 0 = no expiry">
         <button type="submit">Create promo</button>

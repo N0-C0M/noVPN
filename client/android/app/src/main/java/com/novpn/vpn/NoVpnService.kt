@@ -179,7 +179,7 @@ class NoVpnService : VpnService() {
         val effectiveProfile = profile.withObfuscationSeed(
             seedStore.loadOrSaveDefault(profile.obfuscation.seed)
         ).withRuntimeStrategies(trafficStrategy, patternStrategy)
-        val useSimplifiedYoutubePath = false
+        val useSimplifiedYoutubePath = shouldUseSimplifiedYoutubePath(appRoutingMode, selectedPackages)
         val localProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
         val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
         val bridgeProxy = if (useSimplifiedYoutubePath) xrayInboundProxy else localProxy

@@ -19,7 +19,8 @@ data class CodeRedeemResult(
     val profilePayload: String = "",
     val profilePayloads: List<String> = emptyList(),
     val profileName: String = "",
-    val bonusBytes: Long = 0L
+    val bonusBytes: Long = 0L,
+    val activationMode: String = ""
 )
 
 class InviteRedeemer {
@@ -71,21 +72,7 @@ class InviteRedeemer {
 
         when (root.optString("kind")) {
             "invite" -> {
-                val payloads = mutableListOf<String>()
-                root.optJSONArray("client_profiles_yaml")?.let { list ->
-                    for (index in 0 until list.length()) {
-                        list.optString(index)
-                            .trim()
-                            .takeIf { it.isNotBlank() }
-                            ?.let(payloads::add)
-                    }
-                }
-                if (payloads.isEmpty()) {
-                    root.optString("client_profile_yaml")
-                        .trim()
-                        .takeIf { it.isNotBlank() }
-                        ?.let(payloads::add)
-                }
+                val payloads = extractProfilePayloads(root)
 
                 if (payloads.isEmpty()) {
                     throw IllegalStateException("Server did not return a client profile.")
@@ -109,9 +96,23 @@ class InviteRedeemer {
                 )
             }
             "promo" -> {
+                val payloads = extractProfilePayloads(root)
+                val profileName = root.optJSONObject("client_profile")
+                    ?.optString("name")
+                    .orEmpty()
+                    .ifBlank {
+                        root.optJSONArray("client_profiles")
+                            ?.optJSONObject(0)
+                            ?.optString("name")
+                            .orEmpty()
+                    }
                 CodeRedeemResult(
                     kind = CodeRedeemKind.PROMO,
-                    bonusBytes = root.optLong("bonus_bytes", 0L)
+                    profilePayload = payloads.firstOrNull().orEmpty(),
+                    profilePayloads = payloads,
+                    profileName = profileName,
+                    bonusBytes = root.optLong("bonus_bytes", 0L),
+                    activationMode = root.optString("activation_mode").trim().lowercase()
                 )
             }
             else -> throw IllegalStateException(
@@ -183,5 +184,24 @@ class InviteRedeemer {
             }
         }
         return "\"$escaped\""
+    }
+
+    private fun extractProfilePayloads(root: JSONObject): List<String> {
+        val payloads = mutableListOf<String>()
+        root.optJSONArray("client_profiles_yaml")?.let { list ->
+            for (index in 0 until list.length()) {
+                list.optString(index)
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+                    ?.let(payloads::add)
+            }
+        }
+        if (payloads.isEmpty()) {
+            root.optString("client_profile_yaml")
+                .trim()
+                .takeIf { it.isNotBlank() }
+                ?.let(payloads::add)
+        }
+        return payloads
     }
 }

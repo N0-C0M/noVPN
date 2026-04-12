@@ -17,6 +17,7 @@ class CodeRedeemResult:
     profile_payload: str = ""
     profile_name: str = ""
     bonus_bytes: int = 0
+    activation_mode: str = ""
 
 
 class InviteRedeemer:
@@ -54,9 +55,16 @@ class InviteRedeemer:
                 profile_name=profile_name,
             )
         if kind == CodeRedeemKind.PROMO.value:
+            profile_payload = str(response.get("client_profile_yaml", "")).strip()
+            profile_name = ""
+            if isinstance(response.get("client_profile"), dict):
+                profile_name = str(response["client_profile"].get("name", "")).strip()
             return CodeRedeemResult(
                 kind=CodeRedeemKind.PROMO,
+                profile_payload=profile_payload,
+                profile_name=profile_name,
                 bonus_bytes=int(response.get("bonus_bytes", 0) or 0),
+                activation_mode=str(response.get("activation_mode", "")).strip().lower(),
             )
         raise RuntimeError("Сервер вернул пустой или непонятный ответ на активацию кода.")
 

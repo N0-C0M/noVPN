@@ -138,6 +138,76 @@ func TestPromoExpiresWhenTemporary(t *testing.T) {
 	}
 }
 
+func TestRedeemPromoCreatesTrialClientWhenNoBoundInvite(t *testing.T) {
+	store := newTestRegistryStore(t)
+
+	promo, err := store.CreatePromo(PromoCreateRequest{
+		Code:       "trial-2026",
+		Name:       "Trial tariff",
+		BonusBytes: 2 * 1024 * 1024,
+		MaxUses:    10,
+	})
+	if err != nil {
+		t.Fatalf("create promo: %v", err)
+	}
+
+	result, err := store.RedeemPromo(promo.Code, "new-device-1", "Pixel")
+	if err != nil {
+		t.Fatalf("redeem promo: %v", err)
+	}
+	if result.ActivationMode != PromoActivationModeTrial {
+		t.Fatalf("expected trial activation mode, got %q", result.ActivationMode)
+	}
+	if result.Client.DeviceID != "new-device-1" {
+		t.Fatalf("unexpected device id: %q", result.Client.DeviceID)
+	}
+	if result.Client.TrafficLimitBytes != promo.BonusBytes {
+		t.Fatalf("expected trial limit %d, got %d", promo.BonusBytes, result.Client.TrafficLimitBytes)
+	}
+	if result.Client.TrafficBonusBytes != promo.BonusBytes {
+		t.Fatalf("expected trial bonus %d, got %d", promo.BonusBytes, result.Client.TrafficBonusBytes)
+	}
+}
+
+func TestRedeemPromoKeepsBonusFlowForBoundClient(t *testing.T) {
+	store := newTestRegistryStore(t)
+
+	invite, err := store.CreateInvite(InviteCreateRequest{
+		Name:              "base",
+		MaxUses:           1,
+		TrafficLimitBytes: 3 * 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatalf("create invite: %v", err)
+	}
+	baseResult, err := store.RedeemInvite(invite.Code, "bound-device-1", "Device")
+	if err != nil {
+		t.Fatalf("redeem invite: %v", err)
+	}
+	initialLimit := baseResult.Client.TrafficLimitBytes
+
+	promo, err := store.CreatePromo(PromoCreateRequest{
+		Code:       "bonus-2026",
+		Name:       "Bonus",
+		BonusBytes: 1024,
+		MaxUses:    10,
+	})
+	if err != nil {
+		t.Fatalf("create promo: %v", err)
+	}
+
+	result, err := store.RedeemPromo(promo.Code, "bound-device-1", "Device")
+	if err != nil {
+		t.Fatalf("redeem promo: %v", err)
+	}
+	if result.ActivationMode != PromoActivationModeBonus {
+		t.Fatalf("expected bonus activation mode, got %q", result.ActivationMode)
+	}
+	if result.Client.TrafficLimitBytes != initialLimit+promo.BonusBytes {
+		t.Fatalf("expected updated limit %d, got %d", initialLimit+promo.BonusBytes, result.Client.TrafficLimitBytes)
+	}
+}
+
 func newTestRegistryStore(t *testing.T) *RegistryStore {
 	t.Helper()
 	return NewRegistryStore(filepath.Join(t.TempDir(), "registry.json"), nil)

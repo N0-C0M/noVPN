@@ -351,12 +351,11 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         )
 
         preferences.saveInviteCode(inviteCode)
-        if (redeemResult.kind == CodeRedeemKind.INVITE) {
-            val payloads = redeemResult.profilePayloads
-                .ifEmpty { listOf(redeemResult.profilePayload) }
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-
+        val payloads = redeemResult.profilePayloads
+            .ifEmpty { listOf(redeemResult.profilePayload) }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (payloads.isNotEmpty()) {
             val importedProfiles = profileRepository.importProfilePayloads(
                 payloads = payloads,
                 nameHint = "invite-$inviteCode"

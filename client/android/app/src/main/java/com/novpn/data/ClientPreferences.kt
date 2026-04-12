@@ -174,6 +174,7 @@ class ClientPreferences(context: Context) {
             "com.supercell.brawlstars",
             "org.telegram.messenger",
             "org.telegram.plus",
+            "com.radolyn.ayugram",
             "com.instagram.android",
             "com.twitter.android",
             "com.supercell.clashroyale",

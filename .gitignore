@@ -1,1 +1,5 @@
-.sync-tmp/novpn-sync.tar.gz
+<<<<<<< HEAD
+.sync-tmp/
+=======
+.sync-tmp/
+>>>>>>> 18ce473 (fix promo)

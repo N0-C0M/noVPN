@@ -80,6 +80,13 @@ type PromoRedemption struct {
 	BonusBytes int64     `json:"bonus_bytes"`
 }
 
+type PromoActivationMode string
+
+const (
+	PromoActivationModeBonus PromoActivationMode = "bonus"
+	PromoActivationModeTrial PromoActivationMode = "trial"
+)
+
 type ClientRecord struct {
 	ID                   string     `json:"id"`
 	Name                 string     `json:"name"`
@@ -139,8 +146,9 @@ type InviteRedeemResult struct {
 }
 
 type PromoRedeemResult struct {
-	Promo  PromoRecord
-	Client ClientRecord
+	Promo          PromoRecord
+	Client         ClientRecord
+	ActivationMode PromoActivationMode
 }
 
 type TrafficUsage struct {
@@ -506,20 +514,44 @@ func (s *RegistryStore) RedeemPromo(code string, deviceID string, deviceName str
 			return errors.New("promo code was already activated on this device")
 		}
 
+		normalizedDeviceName := firstNonEmpty(strings.TrimSpace(deviceName), "Android device")
 		client := registry.findBoundClientByDeviceID(normalizedDeviceID)
-		if client == nil {
-			return errors.New("activate a key on this device before redeeming a promo code")
-		}
+		activationMode := PromoActivationModeBonus
 
-		normalizedDeviceName := firstNonEmpty(strings.TrimSpace(deviceName), client.DeviceName, "Android device")
-		client.DeviceName = normalizedDeviceName
-		client.UpdatedAt = now
-		client.TrafficBonusBytes += promo.BonusBytes
-		if client.TrafficLimitBytes > 0 {
-			client.TrafficLimitBytes += promo.BonusBytes
-		}
-		if client.TrafficLimitBytes == 0 && promo.BonusBytes > 0 {
-			client.TrafficLimitBytes = promo.BonusBytes
+		if client == nil {
+			clientUUID, err := generateUUID()
+			if err != nil {
+				return err
+			}
+			clientID := generateRegistryToken("client")
+			trafficLimit := normalizeTrafficBytes(promo.BonusBytes)
+			clientRecord := ClientRecord{
+				ID:                clientID,
+				Name:              firstNonEmpty(strings.TrimSpace(promo.Name), normalizedDeviceName, "Trial device"),
+				DeviceID:          normalizedDeviceID,
+				DeviceName:        normalizedDeviceName,
+				UUID:              clientUUID,
+				Email:             buildClientEmail(clientID, promo.Name, normalizedDeviceName, normalizedDeviceID),
+				CreatedAt:         now,
+				UpdatedAt:         now,
+				TrafficLimitBytes: trafficLimit,
+				TrafficBonusBytes: trafficLimit,
+				Active:            true,
+			}
+			registry.Clients = append(registry.Clients, clientRecord)
+			client = &registry.Clients[len(registry.Clients)-1]
+			activationMode = PromoActivationModeTrial
+		} else {
+			normalizedDeviceName = firstNonEmpty(strings.TrimSpace(deviceName), client.DeviceName, "Android device")
+			client.DeviceName = normalizedDeviceName
+			client.UpdatedAt = now
+			client.TrafficBonusBytes += promo.BonusBytes
+			if client.TrafficLimitBytes > 0 {
+				client.TrafficLimitBytes += promo.BonusBytes
+			}
+			if client.TrafficLimitBytes == 0 && promo.BonusBytes > 0 {
+				client.TrafficLimitBytes = promo.BonusBytes
+			}
 		}
 		if client.TrafficLimitBytes <= 0 || client.TrafficUsedBytes < client.TrafficLimitBytes {
 			client.TrafficBlockedAt = nil
@@ -536,8 +568,9 @@ func (s *RegistryStore) RedeemPromo(code string, deviceID string, deviceName str
 		promo.LastRedeemedAt = &now
 
 		result = PromoRedeemResult{
-			Promo:  *promo,
-			Client: *client,
+			Promo:          *promo,
+			Client:         *client,
+			ActivationMode: activationMode,
 		}
 		return nil
 	})
