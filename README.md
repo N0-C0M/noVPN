@@ -1,16 +1,5 @@
 # transport-gateway PoC
 
-Минимальный Go-каркас transport gateway и bootstrap-утилита для серверного Xray VLESS + XTLS-Reality.
-
-Что уже есть:
-
-- отдельные TCP и UDP listeners для gateway;
-- graceful shutdown;
-- health/readiness endpoints;
-- Prometheus metrics;
-- upstream dialer;
-- `noop`-реализации для auth и ACL;
-- автоматический bootstrap серверного Reality core без заранее заданных ключей.
 
 Быстрый старт для gateway:
 
@@ -94,3 +83,10 @@ The panel supports:
 - viewing gateway Prometheus counters on the dashboard.
 
 API auth works with the configured token via login form, `Authorization: Bearer ...`, or `X-Admin-Token`.
+
+## Full Project Docs (RU)
+
+For a full technical walkthrough of encryption, traffic flow, Android/desktop runtime behavior,
+obfuscation internals, and customization guides, see:
+
+- [docs/project-guide-ru.md](/d:/projekt/noVPN/docs/project-guide-ru.md)
