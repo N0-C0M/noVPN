@@ -100,7 +100,9 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 runtimeStatus = runtimeStatus.status.ifBlank {
                     appContext.getString(R.string.service_stopped)
                 },
-                runtimeDetail = runtimeStatus.detail
+                runtimeDetail = runtimeStatus.detail,
+                trafficUsedBytes = preferences.trafficUsedBytes(),
+                trafficLimitBytes = preferences.trafficLimitBytes()
             )
         }
     }
@@ -349,6 +351,13 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             deviceId = deviceIdentityStore.deviceId(),
             deviceName = deviceIdentityStore.deviceName()
         )
+
+        if (redeemResult.trafficUsedBytes != null || redeemResult.trafficLimitBytes != null) {
+            preferences.saveTrafficQuotaSnapshot(
+                trafficUsedBytes = redeemResult.trafficUsedBytes ?: preferences.trafficUsedBytes(),
+                trafficLimitBytes = redeemResult.trafficLimitBytes ?: preferences.trafficLimitBytes()
+            )
+        }
 
         preferences.saveInviteCode(inviteCode)
         val payloads = redeemResult.profilePayloads

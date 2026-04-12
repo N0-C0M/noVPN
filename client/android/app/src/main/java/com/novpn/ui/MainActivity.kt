@@ -565,6 +565,11 @@ class MainActivity : ComponentActivity() {
         val serverLine = selected?.let {
             getString(R.string.server_line_format, it.name, getString(R.string.server_endpoint_hidden))
         } ?: getString(R.string.no_profiles_found)
+        val trafficRemainingLine = state.trafficLimitBytes.takeIf { it > 0L }?.let { limit ->
+            val used = state.trafficUsedBytes.coerceAtLeast(0L)
+            val remaining = (limit - used).coerceAtLeast(0L)
+            "Traffic left: ${formatBytes(remaining)} of ${formatBytes(limit)}"
+        }
 
         val statusTitleText: String
 
@@ -587,6 +592,7 @@ class MainActivity : ComponentActivity() {
             appendLine(locationLine)
             appendLine(modeLine)
             appendLine(appsLine)
+            trafficRemainingLine?.let { appendLine(it) }
             appendLine("Server blocklist: sites ${state.blockedSitesCount}, apps ${state.blockedAppsCount}")
             append(strategyLine)
         }

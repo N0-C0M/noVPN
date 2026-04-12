@@ -20,7 +20,9 @@ data class CodeRedeemResult(
     val profilePayloads: List<String> = emptyList(),
     val profileName: String = "",
     val bonusBytes: Long = 0L,
-    val activationMode: String = ""
+    val activationMode: String = "",
+    val trafficUsedBytes: Long? = null,
+    val trafficLimitBytes: Long? = null
 )
 
 class InviteRedeemer {
@@ -70,6 +72,17 @@ class InviteRedeemer {
             )
         }
 
+        val trafficUsedBytes = if (root.has("traffic_used_bytes")) {
+            root.optLong("traffic_used_bytes", 0L).coerceAtLeast(0L)
+        } else {
+            null
+        }
+        val trafficLimitBytes = if (root.has("traffic_limit_bytes")) {
+            root.optLong("traffic_limit_bytes", 0L).coerceAtLeast(0L)
+        } else {
+            null
+        }
+
         when (root.optString("kind")) {
             "invite" -> {
                 val payloads = extractProfilePayloads(root)
@@ -92,7 +105,9 @@ class InviteRedeemer {
                     kind = CodeRedeemKind.INVITE,
                     profilePayload = payloads.first(),
                     profilePayloads = payloads,
-                    profileName = profileName
+                    profileName = profileName,
+                    trafficUsedBytes = trafficUsedBytes,
+                    trafficLimitBytes = trafficLimitBytes
                 )
             }
             "promo" -> {
@@ -112,7 +127,9 @@ class InviteRedeemer {
                     profilePayloads = payloads,
                     profileName = profileName,
                     bonusBytes = root.optLong("bonus_bytes", 0L),
-                    activationMode = root.optString("activation_mode").trim().lowercase()
+                    activationMode = root.optString("activation_mode").trim().lowercase(),
+                    trafficUsedBytes = trafficUsedBytes,
+                    trafficLimitBytes = trafficLimitBytes
                 )
             }
             else -> throw IllegalStateException(

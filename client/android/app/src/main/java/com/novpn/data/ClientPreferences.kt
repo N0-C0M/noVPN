@@ -11,16 +11,21 @@ class ClientPreferences(context: Context) {
     }
 
     fun excludedPackages(): List<String> {
-        val hasStoredSelection = preferences.contains(KEY_SELECTED_PACKAGES) || preferences.contains(KEY_EXCLUDED_PACKAGES)
-        if (!hasStoredSelection && isDefaultWhitelistEnabled()) {
-            return defaultWhitelistPackages()
-        }
-
-        return preferences.getStringSet(
+        val storedPackages = preferences.getStringSet(
             KEY_SELECTED_PACKAGES,
             preferences.getStringSet(KEY_EXCLUDED_PACKAGES, emptySet())
         )
             .orEmpty()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .sorted()
+
+        if (!isDefaultWhitelistEnabled()) {
+            return storedPackages
+        }
+
+        return (storedPackages + defaultWhitelistPackages())
+            .distinct()
             .sorted()
     }
 
@@ -63,6 +68,14 @@ class ClientPreferences(context: Context) {
 
     fun inviteCode(): String {
         return preferences.getString(KEY_INVITE_CODE, "").orEmpty()
+    }
+
+    fun trafficUsedBytes(): Long {
+        return preferences.getLong(KEY_TRAFFIC_USED_BYTES, 0L)
+    }
+
+    fun trafficLimitBytes(): Long {
+        return preferences.getLong(KEY_TRAFFIC_LIMIT_BYTES, 0L)
     }
 
     fun isInitialRuAppAuditPending(): Boolean {
@@ -131,6 +144,13 @@ class ClientPreferences(context: Context) {
         preferences.edit().putString(KEY_INVITE_CODE, code.trim()).apply()
     }
 
+    fun saveTrafficQuotaSnapshot(trafficUsedBytes: Long, trafficLimitBytes: Long) {
+        preferences.edit()
+            .putLong(KEY_TRAFFIC_USED_BYTES, trafficUsedBytes.coerceAtLeast(0L))
+            .putLong(KEY_TRAFFIC_LIMIT_BYTES, trafficLimitBytes.coerceAtLeast(0L))
+            .apply()
+    }
+
     fun markInitialRuAppAuditCompleted() {
         preferences.edit().putBoolean(KEY_INITIAL_RU_APP_AUDIT_PENDING, false).apply()
     }
@@ -161,6 +181,8 @@ class ClientPreferences(context: Context) {
         private const val KEY_PATTERN_STRATEGY = "pattern_strategy"
         private const val KEY_SELECTED_PROFILE = "selected_profile"
         private const val KEY_INVITE_CODE = "invite_code"
+        private const val KEY_TRAFFIC_USED_BYTES = "traffic_used_bytes"
+        private const val KEY_TRAFFIC_LIMIT_BYTES = "traffic_limit_bytes"
         private const val KEY_INITIAL_RU_APP_AUDIT_PENDING = "initial_ru_app_audit_pending"
         private const val KEY_KNOWN_INSTALLED_PACKAGES = "known_installed_packages"
         private const val KEY_DISGUISE_APP_NAME = "disguise_app_name"
@@ -171,6 +193,13 @@ class ClientPreferences(context: Context) {
             "com.google.android.youtube",
             "com.google.android.apps.youtube.music",
             "com.google.android.apps.youtube.kids",
+            "com.android.chrome",
+            "com.opera.browser",
+            "org.mozilla.firefox",
+            "com.microsoft.emmx",
+            "com.brave.browser",
+            "com.vivaldi.browser",
+            "com.duckduckgo.mobile.android",
             "com.supercell.brawlstars",
             "org.telegram.messenger",
             "org.telegram.plus",

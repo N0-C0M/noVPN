@@ -19,6 +19,8 @@ data class TunnelState(
     val runtimeRunning: Boolean = false,
     val runtimeStatus: String = "",
     val runtimeDetail: String = "",
+    val trafficUsedBytes: Long = 0L,
+    val trafficLimitBytes: Long = 0L,
     val blockedSitesCount: Int = 0,
     val blockedAppsCount: Int = 0,
     val mandatoryNotices: List<String> = emptyList(),
