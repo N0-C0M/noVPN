@@ -565,10 +565,17 @@ class MainActivity : ComponentActivity() {
         val serverLine = selected?.let {
             getString(R.string.server_line_format, it.name, getString(R.string.server_endpoint_hidden))
         } ?: getString(R.string.no_profiles_found)
-        val trafficRemainingLine = state.trafficLimitBytes.takeIf { it > 0L }?.let { limit ->
+        val trafficRemainingBytes = state.trafficLimitBytes.takeIf { it > 0L }?.let { limit ->
             val used = state.trafficUsedBytes.coerceAtLeast(0L)
-            val remaining = (limit - used).coerceAtLeast(0L)
-            "Traffic left: ${formatBytes(remaining)} of ${formatBytes(limit)}"
+            (limit - used).coerceAtLeast(0L)
+        }
+        val trafficRemainingLine = trafficRemainingBytes?.let { remaining ->
+            "Traffic left: ${formatBytes(remaining)} of ${formatBytes(state.trafficLimitBytes)}"
+        }
+        val trafficLimitReachedLine = if (trafficRemainingBytes != null && trafficRemainingBytes <= 0L) {
+            "Traffic limit reached. Activate promo or a new invite code."
+        } else {
+            null
         }
 
         val statusTitleText: String
@@ -576,7 +583,11 @@ class MainActivity : ComponentActivity() {
         if (state.runtimeRunning) {
             powerButton.text = getString(R.string.disconnect)
             powerButton.background = powerDrawable(true)
-            statusTitleText = getString(R.string.status_connected)
+            statusTitleText = if (trafficRemainingBytes != null && trafficRemainingBytes <= 0L) {
+                "Traffic limit reached"
+            } else {
+                getString(R.string.status_connected)
+            }
         } else {
             powerButton.text = getString(R.string.connect)
             powerButton.background = powerDrawable(false)
@@ -593,6 +604,7 @@ class MainActivity : ComponentActivity() {
             appendLine(modeLine)
             appendLine(appsLine)
             trafficRemainingLine?.let { appendLine(it) }
+            trafficLimitReachedLine?.let { appendLine(it) }
             appendLine("Server blocklist: sites ${state.blockedSitesCount}, apps ${state.blockedAppsCount}")
             append(strategyLine)
         }

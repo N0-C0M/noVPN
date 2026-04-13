@@ -76,6 +76,13 @@ class AndroidXrayConfigWriter(private val context: Context) {
                         .put("ruleTag", "catalog-domain-direct")
                 )
             }
+            rules.put(
+                JSONObject()
+                    .put("type", "field")
+                    .put("ip", JSONArray().put("geoip:ru"))
+                    .put("outboundTag", "direct")
+                    .put("ruleTag", "ru-ip-direct")
+            )
         }
 
         rules.put(
