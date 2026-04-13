@@ -71,7 +71,14 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Produce hardened release artifacts even without a custom keystore.
+            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            ndk {
+                debugSymbolLevel = "NONE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

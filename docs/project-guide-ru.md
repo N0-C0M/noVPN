@@ -569,6 +569,84 @@ cd client/android
 
 ---
 
+## 11.6 Сценарии шифровки/маскировки (по практике)
+
+Ниже описаны рабочие сценарии для текущих полей `traffic_strategy` и `pattern_strategy`.
+По коду значения заданы в `RuntimeSelections.kt`, а фактические диапазоны паддинга/джиттера/пауз — в `SessionObfuscationPlanner.kt`.
+
+1. `BALANCED + STEADY` (базовый production сценарий)
+- Динамическая ротация fingerprint/spiderX без агрессивных всплесков.
+- Низкий jitter, умеренный padding, ровный фон.
+- Рекомендован как дефолт для большинства сетей.
+
+2. `CDN_MIMIC + PULSE` (под браузерный/CDN профиль)
+- Упор на CDN-подобные cover path и browser-like fingerprint pool.
+- Более выраженная пульсация трафика и средний burst-профиль.
+- Подходит для активного web-трафика и стриминга.
+
+3. `FRAGMENTED + RANDOMIZED` (максимум вариативности)
+- Широкие диапазоны padding/idle, заметно неровный ритм.
+- Полезно в сетях с жесткой эвристикой по паттернам потока.
+- Цена: выше overhead и потенциально выше latency.
+
+4. `MOBILE_MIX + BURST_FADE` (мобильные/нестабильные сети)
+- Агрессивные burst-интервалы, быстрые смены ритма.
+- Хорошо маскирует короткие и нестабильные мобильные сессии.
+- Цена: возможный рост расхода трафика.
+
+5. `TLS_BLEND + QUIET_SWEEP` (тихий фон)
+- Консервативный и менее шумный профиль.
+- Подходит для стабильных каналов и фоновой работы.
+
+## 11.7 Как задавать кастомную шифровку
+
+В проекте настройка идет на двух уровнях:
+
+1. Крипто-параметры transport (VLESS/REALITY)
+- Поля профиля: `server_name`, `public_key`, `short_id`, `flow`, `fingerprint`, `spider_x`.
+- Они попадают в `realitySettings` Xray outbound и определяют крипто/handshake параметры.
+
+2. Поведенческая маскировка (obfuscator/planner)
+- Поля: `obfuscation.seed`, `traffic_strategy`, `pattern_strategy`.
+- Они задают session nonce, выбор fingerprint/spiderX и `pattern_tuning` (padding/jitter/burst/idle).
+
+Пример кастомного фрагмента профиля:
+
+```json
+{
+  "server": {
+    "server_name": "cdn.example.com",
+    "public_key": "BASE64_X25519_PUBLIC_KEY",
+    "short_id": "a1b2c3d4",
+    "flow": "xtls-rprx-vision",
+    "fingerprint": "chrome",
+    "spider_x": "/cdn-cgi/trace"
+  },
+  "obfuscation": {
+    "seed": "team-alpha-2026-q2",
+    "traffic_strategy": "cdn_mimic",
+    "pattern_strategy": "pulse"
+  }
+}
+```
+
+Практический порядок настройки:
+
+1. Изменить серверный профиль (`client_profile.yaml` или imported JSON/YAML).
+2. Импортировать профиль на Android/desktop.
+3. Выбрать нужные стратегии в UI или оставить значения из профиля.
+4. Перегенерировать runtime-конфиги:
+- Xray (`AndroidXrayConfigWriter` / desktop builder).
+- Obfuscator (`ObfuscatorConfigWriter` / desktop builder).
+
+Если нужна полностью новая схема:
+
+1. Добавить новый вариант в `TrafficObfuscationStrategy` и/или `PatternMaskingStrategy`.
+2. Расширить `SessionObfuscationPlanner` (pool/range/rotation).
+3. Синхронно обновить Android и desktop planners.
+
+Важно: `seed` желательно ротировать по релизным циклам, чтобы менять детерминированный профиль сессий.
+
 ## 12. Диагностика и наблюдаемость
 
 ## 12.1 Клиентская диагностика
