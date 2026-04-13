@@ -470,29 +470,45 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     suspend fun refreshGatewayPolicy() {
-        val serverAddress = runCatching {
-            profileRepository.loadProfile(currentProfileId()).server.address
-        }.getOrDefault(profileRepository.bootstrapServerAddress())
+        val activeProfile = runCatching {
+            profileRepository.loadProfile(currentProfileId())
+        }.getOrNull()
+        val serverAddress = activeProfile?.server?.address
+            .orEmpty()
+            .ifBlank { profileRepository.bootstrapServerAddress() }
 
         if (serverAddress.isBlank()) {
             _state.update {
                 it.copy(
                     blockedSitesCount = 0,
                     blockedAppsCount = 0,
-                    mandatoryNotices = emptyList()
+                    mandatoryNotices = emptyList(),
+                    trafficUsedBytes = preferences.trafficUsedBytes(),
+                    trafficLimitBytes = preferences.trafficLimitBytes()
                 )
             }
             return
         }
 
         runCatching {
-            gatewayPolicyService.fetch(serverAddress)
+            gatewayPolicyService.fetch(
+                serverAddress = serverAddress,
+                deviceId = deviceIdentityStore.deviceId(),
+                clientUuid = activeProfile?.server?.uuid.orEmpty()
+            )
         }.onSuccess { snapshot ->
+            val nextTrafficUsed = snapshot.trafficUsedBytes ?: preferences.trafficUsedBytes()
+            val nextTrafficLimit = snapshot.trafficLimitBytes ?: preferences.trafficLimitBytes()
+            if (snapshot.trafficUsedBytes != null || snapshot.trafficLimitBytes != null) {
+                preferences.saveTrafficQuotaSnapshot(nextTrafficUsed, nextTrafficLimit)
+            }
             _state.update {
                 it.copy(
                     blockedSitesCount = snapshot.blockedSitesCount,
                     blockedAppsCount = snapshot.blockedAppsCount,
-                    mandatoryNotices = snapshot.mandatoryNotices
+                    mandatoryNotices = snapshot.mandatoryNotices,
+                    trafficUsedBytes = nextTrafficUsed,
+                    trafficLimitBytes = nextTrafficLimit
                 )
             }
         }

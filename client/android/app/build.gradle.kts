@@ -1,5 +1,10 @@
 import org.gradle.api.file.RelativePath
 import org.gradle.api.tasks.Sync
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.security.MessageDigest
+import java.util.Base64
+import java.util.zip.GZIPOutputStream
 
 plugins {
     id("com.android.application")
@@ -14,7 +19,7 @@ val disguiseAppName = providers.gradleProperty("novpnAppName").orNull
     ?: "Safety Turtle"
 
 val embeddedRuntimeExecLibsDir = layout.buildDirectory.dir("generated/embeddedRuntimeExecJniLibs")
-val ruExclusionCatalogAssetsDir = layout.buildDirectory.dir("generated/ruExclusionCatalogAssets")
+val securedAssetsDir = layout.buildDirectory.dir("generated/securedAssets")
 val repoRootDir = rootProject.projectDir.parentFile?.parentFile ?: rootProject.projectDir
 
 val prepareEmbeddedRuntimeExecutables by tasks.registering(Sync::class) {
@@ -30,20 +35,61 @@ val prepareEmbeddedRuntimeExecutables by tasks.registering(Sync::class) {
     into(embeddedRuntimeExecLibsDir)
 }
 
-val prepareRuExclusionCatalogAssets by tasks.registering(Sync::class) {
-    from(repoRootDir) {
-        include("ru app package.txt", "ru site list.txt")
-        includeEmptyDirs = false
-        eachFile {
-            val normalizedName = when (name) {
-                "ru app package.txt" -> "ru-app-package.txt"
-                "ru site list.txt" -> "ru-site-list.txt"
-                else -> name
-            }
-            relativePath = RelativePath(true, "catalog", normalizedName)
+val prepareSecuredAssets by tasks.registering {
+    outputs.dir(securedAssetsDir)
+    doLast {
+        val outputRoot = securedAssetsDir.get().asFile
+        if (outputRoot.exists()) {
+            outputRoot.deleteRecursively()
         }
+        outputRoot.mkdirs()
+
+        fun deriveKey(salt: String): ByteArray {
+            return MessageDigest.getInstance("SHA-256")
+                .digest(salt.toByteArray(Charsets.UTF_8))
+        }
+
+        fun gzip(input: ByteArray): ByteArray {
+            val output = ByteArrayOutputStream()
+            GZIPOutputStream(output).use { stream ->
+                stream.write(input)
+            }
+            return output.toByteArray()
+        }
+
+        fun xor(input: ByteArray, key: ByteArray): ByteArray {
+            return ByteArray(input.size) { index ->
+                (input[index].toInt() xor key[index % key.size].toInt()).toByte()
+            }
+        }
+
+        fun writeEncoded(source: File, targetRelativePath: String, salt: String) {
+            require(source.exists()) { "Missing secured asset source: ${source.absolutePath}" }
+            val raw = source.readBytes()
+            val compressed = gzip(raw)
+            val obfuscated = xor(compressed, deriveKey(salt))
+            val encoded = Base64.getEncoder().encodeToString(obfuscated)
+            val target = File(outputRoot, targetRelativePath)
+            target.parentFile?.mkdirs()
+            target.writeText(encoded + "\n")
+        }
+
+        writeEncoded(
+            source = File(repoRootDir, "ru app package.txt"),
+            targetRelativePath = "catalog/c0.bin",
+            salt = "catalog-app-packages-v1"
+        )
+        writeEncoded(
+            source = File(repoRootDir, "ru site list.txt"),
+            targetRelativePath = "catalog/c1.bin",
+            salt = "catalog-site-list-v1"
+        )
+        writeEncoded(
+            source = file("src/main/secure/bootstrap.json"),
+            targetRelativePath = "bootstrap/b0.bin",
+            salt = "bootstrap-server-address-v1"
+        )
     }
-    into(ruExclusionCatalogAssetsDir)
 }
 
 android {
@@ -103,7 +149,7 @@ android {
     }
 
     sourceSets.getByName("main").jniLibs.srcDir(embeddedRuntimeExecLibsDir)
-    sourceSets.getByName("main").assets.srcDir(ruExclusionCatalogAssetsDir)
+    sourceSets.getByName("main").assets.srcDir(securedAssetsDir)
 
     packaging {
         jniLibs.useLegacyPackaging = true
@@ -121,5 +167,5 @@ dependencies {
 
 tasks.named("preBuild") {
     dependsOn(prepareEmbeddedRuntimeExecutables)
-    dependsOn(prepareRuExclusionCatalogAssets)
+    dependsOn(prepareSecuredAssets)
 }

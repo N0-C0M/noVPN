@@ -44,7 +44,7 @@ $pyInstallerArgs = @(
     "--specpath", $specRoot,
     "--paths", (Join-Path $repoRoot "client\desktop\python"),
     "--add-data", ((Join-Path $repoRoot "client\common\profiles\reality\default.profile.json") + ";client\common\profiles\reality"),
-    "--add-data", ((Join-Path $repoRoot "client\android\app\src\main\assets\bootstrap.json") + ";client\android\app\src\main\assets"),
+    "--add-data", ((Join-Path $repoRoot "client\android\app\src\main\secure\bootstrap.json") + ";client\android\app\src\main\secure"),
     "--add-data", ((Join-Path $repoRoot "client\desktop\runtime\bin") + ";client\desktop\runtime\bin"),
     $entryPoint
 )

@@ -72,16 +72,8 @@ class InviteRedeemer {
             )
         }
 
-        val trafficUsedBytes = if (root.has("traffic_used_bytes")) {
-            root.optLong("traffic_used_bytes", 0L).coerceAtLeast(0L)
-        } else {
-            null
-        }
-        val trafficLimitBytes = if (root.has("traffic_limit_bytes")) {
-            root.optLong("traffic_limit_bytes", 0L).coerceAtLeast(0L)
-        } else {
-            null
-        }
+        val trafficUsedBytes = extractTrafficValue(root, "traffic_used_bytes")
+        val trafficLimitBytes = extractTrafficValue(root, "traffic_limit_bytes")
 
         when (root.optString("kind")) {
             "invite" -> {
@@ -220,5 +212,16 @@ class InviteRedeemer {
                 ?.let(payloads::add)
         }
         return payloads
+    }
+
+    private fun extractTrafficValue(root: JSONObject, key: String): Long? {
+        if (root.has(key)) {
+            return root.optLong(key, 0L).coerceAtLeast(0L)
+        }
+        val client = root.optJSONObject("client") ?: return null
+        if (!client.has(key)) {
+            return null
+        }
+        return client.optLong(key, 0L).coerceAtLeast(0L)
     }
 }

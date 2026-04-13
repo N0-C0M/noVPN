@@ -52,7 +52,7 @@ Profile workflow:
    This rewrites:
 
    - `client/common/profiles/reality/default.profile.json`
-   - `client/android/app/src/main/assets/bootstrap.json`
+   - `client/android/app/src/main/secure/bootstrap.json`
 
 3. Option B: build the APK once, then import the server profile inside the app with the new
    `Import` button in the top-right corner. The importer accepts the server-generated

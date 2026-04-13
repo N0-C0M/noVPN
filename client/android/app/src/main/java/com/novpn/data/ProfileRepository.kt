@@ -378,7 +378,11 @@ class ProfileRepository(private val context: Context) {
 
     private fun loadBootstrapServerAddress(): String {
         return runCatching {
-            val payload = context.assets.open(BOOTSTRAP_ASSET).bufferedReader().use { it.readText() }
+            val payload = AssetPayloadCodec.decodeAssetText(
+                context = context,
+                assetPath = BOOTSTRAP_ASSET,
+                salt = BOOTSTRAP_SALT
+            )
             val root = JSONObject(payload)
             root.optString("server_address").trim()
         }.getOrDefault("")
@@ -407,7 +411,8 @@ class ProfileRepository(private val context: Context) {
     }
 
     companion object {
-        private const val BOOTSTRAP_ASSET = "bootstrap.json"
+        private const val BOOTSTRAP_ASSET = "bootstrap/b0.bin"
+        private const val BOOTSTRAP_SALT = "bootstrap-server-address-v1"
         private const val DEFAULT_PROFILE_NAME = "Default Reality Profile"
         private const val DEFAULT_IMPORTED_NAME = "Imported Reality Profile"
         private const val DEFAULT_FLOW = "xtls-rprx-vision"

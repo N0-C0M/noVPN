@@ -27,10 +27,10 @@ type serverClientProfile struct {
 }
 
 type clientProfile struct {
-	Name        string             `json:"name"`
-	Server      clientServer       `json:"server"`
-	Local       clientLocal        `json:"local"`
-	Obfuscation clientObfuscation  `json:"obfuscation"`
+	Name        string            `json:"name"`
+	Server      clientServer      `json:"server"`
+	Local       clientLocal       `json:"local"`
+	Obfuscation clientObfuscation `json:"obfuscation"`
 }
 
 type clientServer struct {
@@ -71,7 +71,7 @@ func main() {
 
 	flag.StringVar(&inputPath, "input", "", "path to server client-profile.yaml")
 	flag.StringVar(&commonOutput, "common-output", "client/common/profiles/reality/default.profile.json", "path to common client profile JSON")
-	flag.StringVar(&androidOutput, "android-output", "client/android/app/src/main/assets/bootstrap.json", "path to Android bootstrap JSON")
+	flag.StringVar(&androidOutput, "android-output", "client/android/app/src/main/secure/bootstrap.json", "path to Android bootstrap JSON")
 	flag.StringVar(&profileName, "name", "Default Reality Profile", "profile display name for generated JSON")
 	flag.StringVar(&seed, "seed", "", "shared obfuscation seed override")
 	flag.Parse()

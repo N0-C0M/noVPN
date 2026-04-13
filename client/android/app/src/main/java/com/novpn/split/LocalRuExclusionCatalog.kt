@@ -1,6 +1,7 @@
 package com.novpn.split
 
 import android.content.Context
+import com.novpn.data.AssetPayloadCodec
 import java.util.Locale
 
 data class LocalRuExclusionCatalog(
@@ -11,8 +12,10 @@ data class LocalRuExclusionCatalog(
 )
 
 object LocalRuExclusionCatalogLoader {
-    private const val APP_PACKAGES_ASSET = "catalog/ru-app-package.txt"
-    private const val SITE_LIST_ASSET = "catalog/ru-site-list.txt"
+    private const val APP_PACKAGES_ASSET = "catalog/c0.bin"
+    private const val SITE_LIST_ASSET = "catalog/c1.bin"
+    private const val APP_PACKAGES_SALT = "catalog-app-packages-v1"
+    private const val SITE_LIST_SALT = "catalog-site-list-v1"
 
     @Volatile
     private var cachedCatalog: LocalRuExclusionCatalog? = null
@@ -22,12 +25,16 @@ object LocalRuExclusionCatalogLoader {
         synchronized(this) {
             cachedCatalog?.let { return it }
 
-            val packageText = context.assets.open(APP_PACKAGES_ASSET)
-                .bufferedReader()
-                .use { it.readText() }
-            val siteText = context.assets.open(SITE_LIST_ASSET)
-                .bufferedReader()
-                .use { it.readText() }
+            val packageText = AssetPayloadCodec.decodeAssetText(
+                context = context,
+                assetPath = APP_PACKAGES_ASSET,
+                salt = APP_PACKAGES_SALT
+            )
+            val siteText = AssetPayloadCodec.decodeAssetText(
+                context = context,
+                assetPath = SITE_LIST_ASSET,
+                salt = SITE_LIST_SALT
+            )
             val siteDomains = parseSiteDomains(siteText)
             val siteDomainSet = siteDomains.toSet()
             val exactPackages = parsePackageIds("$packageText\n$siteText")

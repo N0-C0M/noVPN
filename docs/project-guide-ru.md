@@ -208,7 +208,7 @@ go run ./cmd/client-profile-sync -input /path/to/client-profile.yaml
 Утилита переписывает:
 
 - `client/common/profiles/reality/default.profile.json`;
-- `client/android/app/src/main/assets/bootstrap.json`.
+- `client/android/app/src/main/secure/bootstrap.json`.
 
 Дополнительно поддерживает:
 

@@ -23,7 +23,7 @@ def resolve_app_paths() -> AppPaths:
     return AppPaths(
         app_root=app_root,
         default_profile=app_root / "client" / "common" / "profiles" / "reality" / "default.profile.json",
-        bootstrap_profile=app_root / "client" / "android" / "app" / "src" / "main" / "assets" / "bootstrap.json",
+        bootstrap_profile=app_root / "client" / "android" / "app" / "src" / "main" / "secure" / "bootstrap.json",
         generated_root=generated_root,
         runtime_root=runtime_root,
         runtime_generated_root=generated_root / "runtime",

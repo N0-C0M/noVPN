@@ -150,6 +150,10 @@ func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 		a.handlePublicMandatoryNotices(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/client/quota") {
+		a.handlePublicClientQuota(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/logout") {
 		a.handleLogout(w, r)
 		return
@@ -526,6 +530,55 @@ func (a *adminApp) handlePublicMandatoryNotices(w http.ResponseWriter, r *http.R
 	})
 }
 
+func (a *adminApp) handlePublicClientQuota(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	deviceID := strings.TrimSpace(r.URL.Query().Get("device_id"))
+	clientUUID := strings.TrimSpace(r.URL.Query().Get("client_uuid"))
+	if deviceID == "" && clientUUID == "" {
+		http.Error(w, "device_id or client_uuid is required", http.StatusBadRequest)
+		return
+	}
+
+	clients, err := a.reality.ListClients()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var target reality.ClientRecord
+	found := false
+	for _, client := range clients {
+		if clientUUID != "" && client.UUID != clientUUID {
+			continue
+		}
+		if deviceID != "" && client.DeviceID != deviceID {
+			continue
+		}
+		target = client
+		found = true
+		break
+	}
+	if !found {
+		http.Error(w, "client not found", http.StatusNotFound)
+		return
+	}
+
+	a.writeJSONPayload(w, http.StatusOK, map[string]any{
+		"observed_at":             time.Now().UTC(),
+		"client_id":               target.ID,
+		"client_uuid":             target.UUID,
+		"device_id":               target.DeviceID,
+		"active":                  target.Active,
+		"traffic_used_bytes":      target.TrafficUsedBytes,
+		"traffic_limit_bytes":     target.TrafficLimitBytes,
+		"traffic_remaining_bytes": target.TrafficRemainingBytes(),
+	})
+}
+
 func (a *adminApp) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeInviteCreateRequest(r)
 	if err != nil {
@@ -641,6 +694,8 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 		a.writeJSONPayload(w, http.StatusCreated, map[string]any{
 			"invite":               redeemResult.Invite,
 			"client":               redeemResult.Client,
+			"traffic_used_bytes":   redeemResult.Client.TrafficUsedBytes,
+			"traffic_limit_bytes":  redeemResult.Client.TrafficLimitBytes,
 			"client_profile":       clientProfile,
 			"client_profile_yaml":  string(yamlPayload),
 			"client_profiles":      clientProfiles,
@@ -700,6 +755,8 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 			"kind":                 "invite",
 			"invite":               redeemResult.Invite,
 			"client":               redeemResult.Client,
+			"traffic_used_bytes":   redeemResult.Client.TrafficUsedBytes,
+			"traffic_limit_bytes":  redeemResult.Client.TrafficLimitBytes,
 			"client_profile":       clientProfile,
 			"client_profile_yaml":  string(yamlPayload),
 			"client_profiles":      clientProfiles,
