@@ -1,0 +1,37 @@
+<variant
+    name="release"
+    package="com.novpn"
+    minSdkVersion="26"
+    targetSdkVersion="35"
+    shrinking="true"
+    mergedManifest="build-novpn\intermediates\merged_manifest\release\processReleaseMainManifest\AndroidManifest.xml"
+    manifestMergeReport="build-novpn\outputs\logs\manifest-merger-release-report.txt"
+    proguardFiles="build-novpn\intermediates\default_proguard_files\global\proguard-android-optimize.txt-8.7.3;proguard-rules.pro"
+    partialResultsDir="build-novpn\intermediates\lint_vital_partial_results\release\lintVitalAnalyzeRelease\out">
+  <buildFeatures
+      namespacing="REQUIRED"/>
+  <sourceProviders>
+    <sourceProvider
+        manifests="src\main\AndroidManifest.xml"
+        javaDirectories="src\main\java;src\release\java;src\main\kotlin;src\release\kotlin"
+        resDirectories="src\main\res;src\release\res"
+        assetsDirectories="src\main\assets;build-novpn\generated\securedAssets;src\release\assets"/>
+  </sourceProviders>
+  <testSourceProviders>
+  </testSourceProviders>
+  <testFixturesSourceProviders>
+  </testFixturesSourceProviders>
+  <manifestPlaceholders>
+    <placeholder
+        name="appLabel"
+        value="Safety Turtle" />
+  </manifestPlaceholders>
+  <artifact
+      classOutputs="build-novpn\intermediates\javac\release\compileReleaseJavaWithJavac\classes;build-novpn\tmp\kotlin-classes\release;build-novpn\kotlinToolingMetadata;build-novpn\intermediates\compile_and_runtime_not_namespaced_r_class_jar\release\processReleaseResources\R.jar"
+      type="MAIN"
+      applicationId="safety.turtle"
+      generatedSourceFolders="build-novpn\generated\ap_generated_sources\release\out"
+      generatedResourceFolders="build-novpn\generated\res\resValues\release"
+      desugaredMethodsFiles="D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\a86119e2d93e969e27caef9a39b0dbf0\transformed\D8BackportedDesugaredMethods.txt">
+  </artifact>
+</variant>
