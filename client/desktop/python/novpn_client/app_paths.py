@@ -9,6 +9,7 @@ from pathlib import Path
 @dataclass(slots=True)
 class AppPaths:
     app_root: Path
+    bundle_root: Path
     default_profile: Path
     bootstrap_profile: Path
     generated_root: Path
@@ -18,12 +19,24 @@ class AppPaths:
 
 def resolve_app_paths() -> AppPaths:
     app_root = _resolve_app_root()
+    bundle_root = _resolve_bundle_root(app_root)
     generated_root = _resolve_generated_root(app_root)
-    runtime_root = app_root / "client" / "desktop" / "runtime"
+    runtime_root = _resolve_runtime_root(bundle_root, app_root)
     return AppPaths(
         app_root=app_root,
-        default_profile=app_root / "client" / "common" / "profiles" / "reality" / "default.profile.json",
-        bootstrap_profile=app_root / "client" / "android" / "app" / "src" / "main" / "secure" / "bootstrap.json",
+        bundle_root=bundle_root,
+        default_profile=_first_existing_path(
+            [
+                bundle_root / "client" / "common" / "profiles" / "reality" / "default.profile.json",
+                app_root / "client" / "common" / "profiles" / "reality" / "default.profile.json",
+            ]
+        ),
+        bootstrap_profile=_first_existing_path(
+            [
+                bundle_root / "client" / "android" / "app" / "src" / "main" / "secure" / "bootstrap.json",
+                app_root / "client" / "android" / "app" / "src" / "main" / "secure" / "bootstrap.json",
+            ]
+        ),
         generated_root=generated_root,
         runtime_root=runtime_root,
         runtime_generated_root=generated_root / "runtime",
@@ -39,6 +52,34 @@ def _resolve_app_root() -> Path:
         if (parent / "go.mod").is_file() and (parent / "client").is_dir():
             return parent
     return current_file.parents[4]
+
+
+def _resolve_bundle_root(app_root: Path) -> Path:
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            return Path(meipass).resolve()
+    return app_root
+
+
+def _resolve_runtime_root(bundle_root: Path, app_root: Path) -> Path:
+    candidates = [
+        bundle_root / "client" / "desktop" / "runtime",
+        app_root / "client" / "desktop" / "runtime",
+        bundle_root / "runtime",
+        app_root / "runtime",
+    ]
+    for candidate in candidates:
+        if (candidate / "bin").is_dir():
+            return candidate
+    return candidates[0]
+
+
+def _first_existing_path(candidates: list[Path]) -> Path:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _resolve_generated_root(app_root: Path) -> Path:
