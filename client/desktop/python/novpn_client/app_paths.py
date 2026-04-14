@@ -34,7 +34,9 @@ def resolve_app_paths() -> AppPaths:
         bootstrap_profile=_first_existing_path(
             [
                 bundle_root / "client" / "android" / "app" / "src" / "main" / "secure" / "bootstrap.json",
+                bundle_root / "client" / "android" / "app" / "src" / "main" / "assets" / "bootstrap.json",
                 app_root / "client" / "android" / "app" / "src" / "main" / "secure" / "bootstrap.json",
+                app_root / "client" / "android" / "app" / "src" / "main" / "assets" / "bootstrap.json",
             ]
         ),
         generated_root=generated_root,
