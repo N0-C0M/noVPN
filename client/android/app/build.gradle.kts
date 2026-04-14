@@ -11,6 +11,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+layout.buildDirectory.set(layout.projectDirectory.dir("build-novpn"))
+
 val disguiseAppId = providers.gradleProperty("novpnAppId").orNull
     ?: System.getenv("NOVPN_APP_ID")
     ?: "safety.turtle"

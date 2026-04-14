@@ -17,9 +17,11 @@ import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.core.widget.doAfterTextChanged
@@ -53,9 +55,9 @@ class SettingsActivity : ComponentActivity() {
     private val ruStoreSelectedPackages = linkedSetOf<String>()
     private val ruStoreCandidateRows = mutableListOf<RuCatalogCandidateRow>()
 
-    private lateinit var bypassRuCheckBox: CheckBox
-    private lateinit var defaultWhitelistCheckBox: CheckBox
-    private lateinit var forceServerIpCheckBox: CheckBox
+    private lateinit var bypassRuCheckBox: Switch
+    private lateinit var defaultWhitelistCheckBox: Switch
+    private lateinit var forceServerIpCheckBox: Switch
     private lateinit var modeExcludeButton: Button
     private lateinit var modeOnlySelectedButton: Button
     private lateinit var trafficBalancedButton: Button
@@ -108,26 +110,56 @@ class SettingsActivity : ComponentActivity() {
         renderRuStoreCandidates()
     }
 
-    private fun buildContentView(): ScrollView {
-        return ScrollView(this).apply {
+    private fun buildContentView(): View {
+        val root = FrameLayout(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#02040A"), Color.parseColor("#060B12"))
+                intArrayOf(Color.parseColor("#090B14"), Color.parseColor("#070A12"))
             )
-
-            val content = LinearLayout(this@SettingsActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(20), dp(22), dp(20), dp(28))
-            }
-
-            content.addView(buildHeader())
-            content.addView(buildRoutingCard())
-            content.addView(buildRuStoreAppsCard())
-            content.addView(buildStrategiesCard())
-            content.addView(buildAppsCard())
-            content.addView(buildDisguiseCard())
-            addView(content)
         }
+
+        val scroll = ScrollView(this).apply {
+            setPadding(0, 0, 0, 0)
+        }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(22), dp(20), dp(126))
+        }
+
+        content.addView(buildHeader())
+        content.addView(sectionLabel("Прокси и маршрутизация"))
+        content.addView(buildRoutingCard())
+        content.addView(sectionLabel("Каталог приложений"))
+        content.addView(buildRuStoreAppsCard())
+        content.addView(sectionLabel("Маскировка трафика"))
+        content.addView(buildStrategiesCard())
+        content.addView(sectionLabel("Списки приложений"))
+        content.addView(buildAppsCard())
+        content.addView(sectionLabel("Маскировка приложения"))
+        content.addView(buildDisguiseCard())
+
+        scroll.addView(content)
+        root.addView(
+            scroll,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        root.addView(
+            buildBottomNav(),
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM
+                marginStart = dp(20)
+                marginEnd = dp(20)
+                bottomMargin = dp(20)
+            }
+        )
+        return root
     }
 
     private fun buildHeader(): LinearLayout {
@@ -139,19 +171,14 @@ class SettingsActivity : ComponentActivity() {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
-            titleBlock.addView(label(getString(R.string.settings_title), 26f, "#F3F6FB", true))
-            titleBlock.addView(
-                label(getString(R.string.settings_subtitle), 13f, "#8091A7", false).apply {
-                    setPadding(0, dp(4), 0, 0)
-                }
-            )
+            titleBlock.addView(label(getString(R.string.settings_title), 32f, "#F3F6FB", true))
 
             val closeButton = Button(this@SettingsActivity).apply {
-                text = getString(R.string.close)
+                text = "Готово"
                 isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
-                setPadding(dp(18), dp(12), dp(18), dp(12))
+                setTextColor(Color.parseColor("#4B95FF"))
+                background = roundedDrawable("#10141E", "#2A3242", 18f, 1)
+                setPadding(dp(16), dp(10), dp(16), dp(10))
                 setOnClickListener { finish() }
             }
 
@@ -169,24 +196,24 @@ class SettingsActivity : ComponentActivity() {
                 }
             )
 
-            bypassRuCheckBox = CheckBox(this@SettingsActivity).apply {
+            bypassRuCheckBox = Switch(this@SettingsActivity).apply {
                 text = getString(R.string.do_not_proxy_ru)
                 isChecked = preferences.isBypassRuEnabled()
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 14f
-                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                styleMainSwitch(this)
                 setOnCheckedChangeListener { _, _ ->
                     persistSettings()
                 }
             }
             addView(bypassRuCheckBox)
 
-            defaultWhitelistCheckBox = CheckBox(this@SettingsActivity).apply {
+            defaultWhitelistCheckBox = Switch(this@SettingsActivity).apply {
                 text = "Default whitelist mode (YouTube, Chrome, Opera, Firefox, Edge, Brave, Vivaldi, DuckDuckGo, Telegram, AyuGram, Instagram, X, Supercell, MEGA, ChatGPT, Gemini)"
                 isChecked = defaultWhitelistEnabled
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 14f
-                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                styleMainSwitch(this)
                 setPadding(0, dp(10), 0, 0)
                 setOnCheckedChangeListener { _, checked ->
                     applySelectionChange {
@@ -202,12 +229,12 @@ class SettingsActivity : ComponentActivity() {
             }
             addView(defaultWhitelistCheckBox)
 
-            forceServerIpCheckBox = CheckBox(this@SettingsActivity).apply {
+            forceServerIpCheckBox = Switch(this@SettingsActivity).apply {
                 text = "Use server IP while the domain is not active"
                 isChecked = preferences.forceServerIpMode()
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 14f
-                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                styleMainSwitch(this)
                 setPadding(0, dp(10), 0, 0)
                 setOnCheckedChangeListener { _, _ ->
                     persistSettings()
@@ -860,7 +887,7 @@ class SettingsActivity : ComponentActivity() {
     private fun card(topMargin: Int): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#0A1018", "#182432", 34f, 2)
+            background = roundedDrawable("#13161F", "#2A3140", 34f, 2)
             setPadding(dp(18), dp(18), dp(18), dp(18))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -879,7 +906,7 @@ class SettingsActivity : ComponentActivity() {
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(18), dp(14), dp(18), dp(14))
-            background = roundedDrawable("#0E1520", "#243244", 24f, 2)
+            background = roundedDrawable("#151A26", "#30384A", 24f, 2)
             setOnClickListener { onClick() }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -899,11 +926,72 @@ class SettingsActivity : ComponentActivity() {
 
     private fun applyChoiceButtonStyle(button: Button, selected: Boolean) {
         button.background = roundedDrawable(
-            if (selected) "#153047" else "#0E1520",
-            if (selected) "#5FD4A6" else "#243244",
+            if (selected) "#1E2E4D" else "#151A26",
+            if (selected) "#4B95FF" else "#30384A",
             24f,
             2
         )
+    }
+
+    private fun styleMainSwitch(view: Switch) {
+        view.trackTintList = ColorStateList.valueOf(Color.parseColor("#5A5A5A"))
+        view.thumbTintList = ColorStateList.valueOf(Color.parseColor("#F4F4F4"))
+    }
+
+    private fun sectionLabel(text: String): TextView {
+        return label(text.uppercase(Locale.ROOT), 11f, "#7A8297", true).apply {
+            setPadding(0, dp(20), 0, dp(10))
+            letterSpacing = 0.08f
+        }
+    }
+
+    private fun buildBottomNav(): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = roundedDrawable("#1A1D27", "#343B4C", 30f, 2)
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+
+            addView(
+                navButton("Главная", false) {
+                    finish()
+                },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginEnd = dp(6)
+                }
+            )
+            addView(
+                navButton("Сервера", false) {},
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = dp(3)
+                    marginEnd = dp(3)
+                }
+            )
+            addView(
+                navButton("Настройки", true) {},
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = dp(6)
+                }
+            )
+        }
+    }
+
+    private fun navButton(text: String, active: Boolean, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            this.text = text
+            isAllCaps = false
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor(if (active) "#4B95FF" else "#8A92A6"))
+            background = roundedDrawable(
+                fillColor = if (active) "#1F2B43" else "#1B212C",
+                strokeColor = if (active) "#3C5E97" else "#2A3140",
+                radiusDp = 22f,
+                strokeWidthDp = 1
+            )
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setOnClickListener { onClick() }
+        }
     }
 
     private fun label(text: String, sizeSp: Float, color: String, bold: Boolean): TextView {

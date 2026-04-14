@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var startupDetailLabel: TextView
     private lateinit var startupProgressBar: ProgressBar
     private lateinit var startupProgressPercent: TextView
+    private lateinit var bottomSettingsButton: Button
     private var powerPulseAnimator: ValueAnimator? = null
     private var lastPowerVisualState = PowerVisualState.IDLE
     private var startupDelayElapsed = false
@@ -152,13 +153,13 @@ class MainActivity : ComponentActivity() {
         val scroll = ScrollView(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#02040A"), Color.parseColor("#060B12"))
+                intArrayOf(Color.parseColor("#03090A"), Color.parseColor("#041012"))
             )
         }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(22), dp(20), dp(28))
+            setPadding(dp(20), dp(22), dp(20), dp(124))
         }
         scroll.addView(
             content,
@@ -180,6 +181,18 @@ class MainActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+        root.addView(
+            buildBottomNav(),
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM
+                marginStart = dp(20)
+                marginEnd = dp(20)
+                bottomMargin = dp(20)
+            }
+        )
 
         startupOverlay = buildStartupOverlay()
         root.addView(
@@ -197,13 +210,13 @@ class MainActivity : ComponentActivity() {
             alpha = 1f
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#04070D"), Color.parseColor("#09131E"))
+                intArrayOf(Color.parseColor("#061011"), Color.parseColor("#081617"))
             )
 
             startupCard = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                background = roundedDrawable("#0A1018", "#203040", 36f, 2)
+                background = roundedDrawable("#0A1718", "#204440", 36f, 2)
                 setPadding(dp(24), dp(28), dp(24), dp(28))
                 elevation = dp(10).toFloat()
                 startupTitleLabel = label(getString(R.string.startup_loading_title), 24f, "#F3F6FB", true).apply {
@@ -230,8 +243,8 @@ class MainActivity : ComponentActivity() {
                 ).apply {
                     max = 100
                     progress = 6
-                    progressTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
-                    progressBackgroundTintList = ColorStateList.valueOf(Color.parseColor("#213244"))
+                    progressTintList = ColorStateList.valueOf(Color.parseColor("#A6E31A"))
+                    progressBackgroundTintList = ColorStateList.valueOf(Color.parseColor("#15322A"))
                     layoutParams = LinearLayout.LayoutParams(
                         0,
                         dp(8),
@@ -272,7 +285,7 @@ class MainActivity : ComponentActivity() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
 
-        headerLabel = label(getString(R.string.header_profile_label), 12f, "#6F8096", false).apply {
+        headerLabel = label("NOVPN v2.9", 12f, "#A6E31A", true).apply {
             letterSpacing = 0.08f
         }
         headerServer = label(getString(R.string.header_no_server), 22f, "#F3F6FB", true).apply {
@@ -288,26 +301,26 @@ class MainActivity : ComponentActivity() {
         }
 
         val importButton = Button(this).apply {
-            text = getString(R.string.import_profile)
+            text = "◎"
             isAllCaps = false
-            setTextColor(Color.parseColor("#F3F6FB"))
-            textSize = 12f
+            setTextColor(Color.parseColor("#9ED7C5"))
+            textSize = 16f
             typeface = Typeface.DEFAULT_BOLD
-            background = roundedDrawable("#0E1520", "#243244", 22f, 2)
-            setPadding(dp(18), dp(12), dp(18), dp(12))
+            background = roundedDrawable("#0B1F1D", "#1C3F3A", 18f, 2)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
             setOnClickListener {
                 importProfileLauncher.launch("*/*")
             }
         }
 
         val settingsButton = Button(this).apply {
-            text = getString(R.string.settings)
+            text = "▶"
             isAllCaps = false
-            setTextColor(Color.parseColor("#F3F6FB"))
-            textSize = 12f
+            setTextColor(Color.parseColor("#9ED7C5"))
+            textSize = 16f
             typeface = Typeface.DEFAULT_BOLD
-            background = roundedDrawable("#0E1520", "#243244", 22f, 2)
-            setPadding(dp(18), dp(12), dp(18), dp(12))
+            background = roundedDrawable("#0B1F1D", "#1C3F3A", 18f, 2)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -331,7 +344,7 @@ class MainActivity : ComponentActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            background = roundedDrawable("#0A1018", "#182432", 38f, 2)
+            background = roundedDrawable("#061614", "#244235", 38f, 2)
             setPadding(dp(18), dp(28), dp(18), dp(30))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -346,11 +359,23 @@ class MainActivity : ComponentActivity() {
                 }
             )
 
+            val statsRow = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(0, dp(14), 0, 0)
+            }
+            statsRow.addView(label("↑ 52.0 KB/s", 13f, "#A6E31A", true))
+            statsRow.addView(
+                label("   ⏱ 02:00   ", 13f, "#8DA4A1", false)
+            )
+            statsRow.addView(label("↓ 79.2 KB/s", 13f, "#A6E31A", true))
+            addView(statsRow)
+
             powerButton = Button(this@MainActivity).apply {
                 isAllCaps = false
-                textSize = 20f
+                textSize = 42f
                 typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.parseColor("#F3F6FB"))
+                setTextColor(Color.parseColor("#A6E31A"))
                 gravity = Gravity.CENTER
                 background = powerDrawable(false)
                 layoutParams = LinearLayout.LayoutParams(dp(214), dp(214)).apply {
@@ -378,7 +403,7 @@ class MainActivity : ComponentActivity() {
     private fun buildServerSection(): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#0A1018", "#182432", 38f, 2)
+            background = roundedDrawable("#061614", "#244235", 38f, 2)
             setPadding(dp(18), dp(18), dp(18), dp(18))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -404,7 +429,7 @@ class MainActivity : ComponentActivity() {
     private fun buildDiagnosticsSection(): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#0A1018", "#182432", 38f, 2)
+            background = roundedDrawable("#061614", "#244235", 38f, 2)
             setPadding(dp(18), dp(18), dp(18), dp(18))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -426,7 +451,7 @@ class MainActivity : ComponentActivity() {
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 13f
                 typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                background = roundedDrawable("#0E241F", "#2D5A4A", 22f, 2)
                 setPadding(dp(18), dp(12), dp(18), dp(12))
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -446,7 +471,7 @@ class MainActivity : ComponentActivity() {
     private fun buildInviteSection(): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#0A1018", "#182432", 38f, 2)
+            background = roundedDrawable("#061614", "#244235", 38f, 2)
             setPadding(dp(18), dp(18), dp(18), dp(18))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -468,7 +493,7 @@ class MainActivity : ComponentActivity() {
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 15f
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                background = roundedDrawable("#0E1520", "#243244", 20f, 2)
+                background = roundedDrawable("#0C221D", "#2B594A", 20f, 2)
                 setPadding(dp(16), dp(14), dp(16), dp(14))
             }
             addView(
@@ -495,7 +520,7 @@ class MainActivity : ComponentActivity() {
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 12.5f
                 typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                background = roundedDrawable("#163928", "#A6E31A", 22f, 2)
                 setPadding(dp(14), dp(12), dp(14), dp(12))
                 layoutParams = LinearLayout.LayoutParams(
                     0,
@@ -514,7 +539,7 @@ class MainActivity : ComponentActivity() {
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 12.5f
                 typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
+                background = roundedDrawable("#0E241F", "#2D5A4A", 22f, 2)
                 setPadding(dp(14), dp(12), dp(14), dp(12))
                 layoutParams = LinearLayout.LayoutParams(
                     0,
@@ -581,7 +606,7 @@ class MainActivity : ComponentActivity() {
         val statusTitleText: String
 
         if (state.runtimeRunning) {
-            powerButton.text = getString(R.string.disconnect)
+            powerButton.text = "⛨"
             powerButton.background = powerDrawable(true)
             statusTitleText = if (trafficRemainingBytes != null && trafficRemainingBytes <= 0L) {
                 "Traffic limit reached"
@@ -589,7 +614,7 @@ class MainActivity : ComponentActivity() {
                 getString(R.string.status_connected)
             }
         } else {
-            powerButton.text = getString(R.string.connect)
+            powerButton.text = "⛨"
             powerButton.background = powerDrawable(false)
             statusTitleText = if (state.runtimeStatus.isBlank() || state.runtimeStatus == getString(R.string.service_stopped)) {
                 getString(R.string.status_ready)
@@ -678,8 +703,8 @@ class MainActivity : ComponentActivity() {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 background = roundedDrawable(
-                    if (selected) "#122232" else "#0D141D",
-                    if (selected) "#345273" else "#1A2634",
+                    if (selected) "#173226" else "#0A1A17",
+                    if (selected) "#A6E31A" else "#1E4338",
                     30f,
                     2
                 )
@@ -708,14 +733,14 @@ class MainActivity : ComponentActivity() {
                 label(
                     profile.locationLabel.ifBlank { getString(R.string.server_location_unknown) },
                     12f,
-                    if (selected) "#D8E5F3" else "#93A3B7",
+                    if (selected) "#D9F6E6" else "#93AFA3",
                     false
                 ).apply {
                     setPadding(0, dp(8), 0, 0)
                 }
             )
             card.addView(
-                label(getString(R.string.server_sni_format, profile.serverName), 12f, "#6E88A6", false).apply {
+                label(getString(R.string.server_sni_format, profile.serverName), 12f, "#6D9688", false).apply {
                     setPadding(0, dp(10), 0, 0)
                 }
             )
@@ -725,7 +750,7 @@ class MainActivity : ComponentActivity() {
                         if (profile.isImported) R.string.profile_source_imported else R.string.profile_source_bundled
                     ),
                     11f,
-                    if (selected) "#7ACAA7" else "#6B7F95",
+                    if (selected) "#A6E31A" else "#6B8B7F",
                     false
                 ).apply {
                     setPadding(0, dp(10), 0, 0)
@@ -1092,8 +1117,64 @@ class MainActivity : ComponentActivity() {
     private fun powerDrawable(active: Boolean): GradientDrawable {
         return GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.parseColor(if (active) "#133627" else "#101722"))
-            setStroke(dp(3), Color.parseColor(if (active) "#5FD4A6" else "#283547"))
+            setColor(Color.parseColor(if (active) "#123225" else "#0A1714"))
+            setStroke(dp(3), Color.parseColor(if (active) "#A6E31A" else "#2A574B"))
+        }
+    }
+
+    private fun buildBottomNav(): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = roundedDrawable("#10161A", "#25343A", 30f, 2)
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+
+            addView(
+                navButton("Главная", true) {
+                    // already on main screen
+                },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginEnd = dp(6)
+                }
+            )
+
+            addView(
+                navButton("Сервера", false) {
+                    // top-level screen keeps servers list on this page.
+                },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = dp(3)
+                    marginEnd = dp(3)
+                }
+            )
+
+            bottomSettingsButton = navButton("Настройки", false) {
+                settingsLauncher.launch(Intent(this@MainActivity, SettingsActivity::class.java))
+            }
+            addView(
+                bottomSettingsButton,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = dp(6)
+                }
+            )
+        }
+    }
+
+    private fun navButton(title: String, active: Boolean, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            text = title
+            isAllCaps = false
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor(if (active) "#A6E31A" else "#93A3AD"))
+            background = roundedDrawable(
+                fillColor = if (active) "#1B2D1E" else "#171F23",
+                strokeColor = if (active) "#3E5B2A" else "#232F36",
+                radiusDp = 22f,
+                strokeWidthDp = 1
+            )
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setOnClickListener { onClick() }
         }
     }
 
