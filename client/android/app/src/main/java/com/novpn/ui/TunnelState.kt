@@ -9,6 +9,8 @@ data class TunnelState(
     val bypassRu: Boolean = true,
     val inviteCode: String = "",
     val defaultWhitelistEnabled: Boolean = true,
+    val autoToggleByScreenState: Boolean = false,
+    val startOnlyForWhitelistApps: Boolean = false,
     val appRoutingMode: AppRoutingMode = AppRoutingMode.EXCLUDE_SELECTED,
     val selectedPackages: List<String> = emptyList(),
     val trafficStrategy: TrafficObfuscationStrategy = TrafficObfuscationStrategy.BALANCED,

@@ -1,98 +1,74 @@
-package com.novpn.ui
+﻿package com.novpn.ui
 
 import android.app.Activity
-import android.content.ClipData
-import android.content.ClipboardManager
+import android.app.AppOpsManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.drawable.Drawable
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
-import android.text.InputType
+import android.os.Process
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.novpn.R
 import com.novpn.data.AppRoutingMode
 import com.novpn.data.ClientPreferences
-import com.novpn.data.DisguiseIdentity
-import com.novpn.data.DisguiseIdentityGenerator
 import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.TrafficObfuscationStrategy
+import com.novpn.split.InstalledAppEntry
 import com.novpn.split.InstalledAppsScanner
-import com.novpn.split.LocalRuAppCandidate
-import com.novpn.split.LocalRuAppExclusionMatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
-
-private data class RuCatalogCandidateRow(
-    val candidate: LocalRuAppCandidate,
-    val icon: Drawable?
-)
 
 class SettingsActivity : ComponentActivity() {
     private val preferences by lazy { ClientPreferences(this) }
     private val appScanner by lazy { InstalledAppsScanner(this) }
-    private val ruCatalogMatcher by lazy { LocalRuAppExclusionMatcher(this) }
 
     private val selectedPackages = linkedSetOf<String>()
-    private val ruStoreSelectedPackages = linkedSetOf<String>()
-    private val ruStoreCandidateRows = mutableListOf<RuCatalogCandidateRow>()
+    private val trafficButtons = mutableMapOf<TrafficObfuscationStrategy, Button>()
+    private val patternButtons = mutableMapOf<PatternMaskingStrategy, Button>()
 
-    private lateinit var bypassRuCheckBox: Switch
-    private lateinit var defaultWhitelistCheckBox: Switch
-    private lateinit var forceServerIpCheckBox: Switch
+    private lateinit var bypassRuSwitch: Switch
+    private lateinit var forceServerIpSwitch: Switch
+    private lateinit var autoScreenToggleSwitch: Switch
+    private lateinit var whitelistForegroundSwitch: Switch
+    private lateinit var usageAccessSummary: TextView
+    private lateinit var defaultWhitelistSwitch: Switch
     private lateinit var modeExcludeButton: Button
     private lateinit var modeOnlySelectedButton: Button
-    private lateinit var trafficBalancedButton: Button
-    private lateinit var trafficCdnButton: Button
-    private lateinit var trafficFragmentedButton: Button
-    private lateinit var trafficMobileButton: Button
-    private lateinit var trafficTlsButton: Button
-    private lateinit var patternSteadyButton: Button
-    private lateinit var patternPulseButton: Button
-    private lateinit var patternRandomizedButton: Button
-    private lateinit var patternBurstButton: Button
-    private lateinit var patternQuietButton: Button
-    private lateinit var appsToggleButton: Button
     private lateinit var appsSummary: TextView
+    private lateinit var appsToggleButton: Button
     private lateinit var appsListContainer: LinearLayout
-    private lateinit var ruStoreSummary: TextView
-    private lateinit var ruStoreSearchInput: EditText
-    private lateinit var ruStoreScanButton: Button
-    private lateinit var ruStoreApplyButton: Button
-    private lateinit var ruStoreListContainer: LinearLayout
-    private lateinit var disguiseNameValue: TextView
-    private lateinit var disguisePackageValue: TextView
-    private lateinit var disguiseCommandValue: TextView
 
     private var appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
     private var defaultWhitelistEnabled = true
     private var trafficStrategy = TrafficObfuscationStrategy.BALANCED
     private var patternStrategy = PatternMaskingStrategy.STEADY
-    private var disguiseIdentity = DisguiseIdentityGenerator.defaultIdentity()
-    private var appsLoaded = false
     private var appsExpanded = false
-    private var ruStoreScanRunning = false
+    private var appsLoaded = false
+    private var appsLoading = false
+    private var appEntries: List<InstalledAppEntry> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         selectedPackages += preferences.excludedPackages()
         defaultWhitelistEnabled = preferences.isDefaultWhitelistEnabled()
         appRoutingMode = preferences.appRoutingMode()
@@ -104,40 +80,34 @@ class SettingsActivity : ComponentActivity() {
         }
         trafficStrategy = preferences.trafficObfuscationStrategy()
         patternStrategy = preferences.patternMaskingStrategy()
-        disguiseIdentity = preferences.disguiseIdentity()
+
         setContentView(buildContentView())
-        refreshSelectionViews()
-        renderRuStoreCandidates()
+        refreshViews()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshViews()
     }
 
     private fun buildContentView(): View {
         val root = FrameLayout(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#090B14"), Color.parseColor("#070A12"))
+                intArrayOf(Color.parseColor("#0A0C10"), Color.parseColor("#050608"))
             )
         }
 
-        val scroll = ScrollView(this).apply {
-            setPadding(0, 0, 0, 0)
-        }
-
+        val scroll = ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(22), dp(20), dp(126))
+            setPadding(dp(20), dp(20), dp(20), dp(120))
         }
 
         content.addView(buildHeader())
-        content.addView(sectionLabel("Прокси и маршрутизация"))
+        content.addView(buildBehaviorCard())
         content.addView(buildRoutingCard())
-        content.addView(sectionLabel("Каталог приложений"))
-        content.addView(buildRuStoreAppsCard())
-        content.addView(sectionLabel("Маскировка трафика"))
-        content.addView(buildStrategiesCard())
-        content.addView(sectionLabel("Списки приложений"))
-        content.addView(buildAppsCard())
-        content.addView(sectionLabel("Маскировка приложения"))
-        content.addView(buildDisguiseCard())
+        content.addView(buildObfuscationCard())
 
         scroll.addView(content)
         root.addView(
@@ -147,6 +117,7 @@ class SettingsActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+
         root.addView(
             buildBottomNav(),
             FrameLayout.LayoutParams(
@@ -154,359 +125,181 @@ class SettingsActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.BOTTOM
-                marginStart = dp(20)
-                marginEnd = dp(20)
-                bottomMargin = dp(20)
+                marginStart = dp(16)
+                marginEnd = dp(16)
+                bottomMargin = dp(16)
             }
         )
+
         return root
     }
 
-    private fun buildHeader(): LinearLayout {
+    private fun buildHeader(): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
 
-            val titleBlock = LinearLayout(this@SettingsActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            titleBlock.addView(label(getString(R.string.settings_title), 32f, "#F3F6FB", true))
-
-            val closeButton = Button(this@SettingsActivity).apply {
-                text = "Готово"
-                isAllCaps = false
-                setTextColor(Color.parseColor("#4B95FF"))
-                background = roundedDrawable("#10141E", "#2A3242", 18f, 1)
-                setPadding(dp(16), dp(10), dp(16), dp(10))
-                setOnClickListener { finish() }
-            }
-
-            addView(titleBlock)
-            addView(closeButton)
-        }
-    }
-
-    private fun buildRoutingCard(): LinearLayout {
-        return card(dp(24)).apply {
-            addView(label(getString(R.string.routing_title), 16f, "#F3F6FB", true))
             addView(
-                label(getString(R.string.routing_subtitle), 12f, "#8091A7", false).apply {
-                    setPadding(0, dp(8), 0, dp(10))
+                label("Настройки", 28f, "#F5F7FA", true).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 }
             )
 
-            bypassRuCheckBox = Switch(this@SettingsActivity).apply {
-                text = getString(R.string.do_not_proxy_ru)
-                isChecked = preferences.isBypassRuEnabled()
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 14f
-                styleMainSwitch(this)
-                setOnCheckedChangeListener { _, _ ->
-                    persistSettings()
+            addView(
+                Button(this@SettingsActivity).apply {
+                    text = "Готово"
+                    isAllCaps = false
+                    setTextColor(Color.parseColor("#D9E2F2"))
+                    textSize = 13f
+                    typeface = Typeface.DEFAULT_BOLD
+                    background = roundedDrawable("#11151D", "#232C3C", 12f, 1)
+                    setPadding(dp(12), dp(8), dp(12), dp(8))
+                    setOnClickListener { finish() }
                 }
-            }
-            addView(bypassRuCheckBox)
+            )
+        }
+    }
 
-            defaultWhitelistCheckBox = Switch(this@SettingsActivity).apply {
-                text = "Default whitelist mode (YouTube, Chrome, Opera, Firefox, Edge, Brave, Vivaldi, DuckDuckGo, Telegram, AyuGram, Instagram, X, Supercell, MEGA, ChatGPT, Gemini)"
-                isChecked = defaultWhitelistEnabled
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 14f
-                styleMainSwitch(this)
+    private fun buildBehaviorCard(): View {
+        return card(dp(18)).apply {
+            addView(label("Поведение VPN", 16f, "#F5F7FA", true))
+            addView(
+                label("Автоматические сценарии и базовые параметры подключения", 12f, "#8A94A6", false).apply {
+                    setPadding(0, dp(6), 0, dp(12))
+                }
+            )
+
+            bypassRuSwitch = settingSwitch(
+                title = getString(R.string.do_not_proxy_ru),
+                checked = preferences.isBypassRuEnabled()
+            ) {
+                persistSettings()
+            }
+            addView(bypassRuSwitch)
+
+            forceServerIpSwitch = settingSwitch(
+                title = "Использовать IP сервера, если домен недоступен",
+                checked = preferences.forceServerIpMode(),
+                topMargin = dp(8)
+            ) {
+                persistSettings()
+            }
+            addView(forceServerIpSwitch)
+
+            autoScreenToggleSwitch = settingSwitch(
+                title = "Авто-пауза VPN при выключении экрана",
+                checked = preferences.isScreenOffAutoToggleEnabled(),
+                topMargin = dp(8)
+            ) {
+                persistSettings()
+            }
+            addView(autoScreenToggleSwitch)
+
+            whitelistForegroundSwitch = settingSwitch(
+                title = "Запускать VPN только для активного whitelist-приложения",
+                checked = preferences.isWhitelistForegroundModeEnabled(),
+                topMargin = dp(8)
+            ) {
+                if (whitelistForegroundSwitch.isChecked) {
+                    appRoutingMode = AppRoutingMode.ONLY_SELECTED
+                    if (selectedPackages.isEmpty()) {
+                        selectedPackages += preferences.defaultWhitelistPackages()
+                    }
+                }
+                persistSettings()
+                refreshViews()
+            }
+            addView(whitelistForegroundSwitch)
+
+            usageAccessSummary = label("", 12f, "#8A94A6", false).apply {
                 setPadding(0, dp(10), 0, 0)
-                setOnCheckedChangeListener { _, checked ->
-                    applySelectionChange {
-                        defaultWhitelistEnabled = checked
-                        if (checked) {
-                            appRoutingMode = AppRoutingMode.ONLY_SELECTED
-                            if (selectedPackages.isEmpty()) {
-                                selectedPackages += preferences.defaultWhitelistPackages()
-                            }
+            }
+            addView(usageAccessSummary)
+
+            addView(
+                choiceButton("Открыть доступ к статистике использования") {
+                    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                }.apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = dp(10)
+                    }
+                }
+            )
+        }
+    }
+
+    private fun buildRoutingCard(): View {
+        return card(dp(14)).apply {
+            addView(label("Маршрутизация приложений", 16f, "#F5F7FA", true))
+            addView(
+                label("Простой режим: отмеченные приложения работают через VPN", 12f, "#8A94A6", false).apply {
+                    setPadding(0, dp(6), 0, dp(12))
+                }
+            )
+
+            defaultWhitelistSwitch = settingSwitch(
+                title = "Использовать базовый whitelist популярных приложений",
+                checked = defaultWhitelistEnabled
+            ) {
+                applyChange {
+                    defaultWhitelistEnabled = defaultWhitelistSwitch.isChecked
+                    if (defaultWhitelistEnabled) {
+                        appRoutingMode = AppRoutingMode.ONLY_SELECTED
+                        if (selectedPackages.isEmpty()) {
+                            selectedPackages += preferences.defaultWhitelistPackages()
                         }
                     }
                 }
             }
-            addView(defaultWhitelistCheckBox)
+            addView(defaultWhitelistSwitch)
 
-            forceServerIpCheckBox = Switch(this@SettingsActivity).apply {
-                text = "Use server IP while the domain is not active"
-                isChecked = preferences.forceServerIpMode()
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 14f
-                styleMainSwitch(this)
-                setPadding(0, dp(10), 0, 0)
-                setOnCheckedChangeListener { _, _ ->
-                    persistSettings()
-                }
-            }
-            addView(forceServerIpCheckBox)
-
-            addView(
-                label(getString(R.string.apps_mode_title), 14f, "#F3F6FB", true).apply {
-                    setPadding(0, dp(16), 0, dp(6))
-                }
-            )
-            addView(
-                label(getString(R.string.apps_mode_subtitle), 12f, "#8091A7", false).apply {
-                    setPadding(0, 0, 0, dp(12))
-                }
-            )
-
-            val modeRow = LinearLayout(this@SettingsActivity).apply {
+            val modeGroup = LinearLayout(this@SettingsActivity).apply {
                 orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(12), 0, 0)
             }
             modeExcludeButton = choiceButton(getString(R.string.apps_mode_exclude)) {
-                if (defaultWhitelistEnabled) {
+                if (whitelistForegroundSwitch.isChecked || defaultWhitelistEnabled) {
                     return@choiceButton
                 }
-                applySelectionChange {
+                applyChange {
                     appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
                 }
             }
+            modeGroup.addView(modeExcludeButton)
+
             modeOnlySelectedButton = choiceButton(getString(R.string.apps_mode_only_selected)) {
-                applySelectionChange {
+                applyChange {
                     appRoutingMode = AppRoutingMode.ONLY_SELECTED
                 }
             }.apply {
-                layoutParams = stackedChoiceParams()
+                layoutParams = stackedButtonParams()
             }
-            modeRow.addView(modeExcludeButton)
-            modeRow.addView(modeOnlySelectedButton)
-            addView(modeRow)
-        }
-    }
+            modeGroup.addView(modeOnlySelectedButton)
+            addView(modeGroup)
 
-    private fun buildRuStoreAppsCard(): LinearLayout {
-        return card(dp(18)).apply {
-            addView(label(getString(R.string.rustore_apps_title), 16f, "#F3F6FB", true))
-            addView(
-                label(getString(R.string.rustore_apps_subtitle), 12f, "#8091A7", false).apply {
-                    setPadding(0, dp(8), 0, dp(12))
-                }
-            )
-
-            ruStoreSummary = label(getString(R.string.rustore_apps_idle_summary), 12f, "#9DB1C6", false).apply {
-                setPadding(0, 0, 0, dp(12))
-            }
-            addView(ruStoreSummary)
-
-            ruStoreSearchInput = EditText(this@SettingsActivity).apply {
-                hint = getString(R.string.rustore_apps_search_hint)
-                setHintTextColor(Color.parseColor("#6D8096"))
-                setTextColor(Color.parseColor("#F3F6FB"))
-                inputType = InputType.TYPE_CLASS_TEXT
-                background = roundedDrawable("#0E1520", "#243244", 24f, 2)
-                setPadding(dp(16), dp(14), dp(16), dp(14))
-                doAfterTextChanged {
-                    renderRuStoreCandidates()
-                }
-            }
-            addView(ruStoreSearchInput)
-
-            val buttonRow = LinearLayout(this@SettingsActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
+            appsSummary = label("", 12f, "#8A94A6", false).apply {
                 setPadding(0, dp(12), 0, 0)
-            }
-
-            ruStoreScanButton = Button(this@SettingsActivity).apply {
-                text = getString(R.string.rustore_apps_scan_button)
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 13f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 24f, 2)
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
-                ).apply {
-                    marginEnd = dp(6)
-                }
-                setPadding(dp(18), dp(14), dp(18), dp(14))
-                setOnClickListener { startRuStoreScan() }
-            }
-            buttonRow.addView(ruStoreScanButton)
-
-            ruStoreApplyButton = Button(this@SettingsActivity).apply {
-                text = getString(R.string.rustore_apps_apply_button, 0)
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 13f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#153047", "#5FD4A6", 24f, 2)
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
-                ).apply {
-                    marginStart = dp(6)
-                }
-                setPadding(dp(18), dp(14), dp(18), dp(14))
-                setOnClickListener { applyRuStoreSelection() }
-            }
-            buttonRow.addView(ruStoreApplyButton)
-            addView(buttonRow)
-
-            ruStoreListContainer = LinearLayout(this@SettingsActivity).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-            addView(
-                ruStoreListContainer,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    topMargin = dp(14)
-                }
-            )
-        }
-    }
-
-    private fun buildStrategiesCard(): LinearLayout {
-        return card(dp(18)).apply {
-            addView(label(getString(R.string.strategies_title), 16f, "#F3F6FB", true))
-            addView(
-                label(getString(R.string.strategies_subtitle), 12f, "#8091A7", false).apply {
-                    setPadding(0, dp(8), 0, dp(14))
-                }
-            )
-
-            addView(label(getString(R.string.traffic_strategy_title), 14f, "#F3F6FB", true))
-            addView(
-                label(getString(R.string.traffic_strategy_subtitle), 12f, "#8091A7", false).apply {
-                    setPadding(0, dp(6), 0, dp(10))
-                }
-            )
-
-            trafficBalancedButton = choiceButton(getString(R.string.traffic_strategy_balanced)) {
-                applySelectionChange {
-                    trafficStrategy = TrafficObfuscationStrategy.BALANCED
-                }
-            }
-            addView(trafficBalancedButton)
-
-            trafficCdnButton = choiceButton(getString(R.string.traffic_strategy_cdn)) {
-                applySelectionChange {
-                    trafficStrategy = TrafficObfuscationStrategy.CDN_MIMIC
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(trafficCdnButton)
-
-            trafficFragmentedButton = choiceButton(getString(R.string.traffic_strategy_fragmented)) {
-                applySelectionChange {
-                    trafficStrategy = TrafficObfuscationStrategy.FRAGMENTED
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(trafficFragmentedButton)
-
-            trafficMobileButton = choiceButton("Mobile browser blend") {
-                applySelectionChange {
-                    trafficStrategy = TrafficObfuscationStrategy.MOBILE_MIX
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(trafficMobileButton)
-
-            trafficTlsButton = choiceButton("Mixed TLS profile") {
-                applySelectionChange {
-                    trafficStrategy = TrafficObfuscationStrategy.TLS_BLEND
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(trafficTlsButton)
-
-            addView(
-                label(getString(R.string.pattern_strategy_title), 14f, "#F3F6FB", true).apply {
-                    setPadding(0, dp(18), 0, dp(6))
-                }
-            )
-            addView(
-                label(getString(R.string.pattern_strategy_subtitle), 12f, "#8091A7", false).apply {
-                    setPadding(0, 0, 0, dp(10))
-                }
-            )
-
-            patternSteadyButton = choiceButton(getString(R.string.pattern_strategy_steady)) {
-                applySelectionChange {
-                    patternStrategy = PatternMaskingStrategy.STEADY
-                }
-            }
-            addView(patternSteadyButton)
-
-            patternPulseButton = choiceButton(getString(R.string.pattern_strategy_pulse)) {
-                applySelectionChange {
-                    patternStrategy = PatternMaskingStrategy.PULSE
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(patternPulseButton)
-
-            patternRandomizedButton = choiceButton(getString(R.string.pattern_strategy_randomized)) {
-                applySelectionChange {
-                    patternStrategy = PatternMaskingStrategy.RANDOMIZED
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(patternRandomizedButton)
-
-            patternBurstButton = choiceButton("Short bursts and fade") {
-                applySelectionChange {
-                    patternStrategy = PatternMaskingStrategy.BURST_FADE
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(patternBurstButton)
-
-            patternQuietButton = choiceButton("Quiet pattern rotation") {
-                applySelectionChange {
-                    patternStrategy = PatternMaskingStrategy.QUIET_SWEEP
-                }
-            }.apply {
-                layoutParams = stackedChoiceParams()
-            }
-            addView(patternQuietButton)
-        }
-    }
-
-    private fun buildAppsCard(): LinearLayout {
-        return card(dp(18)).apply {
-            addView(label(getString(R.string.apps_title), 16f, "#F3F6FB", true))
-            addView(
-                label(getString(R.string.apps_subtitle), 12f, "#8091A7", false).apply {
-                    setPadding(0, dp(8), 0, dp(10))
-                }
-            )
-
-            appsSummary = label("", 12f, "#9DB1C6", false).apply {
-                setPadding(0, 0, 0, dp(12))
             }
             addView(appsSummary)
 
-            appsToggleButton = Button(this@SettingsActivity).apply {
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 13f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 22f, 2)
-                setPadding(dp(18), dp(12), dp(18), dp(12))
-                setOnClickListener { toggleAppsList() }
+            appsToggleButton = choiceButton("Выбрать приложения") {
+                toggleAppsList()
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(10)
+                }
             }
             addView(appsToggleButton)
 
             appsListContainer = LinearLayout(this@SettingsActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 visibility = View.GONE
-                alpha = 0f
             }
             addView(
                 appsListContainer,
@@ -514,381 +307,323 @@ class SettingsActivity : ComponentActivity() {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    topMargin = dp(14)
+                    topMargin = dp(10)
                 }
             )
         }
     }
 
-    private fun buildDisguiseCard(): LinearLayout {
-        return card(dp(18)).apply {
-            addView(label("App disguise", 16f, "#F3F6FB", true))
+    private fun buildObfuscationCard(): View {
+        return card(dp(14)).apply {
+            addView(label("Маскировка", 16f, "#F5F7FA", true))
             addView(
-                label(
-                    "Prepare a new identity for the next APK build. The installed app keeps its current package name until you rebuild and reinstall it.",
-                    12f,
-                    "#8091A7",
-                    false
-                ).apply {
-                    setPadding(0, dp(8), 0, dp(14))
+                label("Оставлено в простом виде: выбирайте профиль трафика и паттерна", 12f, "#8A94A6", false).apply {
+                    setPadding(0, dp(6), 0, dp(12))
                 }
             )
 
-            addView(label("App name", 13f, "#9DB1C6", true))
-            disguiseNameValue = label("", 14f, "#F3F6FB", false).apply {
-                setPadding(0, dp(6), 0, dp(12))
-            }
-            addView(disguiseNameValue)
+            addView(label("Профиль трафика", 13f, "#D9E2F2", true))
+            trafficButtons.clear()
+            addTrafficButton(TrafficObfuscationStrategy.BALANCED, getString(R.string.traffic_strategy_balanced), first = true)
+            addTrafficButton(TrafficObfuscationStrategy.CDN_MIMIC, getString(R.string.traffic_strategy_cdn), first = false)
+            addTrafficButton(TrafficObfuscationStrategy.FRAGMENTED, getString(R.string.traffic_strategy_fragmented), first = false)
+            addTrafficButton(TrafficObfuscationStrategy.MOBILE_MIX, "Mobile browser blend", first = false)
+            addTrafficButton(TrafficObfuscationStrategy.TLS_BLEND, "Mixed TLS profile", first = false)
 
-            addView(label("Application ID", 13f, "#9DB1C6", true))
-            disguisePackageValue = label("", 14f, "#F3F6FB", false).apply {
-                setPadding(0, dp(6), 0, dp(12))
-            }
-            addView(disguisePackageValue)
-
-            addView(label("Build command", 13f, "#9DB1C6", true))
-            disguiseCommandValue = label("", 12f, "#7ACAA7", false).apply {
-                setPadding(0, dp(6), 0, dp(14))
-            }
-            addView(disguiseCommandValue)
-
-            val buttons = LinearLayout(this@SettingsActivity).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-
-            buttons.addView(
-                choiceButton("Generate random disguise") {
-                    applySelectionChange {
-                        disguiseIdentity = DisguiseIdentityGenerator.randomIdentity()
-                    }
-                }
-            )
-
-            buttons.addView(
-                choiceButton("Reset to Safety Turtle") {
-                    applySelectionChange {
-                        disguiseIdentity = DisguiseIdentityGenerator.defaultIdentity()
-                    }
-                }.apply {
-                    layoutParams = stackedChoiceParams()
-                }
-            )
-
-            buttons.addView(
-                choiceButton("Copy build command") {
-                    copyDisguiseCommand(disguiseIdentity)
-                }.apply {
-                    layoutParams = stackedChoiceParams()
-                }
-            )
-
-            addView(buttons)
+            addView(label("Профиль паттерна", 13f, "#D9E2F2", true).apply {
+                setPadding(0, dp(14), 0, 0)
+            })
+            patternButtons.clear()
+            addPatternButton(PatternMaskingStrategy.STEADY, getString(R.string.pattern_strategy_steady), first = true)
+            addPatternButton(PatternMaskingStrategy.PULSE, getString(R.string.pattern_strategy_pulse), first = false)
+            addPatternButton(PatternMaskingStrategy.RANDOMIZED, getString(R.string.pattern_strategy_randomized), first = false)
+            addPatternButton(PatternMaskingStrategy.BURST_FADE, "Short bursts and fade", first = false)
+            addPatternButton(PatternMaskingStrategy.QUIET_SWEEP, "Quiet pattern rotation", first = false)
         }
+    }
+
+    private fun LinearLayout.addTrafficButton(
+        strategy: TrafficObfuscationStrategy,
+        title: String,
+        first: Boolean
+    ) {
+        val button = choiceButton(title) {
+            applyChange {
+                trafficStrategy = strategy
+            }
+        }
+        if (!first) {
+            button.layoutParams = stackedButtonParams()
+        }
+        trafficButtons[strategy] = button
+        addView(button)
+    }
+
+    private fun LinearLayout.addPatternButton(
+        strategy: PatternMaskingStrategy,
+        title: String,
+        first: Boolean
+    ) {
+        val button = choiceButton(title) {
+            applyChange {
+                patternStrategy = strategy
+            }
+        }
+        if (!first) {
+            button.layoutParams = stackedButtonParams()
+        }
+        patternButtons[strategy] = button
+        addView(button)
     }
 
     private fun toggleAppsList() {
-        if (!appsLoaded) {
-            populateApps()
-            appsLoaded = true
-        }
-
         appsExpanded = !appsExpanded
         if (appsExpanded) {
             appsListContainer.visibility = View.VISIBLE
-            appsListContainer.animate().alpha(1f).setDuration(220).start()
+            if (!appsLoaded && !appsLoading) {
+                loadApps()
+            }
         } else {
-            appsListContainer.animate().alpha(0f).setDuration(180).withEndAction {
-                appsListContainer.visibility = View.GONE
-            }.start()
+            appsListContainer.visibility = View.GONE
         }
-        refreshSelectionViews()
+        refreshViews()
     }
 
-    private fun populateApps() {
+    private fun loadApps() {
+        appsLoading = true
         appsListContainer.removeAllViews()
-        appScanner.loadLaunchableEntries().forEachIndexed { index, app ->
+        appsListContainer.addView(label("Загрузка списка приложений...", 12f, "#8A94A6", false))
+
+        lifecycleScope.launch {
+            val loadedEntries = withContext(Dispatchers.Default) {
+                appScanner.loadLaunchableEntries(limit = Int.MAX_VALUE)
+            }
+            appEntries = loadedEntries
+            appsLoaded = true
+            appsLoading = false
+            renderAppsList()
+            refreshViews()
+        }
+    }
+
+    private fun renderAppsList() {
+        appsListContainer.removeAllViews()
+
+        if (appEntries.isEmpty()) {
+            appsListContainer.addView(label("Приложения не найдены", 12f, "#8A94A6", false))
+            return
+        }
+
+        appEntries.forEachIndexed { index, app ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                background = roundedDrawable("#0E1520", "#1C2938", 24f, 1)
-                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = roundedDrawable("#11151D", "#232C3C", 14f, 1)
+                setPadding(dp(12), dp(10), dp(12), dp(10))
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
                     if (index > 0) {
-                        topMargin = dp(10)
+                        topMargin = dp(8)
                     }
                 }
             }
 
-            val iconView = ImageView(this).apply {
+            val icon = ImageView(this).apply {
                 setImageDrawable(app.icon)
-                layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply {
-                    marginEnd = dp(12)
+                layoutParams = LinearLayout.LayoutParams(dp(30), dp(30)).apply {
+                    marginEnd = dp(10)
                 }
             }
 
-            val textBlock = LinearLayout(this).apply {
+            val info = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
-            textBlock.addView(label(app.label, 14f, "#F3F6FB", true))
-            textBlock.addView(
-                label(app.packageName, 11f, "#7B8DA3", false).apply {
-                    setPadding(0, dp(4), 0, 0)
-                }
-            )
+            info.addView(label(app.label, 13f, "#F5F7FA", true))
+            info.addView(label(app.packageName, 11f, "#8A94A6", false).apply {
+                setPadding(0, dp(3), 0, 0)
+            })
 
-            val box = CheckBox(this).apply {
+            val checkBox = CheckBox(this).apply {
                 isChecked = app.packageName in selectedPackages
-                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
-                setOnCheckedChangeListener { _, isChecked ->
-                    if (isChecked) {
+                buttonTintList = ColorStateList.valueOf(Color.parseColor("#A7F259"))
+                setOnCheckedChangeListener { _, checked ->
+                    if (checked) {
                         selectedPackages += app.packageName
                     } else {
                         selectedPackages -= app.packageName
                     }
                     persistSettings()
-                    refreshSelectionViews()
+                    refreshViews()
                 }
             }
 
-            row.setOnClickListener { box.toggle() }
-            row.addView(iconView)
-            row.addView(textBlock)
-            row.addView(box)
+            row.setOnClickListener { checkBox.toggle() }
+            row.addView(icon)
+            row.addView(info)
+            row.addView(checkBox)
             appsListContainer.addView(row)
         }
     }
 
-    private fun startRuStoreScan() {
-        if (ruStoreScanRunning) {
-            return
+    private fun refreshViews() {
+        defaultWhitelistSwitch.isChecked = defaultWhitelistEnabled
+
+        val usageGranted = isUsageAccessGranted()
+        usageAccessSummary.text = if (usageGranted) {
+            "Доступ к статистике использования: включен"
+        } else {
+            "Доступ к статистике использования: выключен"
         }
-
-        ruStoreScanRunning = true
-        refreshSelectionViews()
-        ruStoreSummary.text = getString(R.string.rustore_apps_scanning_summary)
-        ruStoreCandidateRows.clear()
-        ruStoreSelectedPackages.clear()
-        renderRuStoreCandidates()
-
-        lifecycleScope.launch {
-            val entries = withContext(Dispatchers.Default) {
-                appScanner.loadLaunchableEntries(limit = Int.MAX_VALUE)
-            }
-            val iconByPackage = entries.associateBy { it.packageName }
-
-            runCatching {
-                ruCatalogMatcher.match(entries) { completed, total, currentLabel ->
-                    withContext(Dispatchers.Main) {
-                        ruStoreSummary.text = getString(
-                            R.string.rustore_apps_progress_summary,
-                            completed,
-                            total,
-                            currentLabel
-                        )
-                    }
-                }
-            }.onSuccess { matches ->
-                ruStoreCandidateRows.clear()
-                ruStoreCandidateRows += matches.map { candidate ->
-                    RuCatalogCandidateRow(
-                        candidate = candidate,
-                        icon = iconByPackage[candidate.packageName]?.icon
-                    )
-                }
-                ruStoreSelectedPackages.clear()
-                ruStoreSelectedPackages += matches.map { it.packageName }
-                ruStoreSummary.text = if (matches.isEmpty()) {
-                    getString(R.string.rustore_apps_empty_summary)
-                } else {
-                    getString(R.string.rustore_apps_found_summary, matches.size)
-                }
-                renderRuStoreCandidates()
-            }.onFailure { error ->
-                ruStoreCandidateRows.clear()
-                ruStoreSelectedPackages.clear()
-                ruStoreSummary.text = error.message ?: getString(R.string.rustore_apps_failed_summary)
-                renderRuStoreCandidates()
-            }
-
-            ruStoreScanRunning = false
-            refreshSelectionViews()
-        }
-    }
-
-    private fun applyRuStoreSelection() {
-        if (ruStoreSelectedPackages.isEmpty()) {
-            ruStoreSummary.text = getString(R.string.rustore_apps_nothing_selected)
-            refreshSelectionViews()
-            return
-        }
-
-        val beforeCount = selectedPackages.size
-        applySelectionChange {
-            if (!defaultWhitelistEnabled) {
-                appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
-            }
-            selectedPackages += ruStoreSelectedPackages
-        }
-        val addedCount = selectedPackages.size - beforeCount
-        ruStoreSummary.text = getString(
-            R.string.rustore_apps_added_summary,
-            addedCount,
-            selectedPackages.size
+        usageAccessSummary.setTextColor(
+            Color.parseColor(if (usageGranted) "#89D5A0" else "#E8B38B")
         )
-        refreshSelectionViews()
-    }
 
-    private fun renderRuStoreCandidates() {
-        ruStoreListContainer.removeAllViews()
-        val query = ruStoreSearchInput.text?.toString()
-            .orEmpty()
-            .trim()
-            .lowercase(Locale.ROOT)
-        val visibleRows = ruStoreCandidateRows.filter { row ->
-            query.isBlank() ||
-                row.candidate.label.lowercase(Locale.ROOT).contains(query) ||
-                row.candidate.packageName.lowercase(Locale.ROOT).contains(query)
+        applyChoiceStyle(modeExcludeButton, appRoutingMode == AppRoutingMode.EXCLUDE_SELECTED)
+        applyChoiceStyle(modeOnlySelectedButton, appRoutingMode == AppRoutingMode.ONLY_SELECTED)
+
+        val blockExcludeMode = defaultWhitelistEnabled || whitelistForegroundSwitch.isChecked
+        modeExcludeButton.isEnabled = !blockExcludeMode
+
+        trafficButtons.forEach { (strategy, button) ->
+            applyChoiceStyle(button, trafficStrategy == strategy)
+        }
+        patternButtons.forEach { (strategy, button) ->
+            applyChoiceStyle(button, patternStrategy == strategy)
         }
 
-        if (visibleRows.isEmpty()) {
-            ruStoreListContainer.addView(
-                label(getString(R.string.rustore_apps_empty_hint), 12f, "#7B8DA3", false)
-            )
-            return
-        }
-
-        visibleRows.forEachIndexed { index, rowModel ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                background = roundedDrawable("#0E1520", "#1C2938", 24f, 1)
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    if (index > 0) {
-                        topMargin = dp(10)
-                    }
-                }
+        appsSummary.text = when {
+            whitelistForegroundSwitch.isChecked -> {
+                "Режим по foreground whitelist включен. Выбрано приложений: ${selectedPackages.size}."
             }
 
-            val iconView = ImageView(this).apply {
-                setImageDrawable(rowModel.icon)
-                layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply {
-                    marginEnd = dp(12)
-                }
+            defaultWhitelistEnabled -> {
+                "Базовый whitelist включен. Выбрано приложений: ${selectedPackages.size}."
             }
 
-            val textBlock = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            textBlock.addView(label(rowModel.candidate.label, 14f, "#F3F6FB", true))
-            textBlock.addView(
-                label(rowModel.candidate.packageName, 11f, "#7B8DA3", false).apply {
-                    setPadding(0, dp(4), 0, 0)
-                }
-            )
-            textBlock.addView(
-                label(rowModel.candidate.reasons.joinToString(" • "), 11f, "#7ACAA7", false).apply {
-                    setPadding(0, dp(6), 0, 0)
-                }
-            )
-
-            val box = CheckBox(this).apply {
-                isChecked = rowModel.candidate.packageName in ruStoreSelectedPackages
-                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
-                setOnCheckedChangeListener { _, isChecked ->
-                    if (isChecked) {
-                        ruStoreSelectedPackages += rowModel.candidate.packageName
-                    } else {
-                        ruStoreSelectedPackages -= rowModel.candidate.packageName
-                    }
-                    refreshSelectionViews()
-                }
+            appRoutingMode == AppRoutingMode.EXCLUDE_SELECTED -> {
+                getString(R.string.apps_selection_summary_exclude, selectedPackages.size)
             }
 
-            row.setOnClickListener { box.toggle() }
-            row.addView(iconView)
-            row.addView(textBlock)
-            row.addView(box)
-            ruStoreListContainer.addView(row)
-        }
-    }
-
-    private fun refreshSelectionViews() {
-        defaultWhitelistCheckBox.isChecked = defaultWhitelistEnabled
-        applyChoiceButtonStyle(modeExcludeButton, appRoutingMode == AppRoutingMode.EXCLUDE_SELECTED)
-        applyChoiceButtonStyle(modeOnlySelectedButton, appRoutingMode == AppRoutingMode.ONLY_SELECTED)
-        modeExcludeButton.isEnabled = !defaultWhitelistEnabled
-        modeOnlySelectedButton.isEnabled = !defaultWhitelistEnabled
-
-        applyChoiceButtonStyle(trafficBalancedButton, trafficStrategy == TrafficObfuscationStrategy.BALANCED)
-        applyChoiceButtonStyle(trafficCdnButton, trafficStrategy == TrafficObfuscationStrategy.CDN_MIMIC)
-        applyChoiceButtonStyle(trafficFragmentedButton, trafficStrategy == TrafficObfuscationStrategy.FRAGMENTED)
-        applyChoiceButtonStyle(trafficMobileButton, trafficStrategy == TrafficObfuscationStrategy.MOBILE_MIX)
-        applyChoiceButtonStyle(trafficTlsButton, trafficStrategy == TrafficObfuscationStrategy.TLS_BLEND)
-
-        applyChoiceButtonStyle(patternSteadyButton, patternStrategy == PatternMaskingStrategy.STEADY)
-        applyChoiceButtonStyle(patternPulseButton, patternStrategy == PatternMaskingStrategy.PULSE)
-        applyChoiceButtonStyle(patternRandomizedButton, patternStrategy == PatternMaskingStrategy.RANDOMIZED)
-        applyChoiceButtonStyle(patternBurstButton, patternStrategy == PatternMaskingStrategy.BURST_FADE)
-        applyChoiceButtonStyle(patternQuietButton, patternStrategy == PatternMaskingStrategy.QUIET_SWEEP)
-
-        appsSummary.text = if (defaultWhitelistEnabled) {
-            "Whitelist mode enabled: VPN is active only for ${selectedPackages.size} selected apps."
-        } else {
-            when (appRoutingMode) {
-                AppRoutingMode.EXCLUDE_SELECTED -> getString(R.string.apps_selection_summary_exclude, selectedPackages.size)
-                AppRoutingMode.ONLY_SELECTED -> getString(R.string.apps_selection_summary_include, selectedPackages.size)
+            else -> {
+                getString(R.string.apps_selection_summary_include, selectedPackages.size)
             }
         }
+
         appsToggleButton.text = if (appsExpanded) {
-            getString(R.string.apps_hide_list)
+            "Скрыть список приложений"
         } else {
-            getString(R.string.apps_pick_button)
+            "Выбрать приложения"
         }
-        ruStoreScanButton.isEnabled = !ruStoreScanRunning
-        ruStoreApplyButton.isEnabled = !ruStoreScanRunning && ruStoreSelectedPackages.isNotEmpty()
-        ruStoreApplyButton.text = getString(R.string.rustore_apps_apply_button, ruStoreSelectedPackages.size)
-        disguiseNameValue.text = disguiseIdentity.appName
-        disguisePackageValue.text = disguiseIdentity.applicationId
-        disguiseCommandValue.text = disguiseIdentity.rebuildCommand
     }
 
     private fun persistSettings() {
-        preferences.saveBypassRu(bypassRuCheckBox.isChecked)
+        preferences.saveBypassRu(bypassRuSwitch.isChecked)
+        preferences.saveForceServerIpMode(forceServerIpSwitch.isChecked)
         preferences.saveDefaultWhitelistEnabled(defaultWhitelistEnabled)
-        preferences.saveForceServerIpMode(forceServerIpCheckBox.isChecked)
         preferences.saveAppRoutingMode(appRoutingMode)
         preferences.saveExcludedPackages(selectedPackages.toList())
         preferences.saveTrafficObfuscationStrategy(trafficStrategy)
         preferences.savePatternMaskingStrategy(patternStrategy)
-        preferences.saveDisguiseIdentity(disguiseIdentity)
+        preferences.saveScreenOffAutoToggleEnabled(autoScreenToggleSwitch.isChecked)
+        preferences.saveWhitelistForegroundModeEnabled(whitelistForegroundSwitch.isChecked)
         setResult(Activity.RESULT_OK)
     }
 
-    private fun applySelectionChange(change: () -> Unit) {
+    private fun applyChange(change: () -> Unit) {
         change()
         persistSettings()
-        refreshSelectionViews()
+        refreshViews()
     }
 
-    private fun copyDisguiseCommand(identity: DisguiseIdentity) {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("novpn_disguise_build", identity.rebuildCommand))
+    private fun buildBottomNav(): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = roundedDrawable("#0F131A", "#202838", 20f, 1)
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+
+            addView(
+                navButton("Главная", active = false) {
+                    finish()
+                },
+                navLayoutParams(end = dp(4))
+            )
+
+            addView(
+                navButton("Магазин", active = false) {
+                    Toast.makeText(this@SettingsActivity, "Будет доступно позже", Toast.LENGTH_SHORT).show()
+                },
+                navLayoutParams(start = dp(2), end = dp(2))
+            )
+
+            addView(
+                navButton("Настройки", active = true) {
+                    // current screen
+                },
+                navLayoutParams(start = dp(4))
+            )
+        }
+    }
+
+    private fun navLayoutParams(start: Int = 0, end: Int = 0): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+            marginStart = start
+            marginEnd = end
+        }
+    }
+
+    private fun navButton(title: String, active: Boolean, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            text = title
+            isAllCaps = false
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor(if (active) "#D9E2F2" else "#8C97AA"))
+            background = roundedDrawable(
+                fillColor = if (active) "#1A2230" else "#11151D",
+                strokeColor = if (active) "#2E455D" else "#232C3C",
+                radiusDp = 14f,
+                strokeWidthDp = 1
+            )
+            gravity = Gravity.CENTER
+            minHeight = 0
+            minimumHeight = 0
+            setPadding(dp(8), 0, dp(8), 0)
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun settingSwitch(
+        title: String,
+        checked: Boolean,
+        topMargin: Int = 0,
+        onChange: () -> Unit
+    ): Switch {
+        return Switch(this).apply {
+            text = title
+            isChecked = checked
+            setTextColor(Color.parseColor("#F5F7FA"))
+            textSize = 13f
+            trackTintList = ColorStateList.valueOf(Color.parseColor("#434D5E"))
+            thumbTintList = ColorStateList.valueOf(Color.parseColor("#E5EBF4"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                this.topMargin = topMargin
+            }
+            setOnCheckedChangeListener { _, _ -> onChange() }
+        }
     }
 
     private fun card(topMargin: Int): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#13161F", "#2A3140", 34f, 2)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
+            background = roundedDrawable("#0D1118", "#1F2735", 20f, 1)
+            setPadding(dp(16), dp(16), dp(16), dp(16))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -902,11 +637,11 @@ class SettingsActivity : ComponentActivity() {
         return Button(this).apply {
             this.text = text
             isAllCaps = false
-            setTextColor(Color.parseColor("#F3F6FB"))
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(dp(18), dp(14), dp(18), dp(14))
-            background = roundedDrawable("#151A26", "#30384A", 24f, 2)
+            setTextColor(Color.parseColor("#D9E2F2"))
+            background = roundedDrawable("#11151D", "#232C3C", 12f, 1)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener { onClick() }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -915,83 +650,22 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
-    private fun stackedChoiceParams(): LinearLayout.LayoutParams {
+    private fun stackedButtonParams(): LinearLayout.LayoutParams {
         return LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            topMargin = dp(10)
+            topMargin = dp(8)
         }
     }
 
-    private fun applyChoiceButtonStyle(button: Button, selected: Boolean) {
+    private fun applyChoiceStyle(button: Button, selected: Boolean) {
         button.background = roundedDrawable(
-            if (selected) "#1E2E4D" else "#151A26",
-            if (selected) "#4B95FF" else "#30384A",
-            24f,
-            2
+            fillColor = if (selected) "#1A2230" else "#11151D",
+            strokeColor = if (selected) "#4E6A8C" else "#232C3C",
+            radiusDp = 12f,
+            strokeWidthDp = 1
         )
-    }
-
-    private fun styleMainSwitch(view: Switch) {
-        view.trackTintList = ColorStateList.valueOf(Color.parseColor("#5A5A5A"))
-        view.thumbTintList = ColorStateList.valueOf(Color.parseColor("#F4F4F4"))
-    }
-
-    private fun sectionLabel(text: String): TextView {
-        return label(text.uppercase(Locale.ROOT), 11f, "#7A8297", true).apply {
-            setPadding(0, dp(20), 0, dp(10))
-            letterSpacing = 0.08f
-        }
-    }
-
-    private fun buildBottomNav(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            background = roundedDrawable("#1A1D27", "#343B4C", 30f, 2)
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-
-            addView(
-                navButton("Главная", false) {
-                    finish()
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginEnd = dp(6)
-                }
-            )
-            addView(
-                navButton("Сервера", false) {},
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = dp(3)
-                    marginEnd = dp(3)
-                }
-            )
-            addView(
-                navButton("Настройки", true) {},
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = dp(6)
-                }
-            )
-        }
-    }
-
-    private fun navButton(text: String, active: Boolean, onClick: () -> Unit): Button {
-        return Button(this).apply {
-            this.text = text
-            isAllCaps = false
-            textSize = 15f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor(if (active) "#4B95FF" else "#8A92A6"))
-            background = roundedDrawable(
-                fillColor = if (active) "#1F2B43" else "#1B212C",
-                strokeColor = if (active) "#3C5E97" else "#2A3140",
-                radiusDp = 22f,
-                strokeWidthDp = 1
-            )
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            setOnClickListener { onClick() }
-        }
     }
 
     private fun label(text: String, sizeSp: Float, color: String, bold: Boolean): TextView {
@@ -1017,6 +691,25 @@ class SettingsActivity : ComponentActivity() {
             setColor(Color.parseColor(fillColor))
             setStroke(dp(strokeWidthDp), Color.parseColor(strokeColor))
         }
+    }
+
+    private fun isUsageAccessGranted(): Boolean {
+        val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOpsManager.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appOpsManager.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName
+            )
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
     }
 
     private fun dp(value: Int): Int {

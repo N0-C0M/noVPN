@@ -1,9 +1,7 @@
-package com.novpn.ui
+﻿package com.novpn.ui
 
 import android.app.Activity
-import android.animation.ValueAnimator
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -17,7 +15,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -25,43 +22,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.novpn.R
 import com.novpn.data.AvailableProfile
 import com.novpn.data.CodeRedeemKind
-import com.novpn.data.ClientPreferences
 import com.novpn.vpn.NoVpnService
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<TunnelViewModel>()
-    private val preferences by lazy { ClientPreferences(this) }
 
-    private lateinit var headerLabel: TextView
-    private lateinit var headerServer: TextView
+    private lateinit var headerServerLabel: TextView
     private lateinit var statusTitle: TextView
     private lateinit var statusDetail: TextView
     private lateinit var powerButton: Button
-    private lateinit var inviteCodeInput: EditText
-    private lateinit var activateCodeButton: Button
-    private lateinit var disconnectCodeButton: Button
-    private lateinit var diagnosticsButton: Button
-    private lateinit var diagnosticsDetail: TextView
-    private lateinit var serverStrip: LinearLayout
-    private lateinit var startupOverlay: View
-    private lateinit var startupCard: LinearLayout
-    private lateinit var startupTitleLabel: TextView
-    private lateinit var startupDetailLabel: TextView
-    private lateinit var startupProgressBar: ProgressBar
-    private lateinit var startupProgressPercent: TextView
-    private lateinit var bottomSettingsButton: Button
-    private var powerPulseAnimator: ValueAnimator? = null
-    private var lastPowerVisualState = PowerVisualState.IDLE
-    private var startupDelayElapsed = false
-    private var startupOverlayDismissed = false
-    private var firstRenderCompleted = false
-    private var startupWarmupReady = false
+    private lateinit var subscriptionInput: EditText
+    private lateinit var activateSubscriptionButton: Button
+    private lateinit var subscriptionStateLabel: TextView
+    private lateinit var serversTitle: TextView
+    private lateinit var serversContainer: LinearLayout
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -87,8 +67,6 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_SHORT
             ).show()
         }.onFailure { error ->
-            statusTitle.text = getString(R.string.import_profile_failed)
-            statusDetail.text = error.message ?: getString(R.string.runtime_profile_incomplete)
             Toast.makeText(
                 this,
                 error.message ?: getString(R.string.import_profile_failed),
@@ -106,16 +84,6 @@ class MainActivity : ComponentActivity() {
             viewModel.refreshGatewayPolicy()
             renderState(viewModel.state.value)
         }
-        lifecycleScope.launch {
-            delay(650)
-            startupDelayElapsed = true
-            maybeDismissStartupOverlay()
-        }
-        lifecycleScope.launch {
-            viewModel.runStartupWarmup(::updateStartupProgress)
-            startupWarmupReady = true
-            maybeDismissStartupOverlay()
-        }
     }
 
     override fun onResume() {
@@ -128,10 +96,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-    }
-
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -142,24 +106,22 @@ class MainActivity : ComponentActivity() {
         if (resultCode == Activity.RESULT_OK) {
             startVpnRuntime()
         } else {
-            statusTitle.text = getString(R.string.status_permission_required)
-            statusDetail.text = getString(R.string.status_permission_denied_detail)
+            Toast.makeText(this, getString(R.string.status_permission_required), Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun buildContentView(): View {
-        val root = FrameLayout(this)
-
-        val scroll = ScrollView(this).apply {
+        val root = FrameLayout(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#03090A"), Color.parseColor("#041012"))
+                intArrayOf(Color.parseColor("#0A0C10"), Color.parseColor("#050608"))
             )
         }
 
+        val scroll = ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(22), dp(20), dp(124))
+            setPadding(dp(20), dp(20), dp(20), dp(120))
         }
         scroll.addView(
             content,
@@ -170,10 +132,8 @@ class MainActivity : ComponentActivity() {
         )
 
         content.addView(buildHeader())
-        content.addView(buildHeroSection())
-        content.addView(buildDiagnosticsSection())
-        content.addView(buildInviteSection())
-        content.addView(buildServerSection())
+        content.addView(buildMainCard())
+
         root.addView(
             scroll,
             FrameLayout.LayoutParams(
@@ -181,6 +141,7 @@ class MainActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+
         root.addView(
             buildBottomNav(),
             FrameLayout.LayoutParams(
@@ -188,619 +149,318 @@ class MainActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.BOTTOM
-                marginStart = dp(20)
-                marginEnd = dp(20)
-                bottomMargin = dp(20)
+                marginStart = dp(16)
+                marginEnd = dp(16)
+                bottomMargin = dp(16)
             }
         )
 
-        startupOverlay = buildStartupOverlay()
-        root.addView(
-            startupOverlay,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        )
         return root
     }
 
-    private fun buildStartupOverlay(): View {
-        return FrameLayout(this).apply {
-            alpha = 1f
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#061011"), Color.parseColor("#081617"))
-            )
-
-            startupCard = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                background = roundedDrawable("#0A1718", "#204440", 36f, 2)
-                setPadding(dp(24), dp(28), dp(24), dp(28))
-                elevation = dp(10).toFloat()
-                startupTitleLabel = label(getString(R.string.startup_loading_title), 24f, "#F3F6FB", true).apply {
-                    gravity = Gravity.CENTER
-                }
-                addView(startupTitleLabel)
-
-                startupDetailLabel = label(getString(R.string.startup_loading_detail), 13f, "#7F90A5", false).apply {
-                    gravity = Gravity.CENTER
-                    setPadding(0, dp(10), 0, 0)
-                }
-                addView(startupDetailLabel)
-
-                val progressRow = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dp(18), 0, 0)
-                }
-
-                startupProgressBar = ProgressBar(
-                    this@MainActivity,
-                    null,
-                    android.R.attr.progressBarStyleHorizontal
-                ).apply {
-                    max = 100
-                    progress = 6
-                    progressTintList = ColorStateList.valueOf(Color.parseColor("#A6E31A"))
-                    progressBackgroundTintList = ColorStateList.valueOf(Color.parseColor("#15322A"))
-                    layoutParams = LinearLayout.LayoutParams(
-                        0,
-                        dp(8),
-                        1f
-                    ).apply {
-                        marginEnd = dp(12)
-                    }
-                }
-                progressRow.addView(startupProgressBar)
-
-                startupProgressPercent = label("6%", 12f, "#A8BAD0", true)
-                progressRow.addView(startupProgressPercent)
-                addView(progressRow)
-            }
-
-            addView(
-                startupCard,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.CENTER
-                    marginStart = dp(22)
-                    marginEnd = dp(22)
-                }
-            )
-        }
-    }
-
     private fun buildHeader(): View {
-        val row = LinearLayout(this).apply {
+        return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-        }
 
-        val titleBlock = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
+            val titleBlock = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
 
-        headerLabel = label("NOVPN v2.9", 12f, "#A6E31A", true).apply {
-            letterSpacing = 0.08f
-        }
-        headerServer = label(getString(R.string.header_no_server), 22f, "#F3F6FB", true).apply {
-            setPadding(0, dp(6), 0, 0)
-        }
+            titleBlock.addView(
+                label("NOVPN", 13f, "#9AA3B2", true).apply {
+                    letterSpacing = 0.08f
+                }
+            )
+            headerServerLabel = label(getString(R.string.header_no_server), 22f, "#F5F7FA", true).apply {
+                setPadding(0, dp(4), 0, 0)
+            }
+            titleBlock.addView(headerServerLabel)
 
-        titleBlock.addView(headerLabel)
-        titleBlock.addView(headerServer)
-
-        val actionRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
-        }
-
-        val importButton = Button(this).apply {
-            text = "◎"
-            isAllCaps = false
-            setTextColor(Color.parseColor("#9ED7C5"))
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            background = roundedDrawable("#0B1F1D", "#1C3F3A", 18f, 2)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            setOnClickListener {
+            val importButton = smallHeaderButton(getString(R.string.import_profile)) {
                 importProfileLauncher.launch("*/*")
             }
-        }
-
-        val settingsButton = Button(this).apply {
-            text = "▶"
-            isAllCaps = false
-            setTextColor(Color.parseColor("#9ED7C5"))
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            background = roundedDrawable("#0B1F1D", "#1C3F3A", 18f, 2)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                marginStart = dp(10)
-            }
-            setOnClickListener {
+            val settingsButton = smallHeaderButton(getString(R.string.settings)) {
                 settingsLauncher.launch(Intent(this@MainActivity, SettingsActivity::class.java))
+            }.apply {
+                (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(8)
             }
+
+            addView(titleBlock)
+            addView(importButton)
+            addView(settingsButton)
         }
-
-        actionRow.addView(importButton)
-        actionRow.addView(settingsButton)
-
-        row.addView(titleBlock)
-        row.addView(actionRow)
-        return row
     }
 
-    private fun buildHeroSection(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+    private fun buildMainCard(): View {
+        return card(topMargin = dp(20), corner = 28f).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            background = roundedDrawable("#061614", "#244235", 38f, 2)
-            setPadding(dp(18), dp(28), dp(18), dp(30))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(24)
-            }
 
             addView(
-                label(getString(R.string.hero_tap_to_connect), 13f, "#7B8DA3", false).apply {
+                label("Главный экран", 12f, "#8A94A6", false).apply {
                     gravity = Gravity.CENTER
                 }
             )
 
-            val statsRow = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
+            statusTitle = label("VPN выключен", 24f, "#F5F7FA", true).apply {
                 gravity = Gravity.CENTER
-                setPadding(0, dp(14), 0, 0)
+                setPadding(0, dp(10), 0, 0)
             }
-            statsRow.addView(label("↑ 52.0 KB/s", 13f, "#A6E31A", true))
-            statsRow.addView(
-                label("   ⏱ 02:00   ", 13f, "#8DA4A1", false)
-            )
-            statsRow.addView(label("↓ 79.2 KB/s", 13f, "#A6E31A", true))
-            addView(statsRow)
+            addView(statusTitle)
+
+            statusDetail = label("", 13f, "#97A2B4", false).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(8), dp(8), 0)
+            }
+            addView(statusDetail)
 
             powerButton = Button(this@MainActivity).apply {
+                text = "ВКЛ"
                 isAllCaps = false
-                textSize = 42f
+                setTextColor(Color.parseColor("#0A0D12"))
+                textSize = 16f
                 typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.parseColor("#A6E31A"))
-                gravity = Gravity.CENTER
-                background = powerDrawable(false)
-                layoutParams = LinearLayout.LayoutParams(dp(214), dp(214)).apply {
-                    topMargin = dp(22)
-                    bottomMargin = dp(24)
+                background = roundedDrawable("#A7F259", "#B5FF6F", 52f, 1)
+                layoutParams = LinearLayout.LayoutParams(dp(132), dp(132)).apply {
+                    topMargin = dp(18)
+                    bottomMargin = dp(16)
+                    gravity = Gravity.CENTER_HORIZONTAL
                 }
                 setOnClickListener { toggleRuntime() }
             }
             addView(powerButton)
 
-            statusTitle = label(getString(R.string.status_ready), 25f, "#F3F6FB", true).apply {
-                gravity = Gravity.CENTER
-            }
-            addView(statusTitle)
-
-            statusDetail = label("", 13f, "#8B9BAE", false).apply {
-                gravity = Gravity.CENTER
-                setPadding(dp(10), dp(12), dp(10), 0)
-            }
-            addView(statusDetail)
-
-        }
-    }
-
-    private fun buildServerSection(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#061614", "#244235", 38f, 2)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(18)
-            }
-
-            addView(label(getString(R.string.server_section_title), 16f, "#F3F6FB", true))
-            addView(
-                label(getString(R.string.server_section_hint), 12f, "#7B8DA3", false).apply {
-                    setPadding(0, dp(6), 0, dp(14))
-                }
-            )
-
-            serverStrip = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-            addView(serverStrip)
-        }
-    }
-
-    private fun buildDiagnosticsSection(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#061614", "#244235", 38f, 2)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(18)
-            }
-
-            addView(label(getString(R.string.diagnostics_title), 16f, "#F3F6FB", true))
-            addView(
-                label(getString(R.string.diagnostics_hint), 12f, "#7B8DA3", false).apply {
-                    setPadding(0, dp(6), 0, dp(14))
-                }
-            )
-
-            diagnosticsButton = Button(this@MainActivity).apply {
-                text = getString(R.string.run_diagnostics)
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 13f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E241F", "#2D5A4A", 22f, 2)
-                setPadding(dp(18), dp(12), dp(18), dp(12))
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                setOnClickListener { runDiagnostics() }
-            }
-            addView(diagnosticsButton)
-
-            diagnosticsDetail = label(getString(R.string.diagnostics_idle), 12f, "#7B8DA3", false).apply {
-                setPadding(0, dp(12), 0, 0)
-            }
-            addView(diagnosticsDetail)
-        }
-    }
-
-    private fun buildInviteSection(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#061614", "#244235", 38f, 2)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(18)
-            }
-
-            addView(label(getString(R.string.invite_code_title), 16f, "#F3F6FB", true))
-            addView(
-                label(getString(R.string.invite_code_hint), 12f, "#7B8DA3", false).apply {
-                    setPadding(0, dp(6), 0, dp(14))
-                }
-            )
-
-            inviteCodeInput = EditText(this@MainActivity).apply {
-                hint = getString(R.string.invite_code_placeholder)
-                setHintTextColor(Color.parseColor("#607287"))
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 15f
+            subscriptionInput = EditText(this@MainActivity).apply {
+                hint = "Введите код подписки"
+                setHintTextColor(Color.parseColor("#6E7788"))
+                setTextColor(Color.parseColor("#F5F7FA"))
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                background = roundedDrawable("#0C221D", "#2B594A", 20f, 2)
-                setPadding(dp(16), dp(14), dp(16), dp(14))
+                background = roundedDrawable("#11151D", "#232C3C", 16f, 1)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                doAfterTextChanged {
+                    activateSubscriptionButton.isEnabled = !it.isNullOrBlank()
+                }
             }
             addView(
-                inviteCodeInput,
+                subscriptionInput,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
             )
 
-            val buttonRow = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
+            activateSubscriptionButton = Button(this@MainActivity).apply {
+                text = "Активировать подписку"
+                isAllCaps = false
+                setTextColor(Color.parseColor("#F5F7FA"))
+                textSize = 13f
+                typeface = Typeface.DEFAULT_BOLD
+                background = roundedDrawable("#162430", "#2E455D", 16f, 1)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    topMargin = dp(12)
+                    topMargin = dp(10)
                 }
+                setOnClickListener { activateSubscription() }
             }
+            addView(activateSubscriptionButton)
 
-            activateCodeButton = Button(this@MainActivity).apply {
-                text = getString(R.string.activate_invite_code)
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 12.5f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#163928", "#A6E31A", 22f, 2)
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
-                ).apply {
-                    marginEnd = dp(6)
-                }
-                setOnClickListener { activateInviteCode() }
+            subscriptionStateLabel = label("Подписка не активирована", 12f, "#8A94A6", false).apply {
+                setPadding(0, dp(10), 0, 0)
             }
-            buttonRow.addView(activateCodeButton)
+            addView(subscriptionStateLabel)
 
-            disconnectCodeButton = Button(this@MainActivity).apply {
-                text = "Disconnect device"
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 12.5f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E241F", "#2D5A4A", 22f, 2)
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
-                ).apply {
-                    marginStart = dp(6)
-                }
-                setOnClickListener { disconnectDeviceFromCode() }
+            serversTitle = label("Доступные серверы", 14f, "#F5F7FA", true).apply {
+                setPadding(0, dp(18), 0, dp(10))
+                visibility = View.GONE
             }
-            buttonRow.addView(disconnectCodeButton)
+            addView(serversTitle)
 
-            addView(buttonRow)
+            serversContainer = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = View.GONE
+            }
+            addView(
+                serversContainer,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
         }
     }
 
     private fun renderState(state: TunnelState) {
-        val selected = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
+        val selectedProfile = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
             ?: state.availableProfiles.firstOrNull()
+        headerServerLabel.text = selectedProfile?.name ?: getString(R.string.header_no_server)
 
-        headerServer.text = selected?.name ?: getString(R.string.header_no_server)
-        val locationLine = getString(
-            R.string.server_location_format,
-            selected?.locationLabel?.ifBlank { getString(R.string.server_location_unknown) }
-                ?: getString(R.string.server_location_unknown)
-        )
+        val remainingBytes = state.trafficLimitBytes
+            .takeIf { it > 0L }
+            ?.let { limit -> (limit - state.trafficUsedBytes).coerceAtLeast(0L) }
 
-        val modeLine = if (state.bypassRu) {
-            getString(R.string.mode_bypass_ru)
-        } else {
-            getString(R.string.mode_full_tunnel)
-        }
-        val appsLine = if (state.defaultWhitelistEnabled) {
-            "Default whitelist enabled: VPN only for ${state.selectedPackages.size} apps"
-        } else {
-            when (state.appRoutingMode) {
-                com.novpn.data.AppRoutingMode.EXCLUDE_SELECTED ->
-                    getString(R.string.apps_selection_summary_exclude, state.selectedPackages.size)
-                com.novpn.data.AppRoutingMode.ONLY_SELECTED ->
-                    getString(R.string.apps_selection_summary_include, state.selectedPackages.size)
-            }
-        }
-        val strategyLine = getString(
-            R.string.strategy_summary_format,
-            trafficStrategyLabel(state.trafficStrategy),
-            patternStrategyLabel(state.patternStrategy)
-        )
-        val serverLine = selected?.let {
-            getString(R.string.server_line_format, it.name, getString(R.string.server_endpoint_hidden))
-        } ?: getString(R.string.no_profiles_found)
-        val trafficRemainingBytes = state.trafficLimitBytes.takeIf { it > 0L }?.let { limit ->
-            val used = state.trafficUsedBytes.coerceAtLeast(0L)
-            (limit - used).coerceAtLeast(0L)
-        }
-        val trafficRemainingLine = trafficRemainingBytes?.let { remaining ->
-            "Traffic left: ${formatBytes(remaining)} of ${formatBytes(state.trafficLimitBytes)}"
-        }
-        val trafficLimitReachedLine = if (trafficRemainingBytes != null && trafficRemainingBytes <= 0L) {
-            "Traffic limit reached. Activate promo or a new invite code."
-        } else {
-            null
-        }
-
-        val statusTitleText: String
-
-        if (state.runtimeRunning) {
-            powerButton.text = "⛨"
-            powerButton.background = powerDrawable(true)
-            statusTitleText = if (trafficRemainingBytes != null && trafficRemainingBytes <= 0L) {
-                "Traffic limit reached"
-            } else {
-                getString(R.string.status_connected)
-            }
-        } else {
-            powerButton.text = "⛨"
-            powerButton.background = powerDrawable(false)
-            statusTitleText = if (state.runtimeStatus.isBlank() || state.runtimeStatus == getString(R.string.service_stopped)) {
-                getString(R.string.status_ready)
-            } else {
-                state.runtimeStatus
-            }
-        }
-
-        val baselineDetail = buildString {
-            appendLine(serverLine)
-            appendLine(locationLine)
-            appendLine(modeLine)
-            appendLine(appsLine)
-            trafficRemainingLine?.let { appendLine(it) }
-            trafficLimitReachedLine?.let { appendLine(it) }
-            appendLine("Server blocklist: sites ${state.blockedSitesCount}, apps ${state.blockedAppsCount}")
-            append(strategyLine)
-        }
-        val mandatoryNoticesBlock = if (state.mandatoryNotices.isEmpty()) {
-            ""
-        } else {
-            buildString {
-                appendLine("Mandatory notices:")
-                state.mandatoryNotices.forEach { notice ->
-                    appendLine("- $notice")
+        val detailLines = buildList {
+            if (selectedProfile != null) {
+                add("Сервер: ${selectedProfile.name}")
+                if (selectedProfile.locationLabel.isNotBlank()) {
+                    add("Локация: ${selectedProfile.locationLabel}")
                 }
-            }.trimEnd()
+            }
+            if (state.runtimeDetail.isNotBlank()) {
+                add(state.runtimeDetail)
+            }
+            if (remainingBytes != null) {
+                add("Трафик: ${formatBytes(remainingBytes)} из ${formatBytes(state.trafficLimitBytes)}")
+            }
         }
 
-        val runtimeAndBaseline = if (state.runtimeDetail.isBlank()) {
-            baselineDetail
+        statusTitle.text = when {
+            state.runtimeRunning -> "VPN включен"
+            state.runtimeStatus.isNotBlank() && state.runtimeStatus != getString(R.string.service_stopped) -> state.runtimeStatus
+            else -> "VPN выключен"
+        }
+        statusDetail.text = if (detailLines.isEmpty()) {
+            "Нажмите кнопку для подключения"
         } else {
-            state.runtimeDetail + "\n\n" + baselineDetail
+            detailLines.joinToString("\n")
         }
-        val statusDetailText = if (mandatoryNoticesBlock.isBlank()) {
-            runtimeAndBaseline
+
+        val buttonEnabled = !state.runtimeRunning
+        powerButton.text = if (buttonEnabled) "ВКЛ" else "ВЫКЛ"
+        powerButton.background = if (buttonEnabled) {
+            roundedDrawable("#A7F259", "#B5FF6F", 52f, 1)
         } else {
-            mandatoryNoticesBlock + "\n\n" + runtimeAndBaseline
-        }
-        updateTextWithFade(statusTitle, statusTitleText)
-        updateTextWithFade(statusDetail, statusDetailText)
-        animatePowerState(state)
-
-        if (::inviteCodeInput.isInitialized) {
-            val currentCode = inviteCodeInput.text?.toString().orEmpty()
-            if (currentCode != state.inviteCode) {
-                inviteCodeInput.setText(state.inviteCode)
-                inviteCodeInput.setSelection(inviteCodeInput.text?.length ?: 0)
-            }
+            roundedDrawable("#FF7676", "#FF9595", 52f, 1)
         }
 
-        if (::diagnosticsButton.isInitialized) {
-            diagnosticsButton.isEnabled = !state.diagnosticsRunning
-            diagnosticsButton.text = if (state.diagnosticsRunning) {
-                getString(R.string.diagnostics_running_button)
-            } else {
-                getString(R.string.run_diagnostics)
-            }
+        val currentCode = subscriptionInput.text?.toString().orEmpty()
+        if (currentCode != state.inviteCode) {
+            subscriptionInput.setText(state.inviteCode)
+            subscriptionInput.setSelection(subscriptionInput.text?.length ?: 0)
         }
-        if (::diagnosticsDetail.isInitialized) {
-            diagnosticsDetail.text = state.diagnosticsSummary.ifBlank {
-                getString(R.string.diagnostics_idle)
-            }
-        }
-        if (::disconnectCodeButton.isInitialized) {
-            disconnectCodeButton.isEnabled = selected?.isImported == true
+        activateSubscriptionButton.isEnabled = subscriptionInput.text?.isNotBlank() == true
+
+        val subscriptionActive = state.inviteCode.isNotBlank() ||
+            state.trafficLimitBytes > 0L ||
+            state.availableProfiles.any { it.isImported }
+        subscriptionStateLabel.text = if (subscriptionActive) {
+            "Подписка активна"
+        } else {
+            "Подписка не активирована"
         }
 
-        rebuildServerCards(state.availableProfiles, state.selectedProfileId)
-        firstRenderCompleted = true
-        maybeDismissStartupOverlay()
+        val showServers = subscriptionActive
+        serversTitle.visibility = if (showServers) View.VISIBLE else View.GONE
+        serversContainer.visibility = if (showServers) View.VISIBLE else View.GONE
+        rebuildServerCards(state.availableProfiles, state.selectedProfileId, showServers)
     }
 
-    private fun rebuildServerCards(profiles: List<AvailableProfile>, selectedProfileId: String) {
-        serverStrip.removeAllViews()
+    private fun rebuildServerCards(
+        profiles: List<AvailableProfile>,
+        selectedProfileId: String,
+        visible: Boolean
+    ) {
+        serversContainer.removeAllViews()
+        if (!visible) {
+            return
+        }
 
         if (profiles.isEmpty()) {
-            serverStrip.addView(
-                label(getString(R.string.no_profiles_found), 12f, "#7B8DA3", false)
+            serversContainer.addView(
+                label("После активации здесь появятся серверы", 12f, "#8A94A6", false)
             )
             return
         }
 
         profiles.forEachIndexed { index, profile ->
-            val selected = profile.profileId == selectedProfileId
+            val isSelected = profile.profileId == selectedProfileId
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 background = roundedDrawable(
-                    if (selected) "#173226" else "#0A1A17",
-                    if (selected) "#A6E31A" else "#1E4338",
-                    30f,
-                    2
+                    if (isSelected) "#19232F" else "#11151D",
+                    if (isSelected) "#5E7698" else "#232C3C",
+                    16f,
+                    1
                 )
-                setPadding(dp(18), dp(18), dp(18), dp(18))
+                setPadding(dp(14), dp(12), dp(14), dp(12))
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
                     viewModel.selectProfile(profile.profileId)
                     runCatching { viewModel.generateConfig() }
                     renderState(viewModel.state.value)
-                    lifecycleScope.launch {
-                        viewModel.refreshGatewayPolicy()
-                        renderState(viewModel.state.value)
-                    }
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    bottomMargin = if (index == profiles.lastIndex) 0 else dp(10)
+                    bottomMargin = if (index == profiles.lastIndex) 0 else dp(8)
                 }
             }
-
-            card.addView(label(profile.name, 15f, "#F3F6FB", true))
-            card.addView(
-                label(
-                    profile.locationLabel.ifBlank { getString(R.string.server_location_unknown) },
-                    12f,
-                    if (selected) "#D9F6E6" else "#93AFA3",
-                    false
-                ).apply {
-                    setPadding(0, dp(8), 0, 0)
-                }
-            )
-            card.addView(
-                label(getString(R.string.server_sni_format, profile.serverName), 12f, "#6D9688", false).apply {
-                    setPadding(0, dp(10), 0, 0)
-                }
-            )
-            card.addView(
-                label(
-                    getString(
-                        if (profile.isImported) R.string.profile_source_imported else R.string.profile_source_bundled
-                    ),
-                    11f,
-                    if (selected) "#A6E31A" else "#6B8B7F",
-                    false
-                ).apply {
-                    setPadding(0, dp(10), 0, 0)
-                }
-            )
-
-            serverStrip.addView(card)
+            card.addView(label(profile.name, 14f, "#F5F7FA", true))
+            val location = profile.locationLabel.ifBlank { "Локация не указана" }
+            card.addView(label(location, 12f, "#97A2B4", false).apply { setPadding(0, dp(4), 0, 0) })
+            serversContainer.addView(card)
         }
     }
 
-    private fun maybeDismissStartupOverlay() {
-        if (!firstRenderCompleted || !startupDelayElapsed || !startupWarmupReady || startupOverlayDismissed) {
+    private fun activateSubscription() {
+        val code = subscriptionInput.text?.toString().orEmpty().trim()
+        if (code.isBlank()) {
+            Toast.makeText(this, getString(R.string.invite_code_missing), Toast.LENGTH_SHORT).show()
             return
         }
-        startupOverlayDismissed = true
-        startupCard.animate()
-            .alpha(0f)
-            .translationY(-dp(10f))
-            .scaleX(0.98f)
-            .scaleY(0.98f)
-            .setDuration(220)
-            .start()
-        startupOverlay.animate()
-            .alpha(0f)
-            .setDuration(260)
-            .withEndAction {
-                startupOverlay.visibility = View.GONE
-            }
-            .start()
-    }
 
-    private fun updateStartupProgress(update: StartupWarmupUpdate) {
-        if (!::startupProgressBar.isInitialized) {
-            return
-        }
-        startupTitleLabel.text = update.title
-        startupDetailLabel.text = buildString {
-            append(update.detail)
-            if (preferences.isInitialRuAppAuditPending()) {
-                append("\n\n")
-                append(getString(R.string.startup_ru_audit_mandatory))
+        viewModel.setInviteCode(code)
+        activateSubscriptionButton.isEnabled = false
+        statusTitle.text = "Активация подписки"
+        statusDetail.text = "Проверяем код и загружаем доступные серверы"
+
+        lifecycleScope.launch {
+            runCatching {
+                viewModel.activateInviteCode()
+            }.onSuccess { redeemResult ->
+                renderState(viewModel.state.value)
+                lifecycleScope.launch {
+                    viewModel.refreshGatewayPolicy()
+                    renderState(viewModel.state.value)
+                }
+
+                when (redeemResult.kind) {
+                    CodeRedeemKind.INVITE -> {
+                        val profileName = redeemResult.profileName.ifBlank { viewModel.selectedProfileName() }
+                        Toast.makeText(
+                            this@MainActivity,
+                            getString(R.string.invite_code_activated, profileName),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    CodeRedeemKind.PROMO -> {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Промокод активирован",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }.onFailure { error ->
+                renderState(viewModel.state.value)
+                Toast.makeText(
+                    this@MainActivity,
+                    error.message ?: getString(R.string.invite_code_activation_failed),
+                    Toast.LENGTH_LONG
+                ).show()
             }
+            activateSubscriptionButton.isEnabled = true
         }
-        startupProgressBar.progress = update.progressPercent.coerceIn(0, 100)
-        startupProgressPercent.text = "${update.progressPercent.coerceIn(0, 100)}%"
     }
 
     private fun toggleRuntime() {
         if (viewModel.state.value.runtimeRunning) {
-            animateDisconnectTransition()
             startService(NoVpnService.stopIntent(this))
             viewModel.markRuntimeStopped()
             renderState(viewModel.state.value)
@@ -819,120 +479,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun activateInviteCode() {
-        val code = inviteCodeInput.text?.toString().orEmpty()
-        viewModel.setInviteCode(code)
-        activateCodeButton.isEnabled = false
-        statusTitle.text = getString(R.string.invite_code_activating)
-        statusDetail.text = getString(R.string.invite_code_loading_detail)
-
-        lifecycleScope.launch {
-            runCatching {
-                viewModel.activateInviteCode()
-            }.onSuccess { redeemResult ->
-                renderState(viewModel.state.value)
-                lifecycleScope.launch {
-                    viewModel.refreshGatewayPolicy()
-                    renderState(viewModel.state.value)
-                }
-                when (redeemResult.kind) {
-                    CodeRedeemKind.INVITE -> {
-                        val profileName = redeemResult.profileName.ifBlank { viewModel.selectedProfileName() }
-                        Toast.makeText(
-                            this@MainActivity,
-                            getString(R.string.invite_code_activated, profileName),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        beginVpnStartFlow()
-                    }
-                    CodeRedeemKind.PROMO -> {
-                        val trialIssued = redeemResult.activationMode == "trial" ||
-                            redeemResult.profilePayloads.isNotEmpty() ||
-                            redeemResult.profilePayload.isNotBlank()
-                        Toast.makeText(
-                            this@MainActivity,
-                            if (trialIssued) {
-                                "Promo activated: trial profile issued (${formatBytes(redeemResult.bonusBytes)})."
-                            } else {
-                                "Promo activated: +${formatBytes(redeemResult.bonusBytes)}"
-                            },
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        if (trialIssued) {
-                            beginVpnStartFlow()
-                        }
-                    }
-                }
-            }.onFailure { error ->
-                renderState(viewModel.state.value)
-                statusTitle.text = getString(R.string.invite_code_activation_failed)
-                statusDetail.text = error.message ?: getString(R.string.import_profile_failed)
-                Toast.makeText(
-                    this@MainActivity,
-                    error.message ?: getString(R.string.invite_code_activation_failed),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            activateCodeButton.isEnabled = true
-        }
-    }
-
-    private fun disconnectDeviceFromCode() {
-        disconnectCodeButton.isEnabled = false
-        lifecycleScope.launch {
-            runCatching {
-                if (viewModel.state.value.runtimeRunning) {
-                    startService(NoVpnService.stopIntent(this@MainActivity))
-                    viewModel.markRuntimeStopped()
-                }
-                viewModel.disconnectCurrentDevice()
-            }.onSuccess {
-                renderState(viewModel.state.value)
-                Toast.makeText(
-                    this@MainActivity,
-                    "Device disconnected from the code.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }.onFailure { error ->
-                renderState(viewModel.state.value)
-                Toast.makeText(
-                    this@MainActivity,
-                    error.message ?: "Failed to disconnect device.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            disconnectCodeButton.isEnabled = true
-        }
-    }
-
-    private fun runDiagnostics() {
-        viewModel.markDiagnosticsStarted()
-        renderState(viewModel.state.value)
-
-        lifecycleScope.launch {
-            runCatching {
-                viewModel.runNetworkDiagnostics()
-            }.onSuccess {
-                renderState(viewModel.state.value)
-                Toast.makeText(
-                    this@MainActivity,
-                    getString(R.string.diagnostics_completed),
-                    Toast.LENGTH_SHORT
-                ).show()
-            }.onFailure { error ->
-                viewModel.markDiagnosticsFailed(
-                    error.message ?: getString(R.string.diagnostics_failed)
-                )
-                renderState(viewModel.state.value)
-                Toast.makeText(
-                    this@MainActivity,
-                    error.message ?: getString(R.string.diagnostics_failed),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
     private fun startVpnRuntime() {
         runCatching {
             val request = viewModel.buildRuntimeRequest()
@@ -945,133 +491,108 @@ class MainActivity : ComponentActivity() {
                 appRoutingMode = request.appRoutingMode,
                 selectedPackages = request.selectedPackages,
                 trafficStrategy = request.trafficStrategy,
-                patternStrategy = request.patternStrategy
+                patternStrategy = request.patternStrategy,
+                autoToggleByScreenState = request.autoToggleByScreenState,
+                startOnlyForWhitelistApps = request.startOnlyForWhitelistApps
             )
             ContextCompat.startForegroundService(this, intent)
             viewModel.markRuntimeStarted(configPath)
             renderState(viewModel.state.value)
-            lifecycleScope.launch {
-                repeat(8) {
-                    delay(500)
-                    viewModel.refreshStateFromPreferences()
-                    renderState(viewModel.state.value)
-                }
-            }
         }.onFailure { error ->
-            statusTitle.text = getString(R.string.runtime_profile_incomplete)
-            statusDetail.text = error.message ?: getString(R.string.import_profile_failed)
             Toast.makeText(
                 this,
                 error.message ?: getString(R.string.runtime_profile_incomplete),
                 Toast.LENGTH_LONG
-                ).show()
+            ).show()
         }
     }
 
-    private fun animatePowerState(state: TunnelState) {
-        val visualState = when {
-            state.runtimeRunning -> PowerVisualState.CONNECTED
-            state.runtimeStatus == getString(R.string.runtime_starting) -> PowerVisualState.CONNECTING
-            state.runtimeStatus == getString(R.string.runtime_start_failed) -> PowerVisualState.ERROR
-            else -> PowerVisualState.IDLE
-        }
-        if (visualState == lastPowerVisualState) {
-            return
-        }
-        lastPowerVisualState = visualState
+    private fun buildBottomNav(): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = roundedDrawable("#0F131A", "#202838", 20f, 1)
+            setPadding(dp(6), dp(6), dp(6), dp(6))
 
-        when (visualState) {
-            PowerVisualState.IDLE -> stopPowerPulse(1f)
-            PowerVisualState.CONNECTING -> startPowerPulse()
-            PowerVisualState.CONNECTED -> {
-                stopPowerPulse(1f)
-                powerButton.animate().scaleX(1.08f).scaleY(1.08f).setDuration(180).withEndAction {
-                    powerButton.animate().scaleX(1f).scaleY(1f).setDuration(220).start()
-                }.start()
+            addView(
+                navButton("Главная", active = true) {
+                    // current screen
+                },
+                navLayoutParams(end = dp(4))
+            )
+
+            addView(
+                navButton("Магазин", active = false) {
+                    Toast.makeText(this@MainActivity, "Будет доступно позже", Toast.LENGTH_SHORT).show()
+                },
+                navLayoutParams(start = dp(2), end = dp(2))
+            )
+
+            addView(
+                navButton("Настройки", active = false) {
+                    settingsLauncher.launch(Intent(this@MainActivity, SettingsActivity::class.java))
+                },
+                navLayoutParams(start = dp(4))
+            )
+        }
+    }
+
+    private fun navLayoutParams(start: Int = 0, end: Int = 0): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+            marginStart = start
+            marginEnd = end
+        }
+    }
+
+    private fun navButton(title: String, active: Boolean, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            text = title
+            isAllCaps = false
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor(if (active) "#D9E2F2" else "#8C97AA"))
+            background = roundedDrawable(
+                fillColor = if (active) "#1A2230" else "#11151D",
+                strokeColor = if (active) "#2E455D" else "#232C3C",
+                radiusDp = 14f,
+                strokeWidthDp = 1
+            )
+            gravity = Gravity.CENTER
+            minHeight = 0
+            minimumHeight = 0
+            setPadding(dp(8), 0, dp(8), 0)
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun smallHeaderButton(textValue: String, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            text = textValue
+            isAllCaps = false
+            setTextColor(Color.parseColor("#D9E2F2"))
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            background = roundedDrawable("#11151D", "#232C3C", 12f, 1)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            setOnClickListener { onClick() }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+    }
+
+    private fun card(topMargin: Int, corner: Float): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedDrawable("#0D1118", "#1F2735", corner, 1)
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                this.topMargin = topMargin
             }
-            PowerVisualState.ERROR -> {
-                stopPowerPulse(1f)
-                powerButton.animate().scaleX(0.94f).scaleY(0.94f).setDuration(120).withEndAction {
-                    powerButton.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
-                }.start()
-            }
-        }
-    }
-
-    private fun startPowerPulse() {
-        if (powerPulseAnimator != null) {
-            return
-        }
-        powerPulseAnimator = ValueAnimator.ofFloat(0.96f, 1.06f).apply {
-            duration = 900L
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
-            addUpdateListener { animator ->
-                val value = animator.animatedValue as Float
-                powerButton.scaleX = value
-                powerButton.scaleY = value
-                powerButton.alpha = 0.88f + ((value - 0.96f) / 0.10f) * 0.12f
-            }
-            start()
-        }
-    }
-
-    private fun stopPowerPulse(targetScale: Float) {
-        powerPulseAnimator?.cancel()
-        powerPulseAnimator = null
-        powerButton.animate()
-            .scaleX(targetScale)
-            .scaleY(targetScale)
-            .alpha(1f)
-            .setDuration(220)
-            .start()
-    }
-
-    private fun animateDisconnectTransition() {
-        stopPowerPulse(1f)
-        powerButton.animate().scaleX(0.92f).scaleY(0.92f).setDuration(120).withEndAction {
-            powerButton.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
-        }.start()
-    }
-
-    private fun updateTextWithFade(view: TextView, text: String) {
-        if (view.text.toString() == text) {
-            return
-        }
-        view.animate().cancel()
-        view.animate().alpha(0f).setDuration(120).withEndAction {
-            view.text = text
-            view.animate().alpha(1f).setDuration(200).start()
-        }.start()
-    }
-
-    private fun trafficStrategyLabel(strategy: com.novpn.data.TrafficObfuscationStrategy): String {
-        return when (strategy) {
-            com.novpn.data.TrafficObfuscationStrategy.BALANCED ->
-                getString(R.string.traffic_strategy_balanced_short)
-            com.novpn.data.TrafficObfuscationStrategy.CDN_MIMIC ->
-                getString(R.string.traffic_strategy_cdn_short)
-            com.novpn.data.TrafficObfuscationStrategy.FRAGMENTED ->
-                getString(R.string.traffic_strategy_fragmented_short)
-            com.novpn.data.TrafficObfuscationStrategy.MOBILE_MIX ->
-                getString(R.string.traffic_strategy_mobile_short)
-            com.novpn.data.TrafficObfuscationStrategy.TLS_BLEND ->
-                getString(R.string.traffic_strategy_tls_short)
-        }
-    }
-
-    private fun patternStrategyLabel(strategy: com.novpn.data.PatternMaskingStrategy): String {
-        return when (strategy) {
-            com.novpn.data.PatternMaskingStrategy.STEADY ->
-                getString(R.string.pattern_strategy_steady_short)
-            com.novpn.data.PatternMaskingStrategy.PULSE ->
-                getString(R.string.pattern_strategy_pulse_short)
-            com.novpn.data.PatternMaskingStrategy.RANDOMIZED ->
-                getString(R.string.pattern_strategy_randomized_short)
-            com.novpn.data.PatternMaskingStrategy.BURST_FADE ->
-                getString(R.string.pattern_strategy_burst_short)
-            com.novpn.data.PatternMaskingStrategy.QUIET_SWEEP ->
-                getString(R.string.pattern_strategy_quiet_short)
         }
     }
 
@@ -1084,20 +605,6 @@ class MainActivity : ComponentActivity() {
                 typeface = Typeface.DEFAULT_BOLD
             }
         }
-    }
-
-    private fun formatBytes(value: Long): String {
-        if (value <= 0L) {
-            return "0 B"
-        }
-        val units = arrayOf("B", "KiB", "MiB", "GiB", "TiB")
-        var unitIndex = 0
-        var current = value.toDouble()
-        while (current >= 1024.0 && unitIndex < units.lastIndex) {
-            current /= 1024.0
-            unitIndex++
-        }
-        return String.format(java.util.Locale.US, "%.1f %s", current, units[unitIndex])
     }
 
     private fun roundedDrawable(
@@ -1114,68 +621,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun powerDrawable(active: Boolean): GradientDrawable {
-        return GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.parseColor(if (active) "#123225" else "#0A1714"))
-            setStroke(dp(3), Color.parseColor(if (active) "#A6E31A" else "#2A574B"))
+    private fun formatBytes(value: Long): String {
+        if (value <= 0L) {
+            return "0 B"
         }
-    }
-
-    private fun buildBottomNav(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            background = roundedDrawable("#10161A", "#25343A", 30f, 2)
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-
-            addView(
-                navButton("Главная", true) {
-                    // already on main screen
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginEnd = dp(6)
-                }
-            )
-
-            addView(
-                navButton("Сервера", false) {
-                    // top-level screen keeps servers list on this page.
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = dp(3)
-                    marginEnd = dp(3)
-                }
-            )
-
-            bottomSettingsButton = navButton("Настройки", false) {
-                settingsLauncher.launch(Intent(this@MainActivity, SettingsActivity::class.java))
-            }
-            addView(
-                bottomSettingsButton,
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = dp(6)
-                }
-            )
+        val units = arrayOf("B", "KiB", "MiB", "GiB", "TiB")
+        var unitIndex = 0
+        var current = value.toDouble()
+        while (current >= 1024.0 && unitIndex < units.lastIndex) {
+            current /= 1024.0
+            unitIndex++
         }
-    }
-
-    private fun navButton(title: String, active: Boolean, onClick: () -> Unit): Button {
-        return Button(this).apply {
-            text = title
-            isAllCaps = false
-            textSize = 15f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor(if (active) "#A6E31A" else "#93A3AD"))
-            background = roundedDrawable(
-                fillColor = if (active) "#1B2D1E" else "#171F23",
-                strokeColor = if (active) "#3E5B2A" else "#232F36",
-                radiusDp = 22f,
-                strokeWidthDp = 1
-            )
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            setOnClickListener { onClick() }
-        }
+        return String.format(java.util.Locale.US, "%.1f %s", current, units[unitIndex])
     }
 
     private fun dp(value: Int): Int {
@@ -1196,12 +653,5 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val VPN_PERMISSION_REQUEST_CODE = 4107
-    }
-
-    private enum class PowerVisualState {
-        IDLE,
-        CONNECTING,
-        CONNECTED,
-        ERROR
     }
 }

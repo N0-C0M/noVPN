@@ -10,5 +10,7 @@ data class VpnRuntimeRequest(
     val appRoutingMode: AppRoutingMode,
     val selectedPackages: List<String>,
     val trafficStrategy: TrafficObfuscationStrategy,
-    val patternStrategy: PatternMaskingStrategy
+    val patternStrategy: PatternMaskingStrategy,
+    val autoToggleByScreenState: Boolean,
+    val startOnlyForWhitelistApps: Boolean
 )

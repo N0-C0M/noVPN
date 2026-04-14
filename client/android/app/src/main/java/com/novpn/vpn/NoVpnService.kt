@@ -1,10 +1,14 @@
-package com.novpn.vpn
+﻿package com.novpn.vpn
 
+import android.app.AppOpsManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.usage.UsageStatsManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.IpPrefix
@@ -13,6 +17,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.PowerManager
+import android.os.Process
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novpn.R
@@ -32,6 +38,22 @@ import java.net.InetAddress
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+private data class RuntimeStartConfig(
+    val profileId: String,
+    val bypassRu: Boolean,
+    val appRoutingMode: AppRoutingMode,
+    val selectedPackages: List<String>,
+    val trafficStrategy: TrafficObfuscationStrategy,
+    val patternStrategy: PatternMaskingStrategy,
+    val autoToggleByScreenState: Boolean,
+    val startOnlyForWhitelistApps: Boolean
+)
+
+private data class RuntimeDecision(
+    val shouldRun: Boolean,
+    val status: String,
+    val detail: String
+)
 
 class NoVpnService : VpnService() {
     private val tun2ProxyBridge by lazy { Tun2ProxyBridge() }
@@ -48,9 +70,30 @@ class NoVpnService : VpnService() {
     }
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     private val coreLock = Any()
+
     private var tunnelInterface: ParcelFileDescriptor? = null
+    private var runtimeConfig: RuntimeStartConfig? = null
+    private var screenReceiverRegistered = false
+    private var monitorScheduled = false
+    private var screenReceiver: BroadcastReceiver? = null
+
     @Volatile
     private var coreSessionActive = false
+
+    @Volatile
+    private var screenInteractive = true
+
+    private val foregroundMonitor = object : Runnable {
+        override fun run() {
+            if (!monitorScheduled) {
+                return
+            }
+            worker.execute {
+                reconcileRuntimeState()
+            }
+            mainHandler.postDelayed(this, FOREGROUND_CHECK_INTERVAL_MS)
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -65,46 +108,40 @@ class NoVpnService : VpnService() {
                         stopSelf()
                         return START_NOT_STICKY
                     }
-                val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
-                val appRoutingMode = AppRoutingMode.fromStorage(intent.getStringExtra(EXTRA_APP_ROUTING_MODE))
-                val selectedPackages = intent.getStringArrayListExtra(EXTRA_SELECTED_PACKAGES).orEmpty()
-                val trafficStrategy = TrafficObfuscationStrategy.fromStorage(
-                    intent.getStringExtra(EXTRA_TRAFFIC_STRATEGY)
+
+                runtimeConfig = RuntimeStartConfig(
+                    profileId = profileId,
+                    bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true),
+                    appRoutingMode = AppRoutingMode.fromStorage(intent.getStringExtra(EXTRA_APP_ROUTING_MODE)),
+                    selectedPackages = intent.getStringArrayListExtra(EXTRA_SELECTED_PACKAGES).orEmpty(),
+                    trafficStrategy = TrafficObfuscationStrategy.fromStorage(
+                        intent.getStringExtra(EXTRA_TRAFFIC_STRATEGY)
+                    ),
+                    patternStrategy = PatternMaskingStrategy.fromStorage(
+                        intent.getStringExtra(EXTRA_PATTERN_STRATEGY)
+                    ),
+                    autoToggleByScreenState = intent.getBooleanExtra(EXTRA_AUTO_TOGGLE_BY_SCREEN_STATE, false),
+                    startOnlyForWhitelistApps = intent.getBooleanExtra(EXTRA_START_ONLY_FOR_WHITELIST_APPS, false)
                 )
-                val patternStrategy = PatternMaskingStrategy.fromStorage(
-                    intent.getStringExtra(EXTRA_PATTERN_STRATEGY)
-                )
+
+                screenInteractive = isScreenCurrentlyInteractive()
+                configureAutomation(runtimeConfig)
+
                 startForegroundRuntime(getString(R.string.runtime_starting))
                 runtimeStatusStore.markStarting(
                     status = getString(R.string.runtime_starting),
                     detail = getString(R.string.runtime_starting_detail)
                 )
+
                 worker.execute {
-                    runCatching {
-                        startCore(
-                            profileId = profileId,
-                            bypassRu = bypassRu,
-                            appRoutingMode = appRoutingMode,
-                            selectedPackages = selectedPackages,
-                            trafficStrategy = trafficStrategy,
-                            patternStrategy = patternStrategy
-                        )
-                    }.onFailure {
-                        runtimeStatusStore.markFailed(
-                            status = getString(R.string.runtime_start_failed),
-                            detail = buildFailureDetail(it)
-                        )
-                        stopCore()
-                        mainHandler.post {
-                            stopForeground(STOP_FOREGROUND_REMOVE)
-                            stopSelf()
-                        }
-                    }
+                    reconcileRuntimeState()
                 }
             }
 
             ACTION_STOP -> {
                 worker.execute {
+                    runtimeConfig = null
+                    disableAutomation()
                     runtimeStatusStore.markStopped(getString(R.string.service_stopped))
                     RuntimeLocalProxySession.update(null)
                     stopCore()
@@ -115,10 +152,12 @@ class NoVpnService : VpnService() {
                 }
             }
         }
+
         return START_STICKY
     }
 
     override fun onDestroy() {
+        disableAutomation()
         runCatching { stopCore() }
         runtimeStatusStore.markStopped(getString(R.string.service_stopped))
         RuntimeLocalProxySession.update(null)
@@ -128,6 +167,8 @@ class NoVpnService : VpnService() {
 
     override fun onRevoke() {
         worker.execute {
+            runtimeConfig = null
+            disableAutomation()
             stopCore()
             runtimeStatusStore.markStopped(
                 status = getString(R.string.status_permission_required),
@@ -136,6 +177,217 @@ class NoVpnService : VpnService() {
             RuntimeLocalProxySession.update(null)
         }
         stopSelf()
+    }
+
+    private fun configureAutomation(config: RuntimeStartConfig?) {
+        if (config == null) {
+            disableAutomation()
+            return
+        }
+
+        if (config.autoToggleByScreenState) {
+            ensureScreenReceiver()
+        } else {
+            removeScreenReceiver()
+        }
+
+        if (config.startOnlyForWhitelistApps) {
+            startForegroundMonitor()
+        } else {
+            stopForegroundMonitor()
+        }
+    }
+
+    private fun disableAutomation() {
+        stopForegroundMonitor()
+        removeScreenReceiver()
+    }
+
+    private fun ensureScreenReceiver() {
+        if (screenReceiverRegistered) {
+            return
+        }
+
+        screenReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_OFF -> {
+                        screenInteractive = false
+                    }
+
+                    Intent.ACTION_SCREEN_ON,
+                    Intent.ACTION_USER_PRESENT -> {
+                        screenInteractive = true
+                    }
+                }
+                worker.execute {
+                    reconcileRuntimeState()
+                }
+            }
+        }
+
+        registerReceiver(
+            screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
+            }
+        )
+        screenReceiverRegistered = true
+    }
+
+    private fun removeScreenReceiver() {
+        if (!screenReceiverRegistered) {
+            return
+        }
+        runCatching {
+            unregisterReceiver(screenReceiver)
+        }
+        screenReceiver = null
+        screenReceiverRegistered = false
+    }
+
+    private fun startForegroundMonitor() {
+        if (monitorScheduled) {
+            return
+        }
+        monitorScheduled = true
+        mainHandler.post(foregroundMonitor)
+    }
+
+    private fun stopForegroundMonitor() {
+        if (!monitorScheduled) {
+            return
+        }
+        monitorScheduled = false
+        mainHandler.removeCallbacks(foregroundMonitor)
+    }
+
+    private fun reconcileRuntimeState() {
+        val config = runtimeConfig ?: return
+        val decision = evaluateRuntimeDecision(config)
+
+        if (decision.shouldRun) {
+            if (!coreSessionActive) {
+                runCatching {
+                    startCore(
+                        profileId = config.profileId,
+                        bypassRu = config.bypassRu,
+                        appRoutingMode = config.appRoutingMode,
+                        selectedPackages = config.selectedPackages,
+                        trafficStrategy = config.trafficStrategy,
+                        patternStrategy = config.patternStrategy
+                    )
+                }.onFailure {
+                    stopWithFailure(it)
+                    return
+                }
+            }
+            return
+        }
+
+        if (coreSessionActive) {
+            stopCore()
+        }
+        runtimeStatusStore.markStopped(status = decision.status, detail = decision.detail)
+        startForegroundRuntime(decision.status)
+    }
+
+    private fun evaluateRuntimeDecision(config: RuntimeStartConfig): RuntimeDecision {
+        if (config.autoToggleByScreenState && !screenInteractive) {
+            return RuntimeDecision(
+                shouldRun = false,
+                status = "VPN на паузе (экран выключен)",
+                detail = "Экран включится и VPN автоматически возобновится."
+            )
+        }
+
+        if (!config.startOnlyForWhitelistApps) {
+            return RuntimeDecision(shouldRun = true, status = "", detail = "")
+        }
+
+        if (config.selectedPackages.isEmpty()) {
+            return RuntimeDecision(
+                shouldRun = false,
+                status = "VPN ожидает whitelist-приложение",
+                detail = "Добавьте хотя бы одно приложение в whitelist."
+            )
+        }
+
+        if (!hasUsageStatsPermission()) {
+            return RuntimeDecision(
+                shouldRun = false,
+                status = "Нужен доступ к статистике использования",
+                detail = "Выдайте разрешение в настройках Android, чтобы отслеживать активное приложение."
+            )
+        }
+
+        val foregroundPackage = resolveForegroundPackageName()
+        if (foregroundPackage.isNullOrBlank()) {
+            return RuntimeDecision(
+                shouldRun = false,
+                status = "VPN ожидает whitelist-приложение",
+                detail = "Откройте приложение из whitelist, чтобы VPN запустился."
+            )
+        }
+
+        return if (foregroundPackage in config.selectedPackages) {
+            RuntimeDecision(shouldRun = true, status = "", detail = "")
+        } else {
+            RuntimeDecision(
+                shouldRun = false,
+                status = "VPN ожидает whitelist-приложение",
+                detail = "Текущее приложение ($foregroundPackage) не входит в whitelist."
+            )
+        }
+    }
+
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName
+            )
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun resolveForegroundPackageName(): String? {
+        val usageManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val end = System.currentTimeMillis()
+        val begin = end - FOREGROUND_LOOKBACK_MS
+        val stats = runCatching {
+            usageManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, begin, end)
+        }.getOrDefault(emptyList())
+
+        return stats.maxByOrNull { it.lastTimeUsed }?.packageName
+    }
+
+    private fun isScreenCurrentlyInteractive(): Boolean {
+        val powerManager = getSystemService(PowerManager::class.java)
+        return powerManager?.isInteractive ?: true
+    }
+
+    private fun stopWithFailure(error: Throwable) {
+        runtimeStatusStore.markFailed(
+            status = getString(R.string.runtime_start_failed),
+            detail = buildFailureDetail(error)
+        )
+        stopCore()
+        mainHandler.post {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
     }
 
     fun establishTunnel(
@@ -388,6 +640,8 @@ class NoVpnService : VpnService() {
         private const val EXTRA_SELECTED_PACKAGES = "extra_selected_packages"
         private const val EXTRA_TRAFFIC_STRATEGY = "extra_traffic_strategy"
         private const val EXTRA_PATTERN_STRATEGY = "extra_pattern_strategy"
+        private const val EXTRA_AUTO_TOGGLE_BY_SCREEN_STATE = "extra_auto_toggle_by_screen_state"
+        private const val EXTRA_START_ONLY_FOR_WHITELIST_APPS = "extra_start_only_for_whitelist_apps"
         private const val NOTIFICATION_CHANNEL_ID = "novpn_runtime"
         private const val NOTIFICATION_ID = 1001
         private const val TUN_MTU = 1500
@@ -397,6 +651,8 @@ class NoVpnService : VpnService() {
         private const val TUN_IPV6_PREFIX_LENGTH = 126
         private const val TUN_DNS_PRIMARY = "1.1.1.1"
         private const val TUN_DNS_SECONDARY = "8.8.8.8"
+        private const val FOREGROUND_LOOKBACK_MS = 20_000L
+        private const val FOREGROUND_CHECK_INTERVAL_MS = 2_000L
         private val YOUTUBE_EXACT_PACKAGES = setOf(
             "com.google.android.youtube",
             "com.google.android.apps.youtube.music",
@@ -418,7 +674,9 @@ class NoVpnService : VpnService() {
             appRoutingMode: AppRoutingMode,
             selectedPackages: List<String>,
             trafficStrategy: TrafficObfuscationStrategy,
-            patternStrategy: PatternMaskingStrategy
+            patternStrategy: PatternMaskingStrategy,
+            autoToggleByScreenState: Boolean,
+            startOnlyForWhitelistApps: Boolean
         ): Intent {
             return Intent(context, NoVpnService::class.java).apply {
                 action = ACTION_START
@@ -428,6 +686,8 @@ class NoVpnService : VpnService() {
                 putStringArrayListExtra(EXTRA_SELECTED_PACKAGES, ArrayList(selectedPackages))
                 putExtra(EXTRA_TRAFFIC_STRATEGY, trafficStrategy.storageValue)
                 putExtra(EXTRA_PATTERN_STRATEGY, patternStrategy.storageValue)
+                putExtra(EXTRA_AUTO_TOGGLE_BY_SCREEN_STATE, autoToggleByScreenState)
+                putExtra(EXTRA_START_ONLY_FOR_WHITELIST_APPS, startOnlyForWhitelistApps)
             }
         }
 

@@ -90,6 +90,8 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 bypassRu = preferences.isBypassRuEnabled(),
                 inviteCode = preferences.inviteCode(),
                 defaultWhitelistEnabled = preferences.isDefaultWhitelistEnabled(),
+                autoToggleByScreenState = preferences.isScreenOffAutoToggleEnabled(),
+                startOnlyForWhitelistApps = preferences.isWhitelistForegroundModeEnabled(),
                 appRoutingMode = preferences.appRoutingMode(),
                 selectedPackages = preferences.excludedPackages(),
                 trafficStrategy = preferences.trafficObfuscationStrategy(),
@@ -297,6 +299,16 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         refreshStateFromPreferences()
     }
 
+    fun setAutoToggleByScreenState(value: Boolean) {
+        preferences.saveScreenOffAutoToggleEnabled(value)
+        _state.update { it.copy(autoToggleByScreenState = value) }
+    }
+
+    fun setStartOnlyForWhitelistApps(value: Boolean) {
+        preferences.saveWhitelistForegroundModeEnabled(value)
+        _state.update { it.copy(startOnlyForWhitelistApps = value) }
+    }
+
     fun setExcludedPackages(value: List<String>) {
         val normalized = value.distinct()
         preferences.saveExcludedPackages(normalized)
@@ -412,7 +424,9 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             appRoutingMode = _state.value.appRoutingMode,
             selectedPackages = _state.value.selectedPackages,
             trafficStrategy = _state.value.trafficStrategy,
-            patternStrategy = _state.value.patternStrategy
+            patternStrategy = _state.value.patternStrategy,
+            autoToggleByScreenState = _state.value.autoToggleByScreenState,
+            startOnlyForWhitelistApps = _state.value.startOnlyForWhitelistApps
         )
     }
 

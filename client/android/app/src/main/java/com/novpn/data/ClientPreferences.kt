@@ -50,6 +50,14 @@ class ClientPreferences(context: Context) {
         return preferences.getBoolean(KEY_FORCE_SERVER_IP_MODE, true)
     }
 
+    fun isScreenOffAutoToggleEnabled(): Boolean {
+        return preferences.getBoolean(KEY_SCREEN_OFF_AUTO_TOGGLE_ENABLED, false)
+    }
+
+    fun isWhitelistForegroundModeEnabled(): Boolean {
+        return preferences.getBoolean(KEY_WHITELIST_FOREGROUND_MODE_ENABLED, false)
+    }
+
     fun trafficObfuscationStrategy(): TrafficObfuscationStrategy {
         return TrafficObfuscationStrategy.fromStorage(
             preferences.getString(KEY_TRAFFIC_STRATEGY, TrafficObfuscationStrategy.BALANCED.storageValue)
@@ -128,6 +136,14 @@ class ClientPreferences(context: Context) {
         preferences.edit().putBoolean(KEY_FORCE_SERVER_IP_MODE, enabled).apply()
     }
 
+    fun saveScreenOffAutoToggleEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_SCREEN_OFF_AUTO_TOGGLE_ENABLED, enabled).apply()
+    }
+
+    fun saveWhitelistForegroundModeEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_WHITELIST_FOREGROUND_MODE_ENABLED, enabled).apply()
+    }
+
     fun saveTrafficObfuscationStrategy(strategy: TrafficObfuscationStrategy) {
         preferences.edit().putString(KEY_TRAFFIC_STRATEGY, strategy.storageValue).apply()
     }
@@ -175,6 +191,8 @@ class ClientPreferences(context: Context) {
         private const val KEY_APP_ROUTING_MODE = "app_routing_mode"
         private const val KEY_DEFAULT_WHITELIST_ENABLED = "default_whitelist_enabled"
         private const val KEY_FORCE_SERVER_IP_MODE = "force_server_ip_mode"
+        private const val KEY_SCREEN_OFF_AUTO_TOGGLE_ENABLED = "screen_off_auto_toggle_enabled"
+        private const val KEY_WHITELIST_FOREGROUND_MODE_ENABLED = "whitelist_foreground_mode_enabled"
         private const val KEY_SELECTED_PACKAGES = "selected_packages"
         private const val KEY_EXCLUDED_PACKAGES = "excluded_packages"
         private const val KEY_TRAFFIC_STRATEGY = "traffic_strategy"
