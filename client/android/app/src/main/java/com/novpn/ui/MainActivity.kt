@@ -295,7 +295,7 @@ class MainActivity : ComponentActivity() {
                 marginStart = dp(10)
             }
             setOnClickListener {
-                settingsLauncher.launch(Intent(this@MainActivity, SettingsActivity::class.java))
+                openSettings()
             }
         }
 
@@ -320,12 +320,6 @@ class MainActivity : ComponentActivity() {
                 topMargin = dp(24)
             }
 
-            addView(
-                label(getString(R.string.hero_tap_to_connect), 13f, "#7B8DA3", false).apply {
-                    gravity = Gravity.CENTER
-                }
-            )
-
             powerButton = Button(this@MainActivity).apply {
                 isAllCaps = false
                 textSize = 20f
@@ -334,7 +328,7 @@ class MainActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
                 background = powerDrawable(false)
                 layoutParams = LinearLayout.LayoutParams(dp(214), dp(214)).apply {
-                    topMargin = dp(22)
+                    topMargin = dp(8)
                     bottomMargin = dp(24)
                 }
                 setOnClickListener { toggleRuntime() }
@@ -351,12 +345,6 @@ class MainActivity : ComponentActivity() {
                 setPadding(dp(10), dp(12), dp(10), 0)
             }
             addView(statusDetail)
-
-            diagnosticsDetail = label(getString(R.string.diagnostics_idle), 12f, "#7B8DA3", false).apply {
-                gravity = Gravity.CENTER
-                setPadding(dp(10), dp(14), dp(10), 0)
-            }
-            addView(diagnosticsDetail)
 
         }
     }
@@ -521,47 +509,20 @@ class MainActivity : ComponentActivity() {
         val selected = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
             ?: state.availableProfiles.firstOrNull()
 
-        headerServer.text = selected?.name ?: getString(R.string.header_no_server)
+        headerServer.text = formatHeaderServerName(selected?.name)
         val locationLine = getString(
             R.string.server_location_format,
             selected?.locationLabel?.ifBlank { getString(R.string.server_location_unknown) }
                 ?: getString(R.string.server_location_unknown)
         )
-
-        val modeLine = if (state.bypassRu) {
-            getString(R.string.mode_bypass_ru)
-        } else {
-            getString(R.string.mode_full_tunnel)
-        }
-        val appsLine = if (state.defaultWhitelistEnabled) {
-            "Default whitelist enabled: VPN only for ${state.selectedPackages.size} apps"
-        } else {
-            when (state.appRoutingMode) {
-                com.novpn.data.AppRoutingMode.EXCLUDE_SELECTED ->
-                    getString(R.string.apps_selection_summary_exclude, state.selectedPackages.size)
-                com.novpn.data.AppRoutingMode.ONLY_SELECTED ->
-                    getString(R.string.apps_selection_summary_include, state.selectedPackages.size)
-            }
-        }
-        val strategyLine = getString(
-            R.string.strategy_summary_format,
-            trafficStrategyLabel(state.trafficStrategy),
-            patternStrategyLabel(state.patternStrategy)
-        )
-        val serverLine = selected?.let {
-            getString(R.string.server_line_format, it.name, getString(R.string.server_endpoint_hidden))
-        } ?: getString(R.string.no_profiles_found)
         val trafficRemainingBytes = state.trafficLimitBytes.takeIf { it > 0L }?.let { limit ->
             val used = state.trafficUsedBytes.coerceAtLeast(0L)
             (limit - used).coerceAtLeast(0L)
         }
-        val trafficRemainingLine = trafficRemainingBytes?.let { remaining ->
-            "Traffic left: ${formatBytes(remaining)} of ${formatBytes(state.trafficLimitBytes)}"
-        }
-        val trafficLimitReachedLine = if (trafficRemainingBytes != null && trafficRemainingBytes <= 0L) {
-            "Traffic limit reached. Activate promo or a new invite code."
+        val trafficRemainingLine = if (state.trafficLimitBytes > 0L) {
+            "Traffic left: ${formatBytes(trafficRemainingBytes ?: 0L)}"
         } else {
-            null
+            "Traffic left: ∞"
         }
 
         val statusTitleText: String
@@ -584,36 +545,9 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val baselineDetail = buildString {
-            appendLine(serverLine)
+        val statusDetailText = buildString {
             appendLine(locationLine)
-            appendLine(modeLine)
-            appendLine(appsLine)
-            trafficRemainingLine?.let { appendLine(it) }
-            trafficLimitReachedLine?.let { appendLine(it) }
-            appendLine("Server blocklist: sites ${state.blockedSitesCount}, apps ${state.blockedAppsCount}")
-            append(strategyLine)
-        }
-        val mandatoryNoticesBlock = if (state.mandatoryNotices.isEmpty()) {
-            ""
-        } else {
-            buildString {
-                appendLine("Mandatory notices:")
-                state.mandatoryNotices.forEach { notice ->
-                    appendLine("- $notice")
-                }
-            }.trimEnd()
-        }
-
-        val runtimeAndBaseline = if (state.runtimeDetail.isBlank()) {
-            baselineDetail
-        } else {
-            state.runtimeDetail + "\n\n" + baselineDetail
-        }
-        val statusDetailText = if (mandatoryNoticesBlock.isBlank()) {
-            runtimeAndBaseline
-        } else {
-            mandatoryNoticesBlock + "\n\n" + runtimeAndBaseline
+            append(trafficRemainingLine)
         }
         updateTextWithFade(statusTitle, statusTitleText)
         updateTextWithFade(statusDetail, statusDetailText)
@@ -633,11 +567,6 @@ class MainActivity : ComponentActivity() {
                 getString(R.string.diagnostics_running_button)
             } else {
                 getString(R.string.run_diagnostics)
-            }
-        }
-        if (::diagnosticsDetail.isInitialized) {
-            diagnosticsDetail.text = state.diagnosticsSummary.ifBlank {
-                getString(R.string.diagnostics_idle)
             }
         }
         if (::disconnectCodeButton.isInitialized) {
@@ -818,6 +747,47 @@ class MainActivity : ComponentActivity() {
         } else {
             startVpnRuntime()
         }
+    }
+
+    private fun openSettings() {
+        val state = viewModel.state.value
+        val selected = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
+            ?: state.availableProfiles.firstOrNull()
+        val appsLine = if (state.defaultWhitelistEnabled) {
+            "Default whitelist: ${state.selectedPackages.size} apps"
+        } else {
+            when (state.appRoutingMode) {
+                com.novpn.data.AppRoutingMode.EXCLUDE_SELECTED ->
+                    getString(R.string.apps_selection_summary_exclude, state.selectedPackages.size)
+                com.novpn.data.AppRoutingMode.ONLY_SELECTED ->
+                    getString(R.string.apps_selection_summary_include, state.selectedPackages.size)
+            }
+        }
+        val strategyLine = getString(
+            R.string.strategy_summary_format,
+            trafficStrategyLabel(state.trafficStrategy),
+            patternStrategyLabel(state.patternStrategy)
+        )
+        val noticesLine = if (state.mandatoryNotices.isEmpty()) {
+            ""
+        } else {
+            state.mandatoryNotices.joinToString(" | ")
+        }
+        settingsLauncher.launch(
+            SettingsActivity.createIntent(
+                context = this,
+                serverName = selected?.name ?: getString(R.string.header_no_server),
+                routingSummary = if (state.bypassRu) {
+                    getString(R.string.mode_bypass_ru)
+                } else {
+                    getString(R.string.mode_full_tunnel)
+                },
+                appsSummary = appsLine,
+                strategySummary = strategyLine,
+                blocklistSummary = "Server blocklist: sites ${state.blockedSitesCount}, apps ${state.blockedAppsCount}",
+                noticesSummary = noticesLine
+            )
+        )
     }
 
     private fun activateInviteCode() {
@@ -1098,6 +1068,17 @@ class MainActivity : ComponentActivity() {
             unitIndex++
         }
         return String.format(java.util.Locale.US, "%.1f %s", current, units[unitIndex])
+    }
+
+    private fun formatHeaderServerName(value: String?): String {
+        val normalized = value?.trim().orEmpty()
+        if (normalized.isBlank()) {
+            return getString(R.string.header_no_server)
+        }
+        if (normalized.length <= 10) {
+            return normalized
+        }
+        return normalized.take(10) + "..."
     }
 
     private fun roundedDrawable(

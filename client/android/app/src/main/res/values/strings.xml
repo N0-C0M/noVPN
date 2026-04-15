@@ -35,8 +35,8 @@
     <string name="invite_code_activation_failed">Не удалось активировать код</string>
     <string name="diagnostics_title">Диагностика сети</string>
     <string name="diagnostics_hint">Запускает тест задержки и скорости через текущую локальную цепочку obfuscator → Xray.</string>
-    <string name="run_diagnostics">Запустить диагностику</string>
-    <string name="diagnostics_running_button">Проверяем…</string>
+    <string name="run_diagnostics">net test</string>
+    <string name="diagnostics_running_button">testing...</string>
     <string name="diagnostics_running">Выполняем тест задержки и пропускной способности.</string>
     <string name="diagnostics_idle">Диагностика не запущена. Сначала подключите VPN.</string>
     <string name="diagnostics_runtime_unavailable">VPN ещё не активен. Сначала подключитесь.</string>

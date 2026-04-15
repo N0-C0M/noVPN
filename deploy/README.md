@@ -38,5 +38,5 @@ profile endpoint separate:
 go run ./cmd/client-profile-sync \
   -input /var/lib/novpn/reality/client-profile.yaml \
   -bootstrap-address 2.26.85.47 \
-  -bootstrap-api-base http://2.26.85.47:9112/admin
+  -bootstrap-api-base http://2.26.85.47/admin
 ```

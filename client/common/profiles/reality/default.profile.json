@@ -1,16 +1,18 @@
 {
-  "name": "Финляндия",
+  "name": "Default Reality Profile",
   "server": {
-    "address": "2.26.85.47",
+    "server_id": "primary",
+    "address": "87.121.105.190",
     "port": 8443,
-    "uuid": "00000000-0000-4000-8000-000000000000",
+    "uuid": "4daa5dd8-d732-465b-95e6-4b0a76dcb364",
     "flow": "xtls-rprx-vision",
     "server_name": "www.cloudflare.com",
     "fingerprint": "chrome",
-    "public_key": "REPLACE_WITH_SERVER_PUBLIC_KEY",
-    "short_id": "REPLACE_WITH_SHORT_ID",
-    "location_label": "Финляндия",
-    "spider_x": "/"
+    "public_key": "Bmc4LNQHa-78YKsTVz5wa-w_zsS8VzdcET4dYkW07DY",
+    "short_id": "b3bf979d07d04c47",
+    "location_label": "87.121.105.190",
+    "spider_x": "/",
+    "api_base": "http://2.26.85.47/admin"
   },
   "local": {
     "socks_listen": "127.0.0.1",
@@ -19,8 +21,6 @@
     "http_port": 10809
   },
   "obfuscation": {
-    "seed": "replace-with-shared-seed",
-    "traffic_strategy": "balanced",
-    "pattern_strategy": "steady"
+    "seed": "novpn-seed-b3bf979d07d04c47"
   }
 }

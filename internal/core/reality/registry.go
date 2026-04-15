@@ -240,6 +240,12 @@ func (s *RegistryStore) Update(mutator func(*Registry) error) (Registry, error) 
 	if err != nil {
 		return Registry{}, err
 	}
+	registry.normalize()
+
+	previousPayload, err := json.MarshalIndent(registry, "", "  ")
+	if err != nil {
+		return Registry{}, fmt.Errorf("marshal registry: %w", err)
+	}
 
 	if err := mutator(&registry); err != nil {
 		return Registry{}, err
@@ -249,6 +255,9 @@ func (s *RegistryStore) Update(mutator func(*Registry) error) (Registry, error) 
 	payload, err := json.MarshalIndent(registry, "", "  ")
 	if err != nil {
 		return Registry{}, fmt.Errorf("marshal registry: %w", err)
+	}
+	if bytes.Equal(previousPayload, payload) {
+		return registry, nil
 	}
 	payload = append(payload, '\n')
 
@@ -1263,13 +1272,13 @@ func (s *RegistryStore) MergeRemote(remote Registry) (bool, Registry, error) {
 		local.normalize()
 		remote.normalize()
 
-		before, err := json.Marshal(local)
+		before, err := json.Marshal(runtimeComparableRegistry(*local))
 		if err != nil {
 			return err
 		}
 
 		merged := mergeRegistrySnapshots(*local, remote)
-		after, err := json.Marshal(merged)
+		after, err := json.Marshal(runtimeComparableRegistry(merged))
 		if err != nil {
 			return err
 		}
@@ -1283,6 +1292,9 @@ func (s *RegistryStore) MergeRemote(remote Registry) (bool, Registry, error) {
 
 func mergeRegistrySnapshots(local Registry, remote Registry) Registry {
 	merged := remote
+	if local.Server != (RegistryServer{}) {
+		merged.Server = local.Server
+	}
 	localClients := make(map[string]ClientRecord, len(local.Clients))
 	for _, client := range local.Clients {
 		localClients[client.ID] = client
@@ -1292,6 +1304,10 @@ func mergeRegistrySnapshots(local Registry, remote Registry) Registry {
 		remoteClient := &merged.Clients[index]
 		localClient, ok := localClients[remoteClient.ID]
 		if !ok {
+			continue
+		}
+		if remoteClient.ID == local.BootstrapClientID || remoteClient.DeviceID == "bootstrap" {
+			preserveBootstrapClient(remoteClient, localClient)
 			continue
 		}
 		if localClient.TrafficUsedBytes > remoteClient.TrafficUsedBytes {
@@ -1314,5 +1330,71 @@ func mergeRegistrySnapshots(local Registry, remote Registry) Registry {
 	if merged.BootstrapClientID == "" {
 		merged.BootstrapClientID = local.BootstrapClientID
 	}
+	if merged.BootstrapClientID != "" && merged.findClient(merged.BootstrapClientID) == nil {
+		if bootstrap := local.findClient(merged.BootstrapClientID); bootstrap != nil {
+			merged.Clients = append(merged.Clients, *bootstrap)
+		}
+	}
 	return merged
+}
+
+func preserveBootstrapClient(target *ClientRecord, source ClientRecord) {
+	target.ID = source.ID
+	target.Name = source.Name
+	target.DeviceID = source.DeviceID
+	target.DeviceName = source.DeviceName
+	target.UUID = source.UUID
+	target.Email = source.Email
+	target.InviteCode = source.InviteCode
+	target.PlanID = source.PlanID
+	target.PlanName = source.PlanName
+	target.AllowedServerIDs = append([]string(nil), source.AllowedServerIDs...)
+	target.CreatedAt = source.CreatedAt
+	target.UpdatedAt = source.UpdatedAt
+	target.RevokedAt = source.RevokedAt
+	target.LastSeenAt = source.LastSeenAt
+	target.AccessExpiresAt = source.AccessExpiresAt
+	target.TrafficLimitBytes = source.TrafficLimitBytes
+	target.TrafficBonusBytes = source.TrafficBonusBytes
+	target.TrafficUsedBytes = source.TrafficUsedBytes
+	target.TrafficObservedBytes = source.TrafficObservedBytes
+	target.LastTrafficSyncAt = source.LastTrafficSyncAt
+	target.TrafficBlockedAt = source.TrafficBlockedAt
+	target.Active = source.Active
+}
+
+type runtimeComparableRegistrySnapshot struct {
+	BootstrapClientID string                            `json:"bootstrap_client_id,omitempty"`
+	Clients           []runtimeComparableClientSnapshot `json:"clients,omitempty"`
+}
+
+type runtimeComparableClientSnapshot struct {
+	ID               string     `json:"id"`
+	UUID             string     `json:"uuid"`
+	Email            string     `json:"email"`
+	CreatedAt        time.Time  `json:"created_at"`
+	Active           bool       `json:"active"`
+	RevokedAt        *time.Time `json:"revoked_at,omitempty"`
+	AccessExpiresAt  *time.Time `json:"access_expires_at,omitempty"`
+	TrafficBlockedAt *time.Time `json:"traffic_blocked_at,omitempty"`
+}
+
+func runtimeComparableRegistry(registry Registry) runtimeComparableRegistrySnapshot {
+	comparable := runtimeComparableRegistrySnapshot{
+		BootstrapClientID: strings.TrimSpace(registry.BootstrapClientID),
+		Clients:           make([]runtimeComparableClientSnapshot, 0, len(registry.Clients)),
+	}
+	for _, client := range registry.Clients {
+		comparable.Clients = append(comparable.Clients, runtimeComparableClientSnapshot{
+			ID:               client.ID,
+			UUID:             client.UUID,
+			Email:            client.Email,
+			CreatedAt:        client.CreatedAt,
+			Active:           client.Active,
+			RevokedAt:        client.RevokedAt,
+			AccessExpiresAt:  client.AccessExpiresAt,
+			TrafficBlockedAt: client.TrafficBlockedAt,
+		})
+	}
+	return comparable
 }

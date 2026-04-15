@@ -1,0 +1,18 @@
+generated_at: 2026-04-15T14:51:54.746253623Z
+name: Bootstrap device
+type: vless-reality
+server_id: primary
+address: 87.121.105.190
+port: 8443
+uuid: 4daa5dd8-d732-465b-95e6-4b0a76dcb364
+flow: xtls-rprx-vision
+network: tcp
+security: reality
+server_name: www.cloudflare.com
+fingerprint: chrome
+public_key: Bmc4LNQHa-78YKsTVz5wa-w_zsS8VzdcET4dYkW07DY
+short_id: b3bf979d07d04c47
+short_ids:
+    - b3bf979d07d04c47
+spider_x: /
+location_label: 87.121.105.190

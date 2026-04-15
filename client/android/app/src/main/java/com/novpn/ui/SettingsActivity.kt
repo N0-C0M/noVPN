@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.graphics.Color
@@ -79,6 +80,7 @@ class SettingsActivity : ComponentActivity() {
     private lateinit var disguiseNameValue: TextView
     private lateinit var disguisePackageValue: TextView
     private lateinit var disguiseCommandValue: TextView
+    private lateinit var connectionDetailsSummary: TextView
 
     private var appRoutingMode = AppRoutingMode.EXCLUDE_SELECTED
     private var defaultWhitelistEnabled = true
@@ -121,6 +123,7 @@ class SettingsActivity : ComponentActivity() {
             }
 
             content.addView(buildHeader())
+            content.addView(buildConnectionDetailsCard())
             content.addView(buildRoutingCard())
             content.addView(buildRuStoreAppsCard())
             content.addView(buildStrategiesCard())
@@ -247,6 +250,25 @@ class SettingsActivity : ComponentActivity() {
             modeRow.addView(modeExcludeButton)
             modeRow.addView(modeOnlySelectedButton)
             addView(modeRow)
+        }
+    }
+
+    private fun buildConnectionDetailsCard(): LinearLayout {
+        return card(dp(24)).apply {
+            addView(label("Connection details", 16f, "#F3F6FB", true))
+            addView(
+                label(
+                    "Technical details from the home screen are kept here so the main screen stays minimal.",
+                    12f,
+                    "#8091A7",
+                    false
+                ).apply {
+                    setPadding(0, dp(8), 0, dp(12))
+                }
+            )
+
+            connectionDetailsSummary = label(buildConnectionDetailsText(), 12f, "#9DB1C6", false)
+            addView(connectionDetailsSummary)
         }
     }
 
@@ -857,6 +879,22 @@ class SettingsActivity : ComponentActivity() {
         clipboard.setPrimaryClip(ClipData.newPlainText("novpn_disguise_build", identity.rebuildCommand))
     }
 
+    private fun buildConnectionDetailsText(): String {
+        val items = listOf(
+            "Server: ${intent.getStringExtra(EXTRA_SERVER_NAME).orEmpty().ifBlank { getString(R.string.header_no_server) }}",
+            "Routing: ${intent.getStringExtra(EXTRA_ROUTING_SUMMARY).orEmpty().ifBlank { "-" }}",
+            "Apps: ${intent.getStringExtra(EXTRA_APPS_SUMMARY).orEmpty().ifBlank { "-" }}",
+            "Masking: ${intent.getStringExtra(EXTRA_STRATEGY_SUMMARY).orEmpty().ifBlank { "-" }}",
+            "Blocklist: ${intent.getStringExtra(EXTRA_BLOCKLIST_SUMMARY).orEmpty().ifBlank { "-" }}"
+        ).toMutableList()
+
+        val notices = intent.getStringExtra(EXTRA_NOTICES_SUMMARY).orEmpty().trim()
+        if (notices.isNotBlank()) {
+            items += "Notices: $notices"
+        }
+        return items.joinToString("\n")
+    }
+
     private fun card(topMargin: Int): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -945,5 +983,33 @@ class SettingsActivity : ComponentActivity() {
             value,
             resources.displayMetrics
         )
+    }
+
+    companion object {
+        private const val EXTRA_SERVER_NAME = "extra_server_name"
+        private const val EXTRA_ROUTING_SUMMARY = "extra_routing_summary"
+        private const val EXTRA_APPS_SUMMARY = "extra_apps_summary"
+        private const val EXTRA_STRATEGY_SUMMARY = "extra_strategy_summary"
+        private const val EXTRA_BLOCKLIST_SUMMARY = "extra_blocklist_summary"
+        private const val EXTRA_NOTICES_SUMMARY = "extra_notices_summary"
+
+        fun createIntent(
+            context: Context,
+            serverName: String,
+            routingSummary: String,
+            appsSummary: String,
+            strategySummary: String,
+            blocklistSummary: String,
+            noticesSummary: String
+        ): Intent {
+            return Intent(context, SettingsActivity::class.java).apply {
+                putExtra(EXTRA_SERVER_NAME, serverName)
+                putExtra(EXTRA_ROUTING_SUMMARY, routingSummary)
+                putExtra(EXTRA_APPS_SUMMARY, appsSummary)
+                putExtra(EXTRA_STRATEGY_SUMMARY, strategySummary)
+                putExtra(EXTRA_BLOCKLIST_SUMMARY, blocklistSummary)
+                putExtra(EXTRA_NOTICES_SUMMARY, noticesSummary)
+            }
+        }
     }
 }

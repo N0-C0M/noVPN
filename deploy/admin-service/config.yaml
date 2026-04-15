@@ -16,7 +16,7 @@ admin:
   catalog_path: /var/lib/novpn/admin/catalog.json
   token: change-me-admin-token
   base_path: /admin
-  public_base_url: http://2.26.85.47:9112/admin
+  public_base_url: http://2.26.85.47/admin
   runtime_mode: remote
   control_plane_token: change-me-control-plane-token
 

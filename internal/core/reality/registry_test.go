@@ -255,6 +255,130 @@ func TestBuildClientProfilesForAdditionalServerUsesPrimaryPublicKeyFallback(t *t
 	}
 }
 
+func TestMergeRemoteIgnoresNonRuntimeDifferences(t *testing.T) {
+	t.Parallel()
+
+	store := NewRegistryStore(filepath.Join(t.TempDir(), "registry.json"), nil)
+	createdAt := time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC)
+	localTrafficSync := createdAt.Add(10 * time.Minute)
+	bootstrapUpdatedAt := createdAt.Add(20 * time.Minute)
+
+	local := Registry{
+		Version:           2,
+		BootstrapClientID: "bootstrap",
+		Server: RegistryServer{
+			PublicHost: "87.121.105.190",
+			PublicPort: 8443,
+		},
+		Clients: []ClientRecord{
+			{
+				ID:         "bootstrap",
+				Name:       "Bootstrap device",
+				DeviceID:   "bootstrap",
+				DeviceName: "Bootstrap device",
+				UUID:       "bootstrap-uuid",
+				Email:      "bootstrap@novpn",
+				CreatedAt:  createdAt,
+				UpdatedAt:  bootstrapUpdatedAt,
+				Active:     true,
+			},
+			{
+				ID:                "client-1",
+				UUID:              "client-uuid",
+				Email:             "client@novpn",
+				CreatedAt:         createdAt.Add(time.Minute),
+				Active:            true,
+				TrafficUsedBytes:  1024,
+				LastTrafficSyncAt: &localTrafficSync,
+			},
+		},
+	}
+	if _, err := store.Update(func(registry *Registry) error {
+		*registry = local
+		return nil
+	}); err != nil {
+		t.Fatalf("seed local registry: %v", err)
+	}
+
+	remote := local
+	remote.Server.PublicHost = "2.26.85.47"
+	remote.Clients[0].UpdatedAt = createdAt.Add(40 * time.Minute)
+	remote.Clients[1].TrafficUsedBytes = 1
+	remoteTrafficSync := createdAt.Add(50 * time.Minute)
+	remote.Clients[1].LastTrafficSyncAt = &remoteTrafficSync
+
+	changed, merged, err := store.MergeRemote(remote)
+	if err != nil {
+		t.Fatalf("merge remote registry: %v", err)
+	}
+	if changed {
+		t.Fatalf("expected runtime comparison to ignore metadata-only diffs")
+	}
+	if merged.Server.PublicHost != local.Server.PublicHost {
+		t.Fatalf("expected local VPN server host to be preserved, got %q", merged.Server.PublicHost)
+	}
+	bootstrap := merged.findClient("bootstrap")
+	if bootstrap == nil {
+		t.Fatalf("expected bootstrap client to remain present")
+	}
+	if !bootstrap.UpdatedAt.Equal(bootstrapUpdatedAt) {
+		t.Fatalf("expected bootstrap updated_at to stay local, got %s", bootstrap.UpdatedAt)
+	}
+	client := merged.findClient("client-1")
+	if client == nil {
+		t.Fatalf("expected merged client to remain present")
+	}
+	if client.TrafficUsedBytes != 1024 {
+		t.Fatalf("expected higher local traffic counter to be preserved, got %d", client.TrafficUsedBytes)
+	}
+}
+
+func TestMergeRemoteDetectsRuntimeChanges(t *testing.T) {
+	t.Parallel()
+
+	store := NewRegistryStore(filepath.Join(t.TempDir(), "registry.json"), nil)
+	createdAt := time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC)
+
+	local := Registry{
+		Version:           2,
+		BootstrapClientID: "bootstrap",
+		Clients: []ClientRecord{
+			{
+				ID:        "bootstrap",
+				DeviceID:  "bootstrap",
+				UUID:      "bootstrap-uuid",
+				Email:     "bootstrap@novpn",
+				CreatedAt: createdAt,
+				Active:    true,
+			},
+			{
+				ID:        "client-1",
+				UUID:      "client-uuid",
+				Email:     "client@novpn",
+				CreatedAt: createdAt.Add(time.Minute),
+				Active:    true,
+			},
+		},
+	}
+	if _, err := store.Update(func(registry *Registry) error {
+		*registry = local
+		return nil
+	}); err != nil {
+		t.Fatalf("seed local registry: %v", err)
+	}
+
+	remote := local
+	remote.Clients[1].Email = "client-renamed@novpn"
+
+	changed, _, err := store.MergeRemote(remote)
+	if err != nil {
+		t.Fatalf("merge remote registry: %v", err)
+	}
+	if !changed {
+		t.Fatalf("expected runtime comparison to detect active client identity change")
+	}
+}
+
 func newTestRegistryStore(t *testing.T) *RegistryStore {
 	t.Helper()
 	return NewRegistryStore(filepath.Join(t.TempDir(), "registry.json"), nil)

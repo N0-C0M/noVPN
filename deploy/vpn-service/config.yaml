@@ -28,16 +28,9 @@ control_plane:
 
 security:
   auth:
-    mode: source_ip_allowlist
-    allowed_cidrs:
-      - 127.0.0.1/32
-      - ::1/128
+    mode: noop
   acl:
-    mode: policy
-    allowed_networks:
-      - tcp
-      - udp
-    allowed_upstreams: []
+    mode: allow_all
 
 core:
   reality:
