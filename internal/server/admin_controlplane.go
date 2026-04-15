@@ -284,13 +284,23 @@ func (a *adminApp) buildInviteRequestFromPlan(planID string, name string, note s
 
 func (a *adminApp) buildClientProfiles(state reality.State, client reality.ClientRecord) []reality.ClientProfile {
 	servers, err := a.catalogStore.FindServers(client.AllowedServerIDs)
-	if err == nil && len(servers) > 0 {
-		profiles := reality.BuildClientProfilesForCatalog(state, client, servers)
-		if len(profiles) > 0 {
+	if err == nil {
+		if profiles, ok := catalogProfilesForClient(state, client, servers); ok {
 			return a.applyAPIBase(profiles)
 		}
 	}
 	return a.applyAPIBase(a.reality.BuildClientProfilesFor(state, client))
+}
+
+func catalogProfilesForClient(state reality.State, client reality.ClientRecord, servers []controlplane.ServerNode) ([]reality.ClientProfile, bool) {
+	profiles := reality.BuildClientProfilesForCatalog(state, client, servers)
+	if len(profiles) > 0 {
+		return profiles, true
+	}
+	if len(client.AllowedServerIDs) > 0 {
+		return nil, true
+	}
+	return nil, false
 }
 
 func (a *adminApp) applyAPIBase(profiles []reality.ClientProfile) []reality.ClientProfile {

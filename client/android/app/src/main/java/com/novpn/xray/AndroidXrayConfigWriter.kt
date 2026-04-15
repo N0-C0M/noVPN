@@ -54,12 +54,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
             rules.put(
                 JSONObject()
                     .put("type", "field")
-                    .put(
-                        "domain",
-                        JSONArray()
-                            .put("domain:ru")
-                            .put("domain:xn--p1ai")
-                    )
+                    .put("domain", buildDirectDomainSuffixes("ru", "xn--p1ai", "su"))
                     .put("outboundTag", "direct")
                     .put("ruleTag", "ru-domain-direct")
             )
@@ -210,5 +205,20 @@ class AndroidXrayConfigWriter(private val context: Context) {
             "googleusercontent.com",
             "ggpht.com"
         )
+
+        private fun buildDirectDomainSuffixes(vararg suffixes: String): JSONArray {
+            return JSONArray().apply {
+                suffixes.forEach { suffix ->
+                    val normalized = suffix.trim().lowercase()
+                    if (normalized.isBlank() || !DIRECT_DOMAIN_SUFFIX_REGEX.matches(normalized)) {
+                        return@forEach
+                    }
+                    put("domain:$normalized")
+                    put("regexp:(^|\\\\.).*\\\\.$normalized$")
+                }
+            }
+        }
+
+        private val DIRECT_DOMAIN_SUFFIX_REGEX = Regex("^[a-z0-9-]+$")
     }
 }

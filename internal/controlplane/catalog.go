@@ -395,7 +395,10 @@ func (snapshot *CatalogSnapshot) normalize() {
 		plan.TrafficLimitBytes = clampNonNegativeInt64(plan.TrafficLimitBytes)
 		plan.PriceMinor = clampNonNegativeInt64(plan.PriceMinor)
 		plan.Currency = strings.ToUpper(strings.TrimSpace(plan.Currency))
-		plan.ServerIDs = normalizeServerIDs(plan.ServerIDs)
+		plan.ServerIDs = snapshot.filterExistingServerIDs(plan.ServerIDs)
+		if len(plan.ServerIDs) == 0 {
+			plan.Active = false
+		}
 		if plan.CreatedAt.IsZero() {
 			plan.CreatedAt = now
 		}
@@ -462,6 +465,22 @@ func (snapshot CatalogSnapshot) findPlan(id string) *SubscriptionPlan {
 		}
 	}
 	return nil
+}
+
+func (snapshot CatalogSnapshot) filterExistingServerIDs(values []string) []string {
+	normalized := normalizeServerIDs(values)
+	if len(normalized) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(normalized))
+	for _, serverID := range normalized {
+		server := snapshot.findServer(serverID)
+		if server == nil || !server.Active {
+			continue
+		}
+		result = append(result, serverID)
+	}
+	return result
 }
 
 func buildServerID(name string, address string, fallbackIndex int) string {
