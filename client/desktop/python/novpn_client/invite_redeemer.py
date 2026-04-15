@@ -15,9 +15,14 @@ class CodeRedeemKind(str, Enum):
 class CodeRedeemResult:
     kind: CodeRedeemKind
     profile_payload: str = ""
+    profile_payloads: list[str] | None = None
     profile_name: str = ""
     bonus_bytes: int = 0
     activation_mode: str = ""
+
+    def __post_init__(self) -> None:
+        if self.profile_payloads is None:
+            self.profile_payloads = []
 
 
 class InviteRedeemer:
@@ -43,25 +48,27 @@ class InviteRedeemer:
         response = self._post_json(endpoint, payload)
         kind = str(response.get("kind", "")).strip().lower()
         if kind == CodeRedeemKind.INVITE.value:
-            profile_payload = str(response.get("client_profile_yaml", "")).strip()
-            if not profile_payload:
+            payloads = self._extract_profile_payloads(response)
+            if not payloads:
                 raise RuntimeError("Сервер не вернул профиль клиента.")
             profile_name = ""
             if isinstance(response.get("client_profile"), dict):
                 profile_name = str(response["client_profile"].get("name", "")).strip()
             return CodeRedeemResult(
                 kind=CodeRedeemKind.INVITE,
-                profile_payload=profile_payload,
+                profile_payload=payloads[0],
+                profile_payloads=payloads,
                 profile_name=profile_name,
             )
         if kind == CodeRedeemKind.PROMO.value:
-            profile_payload = str(response.get("client_profile_yaml", "")).strip()
+            payloads = self._extract_profile_payloads(response)
             profile_name = ""
             if isinstance(response.get("client_profile"), dict):
                 profile_name = str(response["client_profile"].get("name", "")).strip()
             return CodeRedeemResult(
                 kind=CodeRedeemKind.PROMO,
-                profile_payload=profile_payload,
+                profile_payload=payloads[0] if payloads else "",
+                profile_payloads=payloads,
                 profile_name=profile_name,
                 bonus_bytes=int(response.get("bonus_bytes", 0) or 0),
                 activation_mode=str(response.get("activation_mode", "")).strip().lower(),
@@ -121,3 +128,21 @@ class InviteRedeemer:
 
     def _normalize_server_address(self, server_address: str) -> str:
         return server_address.strip().strip("/").removeprefix("http://").removeprefix("https://")
+
+    def _extract_profile_payloads(self, response: dict[str, object]) -> list[str]:
+        payloads: list[str] = []
+        raw_payloads = response.get("client_profiles_yaml")
+        if isinstance(raw_payloads, list):
+            for item in raw_payloads:
+                if not isinstance(item, str):
+                    continue
+                candidate = item.strip()
+                if candidate:
+                    payloads.append(candidate)
+        if payloads:
+            return payloads
+
+        fallback = str(response.get("client_profile_yaml", "")).strip()
+        if fallback:
+            payloads.append(fallback)
+        return payloads

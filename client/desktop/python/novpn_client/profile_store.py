@@ -283,4 +283,5 @@ _PENDING_ROOT_DOMAIN = "xower.eu.org"
 _IPV4_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 _SERVER_LOCATION_LABELS = {
     "2.26.85.47": "Finland",
+    "87.121.105.190": "Switzerland (fast)",
 }

@@ -50,7 +50,8 @@ enum class PatternMaskingStrategy(
 
 object ServerLocationCatalog {
     private val labelsByAddress = mapOf(
-        "2.26.85.47" to "Финляндия"
+        "2.26.85.47" to "Финляндия",
+        "87.121.105.190" to "Швейцария (fast)"
     )
 
     fun labelFor(address: String): String {

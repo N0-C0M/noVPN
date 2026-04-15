@@ -241,15 +241,14 @@ func validateAdditionalRealityServers(servers []RealityAdditionalServerConfig) e
 		}
 
 		publicKey := strings.TrimSpace(server.PublicKey)
-		if publicKey == "" {
-			return fmt.Errorf("%s.public_key must not be empty", label)
-		}
-		rawKey, err := base64.RawURLEncoding.DecodeString(publicKey)
-		if err != nil {
-			return fmt.Errorf("%s.public_key: %w", label, err)
-		}
-		if _, err := ecdh.X25519().NewPublicKey(rawKey); err != nil {
-			return fmt.Errorf("%s.public_key: %w", label, err)
+		if publicKey != "" {
+			rawKey, err := base64.RawURLEncoding.DecodeString(publicKey)
+			if err != nil {
+				return fmt.Errorf("%s.public_key: %w", label, err)
+			}
+			if _, err := ecdh.X25519().NewPublicKey(rawKey); err != nil {
+				return fmt.Errorf("%s.public_key: %w", label, err)
+			}
 		}
 
 		shortIDs := append([]string(nil), server.ShortIDs...)

@@ -1,6 +1,7 @@
 package reality
 
 import (
+	"novpn/internal/config"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -205,6 +206,52 @@ func TestRedeemPromoKeepsBonusFlowForBoundClient(t *testing.T) {
 	}
 	if result.Client.TrafficLimitBytes != initialLimit+promo.BonusBytes {
 		t.Fatalf("expected updated limit %d, got %d", initialLimit+promo.BonusBytes, result.Client.TrafficLimitBytes)
+	}
+}
+
+func TestBuildClientProfilesForAdditionalServerUsesPrimaryPublicKeyFallback(t *testing.T) {
+	cfg := config.RealityConfig{
+		PublicHost: "2.26.85.47",
+		PublicPort: 443,
+		ServerNames: []string{
+			"www.cloudflare.com",
+		},
+		AdditionalServers: []config.RealityAdditionalServerConfig{
+			{
+				Name:       "Switzerland (fast)",
+				PublicHost: "87.121.105.190",
+				PublicPort: 8443,
+				ServerNames: []string{
+					"www.cloudflare.com",
+				},
+				VPNOnly: true,
+			},
+		},
+	}
+
+	state := State{
+		PublicKey: "primary-public-key",
+		ShortIDs:  []string{"abcd1234"},
+	}
+	client := ClientRecord{
+		Name: "test-device",
+		UUID: "11111111-1111-1111-1111-111111111111",
+	}
+
+	profiles := buildClientProfilesFor(cfg, state, client)
+	if len(profiles) != 2 {
+		t.Fatalf("expected 2 profiles, got %d", len(profiles))
+	}
+
+	additional := profiles[1]
+	if additional.Address != "87.121.105.190" {
+		t.Fatalf("unexpected additional profile address: %q", additional.Address)
+	}
+	if additional.PublicKey != state.PublicKey {
+		t.Fatalf("expected fallback public key %q, got %q", state.PublicKey, additional.PublicKey)
+	}
+	if !strings.Contains(additional.Name, "(VPN)") {
+		t.Fatalf("expected VPN suffix in profile name, got %q", additional.Name)
 	}
 }
 

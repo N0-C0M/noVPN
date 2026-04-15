@@ -988,7 +988,7 @@ func buildClientProfilesFor(cfg config.RealityConfig, state State, client Client
 			Security:    "reality",
 			ServerName:  serverName,
 			Fingerprint: additional.Fingerprint,
-			PublicKey:   strings.TrimSpace(additional.PublicKey),
+			PublicKey:   firstNonEmpty(strings.TrimSpace(additional.PublicKey), strings.TrimSpace(state.PublicKey)),
 			ShortID:     shortID,
 			ShortIDs:    shortIDs,
 			SpiderX:     additional.SpiderX,

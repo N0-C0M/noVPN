@@ -48,6 +48,13 @@ core:
         - http
         - tls
         - quic
+    additional_servers:
+      - name: Швейцария (fast)
+        public_host: 87.121.105.190
+        public_port: 8443
+        server_names:
+          - www.cloudflare.com
+        vpn_only: true
     xray:
       binary_path: /usr/local/bin/xray
       config_path: /usr/local/etc/xray/config.json

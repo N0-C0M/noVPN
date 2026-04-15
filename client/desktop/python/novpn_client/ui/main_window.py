@@ -459,7 +459,7 @@ class MainWindow:
         self._idle_status_detail = "Запрашиваю профиль или бонус трафика у сервера."
         self._render()
 
-        def task() -> tuple[CodeRedeemResult, str]:
+        def task() -> tuple[CodeRedeemResult, list[str]]:
             server_address = self._profile_store.bootstrap_server_address()
             if self._state.selected_profile_key:
                 server_address = self._current_profile().server.address
@@ -469,28 +469,38 @@ class MainWindow:
                 device_id=self._device_identity_store.device_id(),
                 device_name=self._device_identity_store.device_name(),
             )
-            profile_key = ""
-            if result.profile_payload.strip():
-                option = self._profile_store.import_profile_payload(result.profile_payload, f"invite-{code}")
-                profile_key = option.key
-            return result, profile_key
+            profile_keys: list[str] = []
+            payloads = [value.strip() for value in result.profile_payloads if value.strip()]
+            if not payloads and result.profile_payload.strip():
+                payloads = [result.profile_payload.strip()]
+            for index, payload in enumerate(payloads):
+                option = self._profile_store.import_profile_payload(payload, f"invite-{code}-{index + 1}")
+                profile_keys.append(option.key)
+            return result, profile_keys
 
         self._run_async(task, self._on_activate_success, self._on_async_error)
 
-    def _on_activate_success(self, payload: tuple[CodeRedeemResult, str]) -> None:
-        result, profile_key = payload
-        if profile_key:
+    def _on_activate_success(self, payload: tuple[CodeRedeemResult, list[str]]) -> None:
+        result, profile_keys = payload
+        if profile_keys:
             if self._runtime_manager.status().running:
                 self._runtime_manager.stop()
-            self._reload_profiles(profile_key)
+            self._reload_profiles(profile_keys[0])
             self._runtime_note = ""
             self._sync_preview_config()
             name = result.profile_name or (self._current_profile_option().name if self._current_profile_option() else "профиль")
             self._idle_status_title = "Готово"
-            self._idle_status_detail = f"Код активирован: {name}"
+            profile_count = len(profile_keys)
+            if profile_count > 1:
+                self._idle_status_detail = f"Код активирован: {name}. Импортировано профилей: {profile_count}."
+            else:
+                self._idle_status_detail = f"Код активирован: {name}"
             self._busy = False
             self._render()
-            messagebox.showinfo("NoVPN", f"Код активирован: {name}")
+            if profile_count > 1:
+                messagebox.showinfo("NoVPN", f"Код активирован: {name}\nИмпортировано профилей: {profile_count}")
+            else:
+                messagebox.showinfo("NoVPN", f"Код активирован: {name}")
             self._start_runtime()
             return
 
