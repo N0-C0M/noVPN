@@ -67,9 +67,10 @@ class ProfileRepository(private val context: Context) {
         val profile = parseImportedPayload(payload)
         profile.requireRuntimeReady()
 
-        val fileName = buildImportedFileName(nameHint, profile)
+        val serializedProfile = serializeProfile(profile)
+        val fileName = buildImportedFileName(nameHint, profile, serializedProfile)
         val outputFile = File(importedProfilesDir, fileName)
-        outputFile.writeText(serializeProfile(profile))
+        outputFile.writeText(serializedProfile)
         return AvailableProfile(
             profileId = fileProfileId(fileName),
             name = profile.name,
@@ -322,7 +323,11 @@ class ProfileRepository(private val context: Context) {
         )
     }
 
-    private fun buildImportedFileName(nameHint: String, profile: ClientProfile): String {
+    private fun buildImportedFileName(
+        nameHint: String,
+        profile: ClientProfile,
+        serializedProfile: String
+    ): String {
         val candidates = listOf(
             nameHint,
             profile.name,
@@ -332,7 +337,21 @@ class ProfileRepository(private val context: Context) {
             .map(::slugify)
             .firstOrNull { it.isNotBlank() }
             ?: "imported-profile-" + UUID.randomUUID().toString().substring(0, 8)
-        return "profile.$slug.json"
+
+        val baseName = "profile.$slug"
+        var suffix = 0
+        while (true) {
+            val fileName = if (suffix == 0) "$baseName.json" else "$baseName-$suffix.json"
+            val targetFile = File(importedProfilesDir, fileName)
+            if (!targetFile.exists()) {
+                return fileName
+            }
+            val existingPayload = runCatching { targetFile.readText() }.getOrNull()
+            if (existingPayload == serializedProfile) {
+                return fileName
+            }
+            suffix++
+        }
     }
 
     private fun slugify(value: String): String {

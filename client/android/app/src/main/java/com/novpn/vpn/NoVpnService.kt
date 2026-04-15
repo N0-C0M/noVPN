@@ -31,6 +31,7 @@ import com.novpn.xray.AndroidXrayConfigWriter
 import java.net.InetAddress
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 
 class NoVpnService : VpnService() {
@@ -48,11 +49,14 @@ class NoVpnService : VpnService() {
     }
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     private val coreLock = Any()
+    private val latestStartId = AtomicInteger(0)
     private var tunnelInterface: ParcelFileDescriptor? = null
     @Volatile
     private var coreSessionActive = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId.updateAndGet { maxOf(it, startId) }
+
         when (intent?.action) {
             ACTION_START -> {
                 val profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
@@ -62,7 +66,9 @@ class NoVpnService : VpnService() {
                             status = getString(R.string.runtime_start_failed),
                             detail = getString(R.string.runtime_profile_incomplete)
                         )
-                        stopSelf()
+                        mainHandler.post {
+                            stopServiceForStartId(startId)
+                        }
                         return START_NOT_STICKY
                     }
                 val bypassRu = intent.getBooleanExtra(EXTRA_BYPASS_RU, true)
@@ -90,32 +96,39 @@ class NoVpnService : VpnService() {
                             patternStrategy = patternStrategy
                         )
                     }.onFailure {
+                        if (!isLatestCommand(startId)) {
+                            return@onFailure
+                        }
                         runtimeStatusStore.markFailed(
                             status = getString(R.string.runtime_start_failed),
                             detail = buildFailureDetail(it)
                         )
                         stopCore()
                         mainHandler.post {
-                            stopForeground(STOP_FOREGROUND_REMOVE)
-                            stopSelf()
+                            stopServiceForStartId(startId)
                         }
                     }
                 }
+                return START_STICKY
             }
 
             ACTION_STOP -> {
                 worker.execute {
+                    if (!isLatestCommand(startId)) {
+                        return@execute
+                    }
                     runtimeStatusStore.markStopped(getString(R.string.service_stopped))
                     RuntimeLocalProxySession.update(null)
                     stopCore()
                     mainHandler.post {
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf()
+                        stopServiceForStartId(startId)
                     }
                 }
+                return START_NOT_STICKY
             }
+
+            else -> return START_NOT_STICKY
         }
-        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -377,6 +390,19 @@ class NoVpnService : VpnService() {
             NotificationManager.IMPORTANCE_LOW
         )
         manager.createNotificationChannel(channel)
+    }
+
+    private fun isLatestCommand(startId: Int): Boolean {
+        return startId == latestStartId.get()
+    }
+
+    private fun stopServiceForStartId(startId: Int) {
+        if (!stopSelfResult(startId)) {
+            return
+        }
+        runCatching {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
     }
 
     companion object {

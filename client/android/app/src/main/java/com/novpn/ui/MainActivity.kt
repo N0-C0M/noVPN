@@ -31,7 +31,9 @@ import com.novpn.data.AvailableProfile
 import com.novpn.data.CodeRedeemKind
 import com.novpn.data.ClientPreferences
 import com.novpn.vpn.NoVpnService
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -61,6 +63,7 @@ class MainActivity : ComponentActivity() {
     private var startupOverlayDismissed = false
     private var firstRenderCompleted = false
     private var startupWarmupReady = false
+    private var runtimeStatusSyncJob: Job? = null
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -127,7 +130,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        startRuntimeStatusSync()
+    }
+
+    override fun onStop() {
+        stopRuntimeStatusSync()
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        stopRuntimeStatusSync()
         super.onDestroy()
     }
 
@@ -773,6 +787,28 @@ class MainActivity : ComponentActivity() {
         startupProgressPercent.text = "${update.progressPercent.coerceIn(0, 100)}%"
     }
 
+    private fun startRuntimeStatusSync() {
+        stopRuntimeStatusSync()
+        runtimeStatusSyncJob = lifecycleScope.launch {
+            var previousSnapshot = RuntimeStatusSnapshot.from(viewModel.state.value)
+            while (isActive) {
+                delay(RUNTIME_STATUS_SYNC_INTERVAL_MS)
+                viewModel.refreshStateFromPreferences()
+                val currentState = viewModel.state.value
+                val currentSnapshot = RuntimeStatusSnapshot.from(currentState)
+                if (currentSnapshot != previousSnapshot) {
+                    renderState(currentState)
+                    previousSnapshot = currentSnapshot
+                }
+            }
+        }
+    }
+
+    private fun stopRuntimeStatusSync() {
+        runtimeStatusSyncJob?.cancel()
+        runtimeStatusSyncJob = null
+    }
+
     private fun toggleRuntime() {
         if (viewModel.state.value.runtimeRunning) {
             animateDisconnectTransition()
@@ -1115,6 +1151,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val VPN_PERMISSION_REQUEST_CODE = 4107
+        private const val RUNTIME_STATUS_SYNC_INTERVAL_MS = 350L
     }
 
     private enum class PowerVisualState {
@@ -1122,5 +1159,21 @@ class MainActivity : ComponentActivity() {
         CONNECTING,
         CONNECTED,
         ERROR
+    }
+
+    private data class RuntimeStatusSnapshot(
+        val running: Boolean,
+        val status: String,
+        val detail: String
+    ) {
+        companion object {
+            fun from(state: TunnelState): RuntimeStatusSnapshot {
+                return RuntimeStatusSnapshot(
+                    running = state.runtimeRunning,
+                    status = state.runtimeStatus,
+                    detail = state.runtimeDetail
+                )
+            }
+        }
     }
 }
