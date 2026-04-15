@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"novpn/internal/config"
+	"novpn/internal/controlplane"
 	"novpn/internal/core/reality"
 	"novpn/internal/observability"
 )
@@ -31,7 +32,10 @@ type adminApp struct {
 	metrics       *observability.Metrics
 	logger        *slog.Logger
 	policyStore   *clientPolicyStore
+	catalogStore  *controlplane.CatalogStore
 	dashboardTpl  *template.Template
+	plansTpl      *template.Template
+	serversTpl    *template.Template
 	loginTpl      *template.Template
 	basePath      string
 	token         string
@@ -66,6 +70,9 @@ type dashboardView struct {
 	MandatoryNotices  []mandatoryNoticeRecord
 	ClientPolicyURL   string
 	ClientNoticesURL  string
+	Plans             []controlplane.SubscriptionPlan
+	PlanPageURL       string
+	ServerPageURL     string
 }
 
 type metricRow struct {
@@ -80,6 +87,7 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		metrics:       metrics,
 		logger:        logger.With("component", "admin"),
 		policyStore:   newClientPolicyStore(cfg.StoragePath),
+		catalogStore:  controlplane.NewCatalogStore(cfg.CatalogPath, logger.With("component", "catalog")),
 		basePath:      strings.TrimRight(cfg.BasePath, "/"),
 		token:         strings.TrimSpace(cfg.Token),
 		cookieName:    "novpn_admin_token",
@@ -87,6 +95,9 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 	}
 	if app.basePath == "" {
 		app.basePath = "/admin"
+	}
+	if _, err := app.catalogStore.EnsureDefaults(realityProvisioner.Config()); err != nil {
+		app.logger.Warn("catalog default sync failed", "error", err)
 	}
 	funcs := template.FuncMap{
 		"formatBytes":         formatTrafficBytes,
@@ -96,6 +107,8 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		"joinLines":           strings.Join,
 	}
 	app.dashboardTpl = template.Must(template.New("dashboard").Funcs(funcs).Parse(adminDashboardTemplate))
+	app.plansTpl = template.Must(template.New("plans").Funcs(funcs).Parse(adminPlansTemplate))
+	app.serversTpl = template.Must(template.New("servers").Funcs(funcs).Parse(adminServersTemplate))
 	app.loginTpl = template.Must(template.New("login").Funcs(funcs).Parse(adminLoginTemplate))
 	app.httpServer = &http.Server{
 		Addr:    cfg.ListenAddr,
@@ -130,6 +143,14 @@ func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 		a.handleLogin(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/public/plans") {
+		a.handlePublicPlans(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/control-plane/") {
+		a.requireControlPlaneAuth(http.HandlerFunc(a.handleControlPlaneAPI)).ServeHTTP(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/diag/") {
 		a.handlePublicDiagnostics(w, r)
 		return
@@ -156,6 +177,14 @@ func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/logout") {
 		a.handleLogout(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/plans") {
+		a.requireAuth(http.HandlerFunc(a.handlePlansPage)).ServeHTTP(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/servers") {
+		a.requireAuth(http.HandlerFunc(a.handleServersPage)).ServeHTTP(w, r)
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/api/") {
@@ -306,6 +335,11 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	plans, err := a.catalogStore.ListPlans()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	realityCfg := a.reality.Config()
 	clientSort := normalizeClientSort(r.URL.Query().Get("clients_sort"))
 	sortClients(clients, clientSort)
@@ -336,6 +370,9 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		MandatoryNotices:  mandatoryNotices,
 		ClientPolicyURL:   a.basePath + "/client/policy",
 		ClientNoticesURL:  a.basePath + "/client/notices",
+		Plans:             plans,
+		PlanPageURL:       a.basePath + "/plans",
+		ServerPageURL:     a.basePath + "/servers",
 	}
 
 	if len(state.ShortIDs) == 0 {
@@ -400,6 +437,10 @@ func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
+	case r.URL.Path == a.basePath+"/api/plans":
+		a.handlePlansAPI(w, r)
+	case r.URL.Path == a.basePath+"/api/servers":
+		a.handleServersAPI(w, r)
 	case r.URL.Path == a.basePath+"/api/policy/blocklist":
 		a.handleBlocklistPolicyAPI(w, r)
 	case r.URL.Path == a.basePath+"/api/policy/notices":
@@ -567,7 +608,7 @@ func (a *adminApp) handlePublicClientQuota(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	a.writeJSONPayload(w, http.StatusOK, map[string]any{
+	responsePayload := map[string]any{
 		"observed_at":             time.Now().UTC(),
 		"client_id":               target.ID,
 		"client_uuid":             target.UUID,
@@ -576,11 +617,32 @@ func (a *adminApp) handlePublicClientQuota(w http.ResponseWriter, r *http.Reques
 		"traffic_used_bytes":      target.TrafficUsedBytes,
 		"traffic_limit_bytes":     target.TrafficLimitBytes,
 		"traffic_remaining_bytes": target.TrafficRemainingBytes(),
-	})
+	}
+
+	if state, stateErr := a.reality.LoadState(); stateErr == nil {
+		clientProfiles := a.buildClientProfiles(state, target)
+		if len(clientProfiles) > 0 {
+			responsePayload["client_profiles"] = clientProfiles
+			if yamlPayloadList, yamlErr := marshalClientProfileYAMLList(clientProfiles); yamlErr == nil {
+				responsePayload["client_profiles_yaml"] = yamlPayloadList
+			} else {
+				a.logger.Warn("marshal client profile yaml list for quota failed", "error", yamlErr)
+			}
+		}
+	} else {
+		a.logger.Warn("load reality state for client quota failed", "error", stateErr)
+	}
+
+	a.writeJSONPayload(w, http.StatusOK, responsePayload)
 }
 
 func (a *adminApp) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeInviteCreateRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	req, err = a.expandInvitePlan(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -661,13 +723,13 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceID, payload.DeviceName)
+		redeemResult, refreshResult, err := a.redeemInviteWithSnapshot(r.Context(), code, payload.DeviceID, payload.DeviceName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		clientProfiles := a.reality.BuildClientProfilesFor(refreshResult.State, redeemResult.Client)
+		clientProfiles := a.buildClientProfiles(refreshResult.State, redeemResult.Client)
 		if len(clientProfiles) == 0 {
 			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
 			return
@@ -726,9 +788,9 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redeemResult, refreshResult, err := a.reality.RedeemInvite(r.Context(), code, payload.DeviceID, payload.DeviceName)
+	redeemResult, refreshResult, err := a.redeemInviteWithSnapshot(r.Context(), code, payload.DeviceID, payload.DeviceName)
 	if err == nil {
-		clientProfiles := a.reality.BuildClientProfilesFor(refreshResult.State, redeemResult.Client)
+		clientProfiles := a.buildClientProfiles(refreshResult.State, redeemResult.Client)
 		if len(clientProfiles) == 0 {
 			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
 			return
@@ -767,7 +829,7 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	promoResult, promoRefreshResult, promoErr := a.reality.RedeemPromo(r.Context(), code, payload.DeviceID, payload.DeviceName)
+	promoResult, promoRefreshResult, promoErr := a.redeemPromoWithSnapshot(r.Context(), code, payload.DeviceID, payload.DeviceName)
 	if promoErr != nil {
 		http.Error(w, promoErr.Error(), http.StatusBadRequest)
 		return
@@ -786,7 +848,7 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if promoResult.ActivationMode == reality.PromoActivationModeTrial {
-		clientProfiles := a.reality.BuildClientProfilesFor(promoRefreshResult.State, promoResult.Client)
+		clientProfiles := a.buildClientProfiles(promoRefreshResult.State, promoResult.Client)
 		if len(clientProfiles) == 0 {
 			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
 			return
@@ -845,7 +907,7 @@ func (a *adminApp) handlePublicDisconnect(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	client, refreshResult, err := a.reality.DisconnectDevice(r.Context(), payload.DeviceID, payload.ClientUUID)
+	client, refreshResult, err := a.disconnectClientWithSnapshot(r.Context(), payload.DeviceID, payload.ClientUUID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -895,7 +957,7 @@ func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		client, refreshResult, err := a.reality.RevokeClient(r.Context(), clientID)
+		client, refreshResult, err := a.revokeClientWithSnapshot(r.Context(), clientID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -935,7 +997,12 @@ func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		clientProfile := a.reality.BuildClientProfileFor(state, target)
+		clientProfiles := a.buildClientProfiles(state, target)
+		if len(clientProfiles) == 0 {
+			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
+			return
+		}
+		clientProfile := clientProfiles[0]
 		yamlPayload, err := marshalClientProfileYAML(clientProfile)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1116,6 +1183,7 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 		var payload struct {
 			Name           string  `json:"name"`
 			Note           string  `json:"note"`
+			PlanID         string  `json:"plan_id"`
 			MaxUses        int     `json:"max_uses"`
 			TrafficLimitGB float64 `json:"traffic_limit_gb"`
 			ExpiresMinutes int     `json:"expires_minutes"`
@@ -1126,6 +1194,7 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 		return reality.InviteCreateRequest{
 			Name:              payload.Name,
 			Note:              payload.Note,
+			PlanID:            payload.PlanID,
 			MaxUses:           payload.MaxUses,
 			TrafficLimitBytes: trafficGBToBytes(payload.TrafficLimitGB),
 			ExpiresAfter:      time.Duration(payload.ExpiresMinutes) * time.Minute,
@@ -1144,6 +1213,7 @@ func decodeInviteCreateRequest(r *http.Request) (reality.InviteCreateRequest, er
 	return reality.InviteCreateRequest{
 		Name:              r.FormValue("name"),
 		Note:              r.FormValue("note"),
+		PlanID:            r.FormValue("plan_id"),
 		MaxUses:           maxUses,
 		TrafficLimitBytes: trafficGBToBytes(trafficLimitGB),
 		ExpiresAfter:      time.Duration(minutes) * time.Minute,
@@ -1530,6 +1600,9 @@ func (a *adminApp) handleSiteImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *adminApp) syncTraffic(ctx context.Context) {
+	if !a.runtimeManaged() {
+		return
+	}
 	if _, err := a.reality.SyncTraffic(ctx); err != nil {
 		a.logger.Debug("traffic sync skipped", "error", err)
 	}
@@ -1584,6 +1657,8 @@ const adminDashboardTemplate = `
         <span class="chip">Panel: {{.PanelVersion}}</span>
         <span class="chip">Traffic sync: approximate</span>
         <span class="chip">Client sort: {{.ClientSort}}</span>
+        <a class="chip" href="{{.PlanPageURL}}">Subscription plans</a>
+        <a class="chip" href="{{.ServerPageURL}}">VPN nodes</a>
       </div>
     </div>
     <div class="hero-media">
@@ -1612,6 +1687,10 @@ const adminDashboardTemplate = `
     <div class="card">
       <h2>Create invite</h2>
       <form method="post" action="{{.BasePath}}/api/invites" class="stack">
+        <select name="plan_id">
+          <option value="">No subscription plan</option>
+          {{range .Plans}}<option value="{{.ID}}">{{.Name}} ({{.ID}})</option>{{end}}
+        </select>
         <input name="name" placeholder="Invite name, e.g. Alice phone">
         <textarea name="note" rows="3" placeholder="Note"></textarea>
         <input name="max_uses" type="number" min="1" value="1" placeholder="Allowed activations, 1 = single-device">

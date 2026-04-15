@@ -1,3 +1,4 @@
 {
-  "server_address": "2.26.85.47"
+  "server_address": "2.26.85.47",
+  "api_base": "http://2.26.85.47:9112/admin"
 }

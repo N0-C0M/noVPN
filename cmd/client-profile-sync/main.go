@@ -13,17 +13,20 @@ import (
 )
 
 type serverClientProfile struct {
-	Name        string   `yaml:"name"`
-	Address     string   `yaml:"address"`
-	Port        int      `yaml:"port"`
-	UUID        string   `yaml:"uuid"`
-	Flow        string   `yaml:"flow"`
-	ServerName  string   `yaml:"server_name"`
-	Fingerprint string   `yaml:"fingerprint"`
-	PublicKey   string   `yaml:"public_key"`
-	ShortID     string   `yaml:"short_id"`
-	ShortIDs    []string `yaml:"short_ids"`
-	SpiderX     string   `yaml:"spider_x"`
+	ServerID      string   `yaml:"server_id"`
+	Name          string   `yaml:"name"`
+	Address       string   `yaml:"address"`
+	Port          int      `yaml:"port"`
+	UUID          string   `yaml:"uuid"`
+	Flow          string   `yaml:"flow"`
+	ServerName    string   `yaml:"server_name"`
+	Fingerprint   string   `yaml:"fingerprint"`
+	PublicKey     string   `yaml:"public_key"`
+	ShortID       string   `yaml:"short_id"`
+	ShortIDs      []string `yaml:"short_ids"`
+	SpiderX       string   `yaml:"spider_x"`
+	LocationLabel string   `yaml:"location_label"`
+	APIBase       string   `yaml:"api_base"`
 }
 
 type clientProfile struct {
@@ -34,15 +37,18 @@ type clientProfile struct {
 }
 
 type clientServer struct {
-	Address     string `json:"address"`
-	Port        int    `json:"port"`
-	UUID        string `json:"uuid"`
-	Flow        string `json:"flow"`
-	ServerName  string `json:"server_name"`
-	Fingerprint string `json:"fingerprint"`
-	PublicKey   string `json:"public_key"`
-	ShortID     string `json:"short_id"`
-	SpiderX     string `json:"spider_x"`
+	ServerID      string `json:"server_id,omitempty"`
+	Address       string `json:"address"`
+	Port          int    `json:"port"`
+	UUID          string `json:"uuid"`
+	Flow          string `json:"flow"`
+	ServerName    string `json:"server_name"`
+	Fingerprint   string `json:"fingerprint"`
+	PublicKey     string `json:"public_key"`
+	ShortID       string `json:"short_id"`
+	LocationLabel string `json:"location_label,omitempty"`
+	SpiderX       string `json:"spider_x"`
+	APIBase       string `json:"api_base,omitempty"`
 }
 
 type clientLocal struct {
@@ -58,6 +64,7 @@ type clientObfuscation struct {
 
 type androidBootstrap struct {
 	ServerAddress string `json:"server_address"`
+	APIBase       string `json:"api_base,omitempty"`
 }
 
 func main() {
@@ -67,6 +74,8 @@ func main() {
 		androidOutput string
 		profileName   string
 		seed          string
+		bootstrapAddr string
+		bootstrapAPI  string
 	)
 
 	flag.StringVar(&inputPath, "input", "", "path to server client-profile.yaml")
@@ -74,6 +83,8 @@ func main() {
 	flag.StringVar(&androidOutput, "android-output", "client/android/app/src/main/secure/bootstrap.json", "path to Android bootstrap JSON")
 	flag.StringVar(&profileName, "name", "Default Reality Profile", "profile display name for generated JSON")
 	flag.StringVar(&seed, "seed", "", "shared obfuscation seed override")
+	flag.StringVar(&bootstrapAddr, "bootstrap-address", "", "override bootstrap server address used by Android before the first invite/profile sync")
+	flag.StringVar(&bootstrapAPI, "bootstrap-api-base", "", "override control-plane API base URL stored in generated profiles and Android bootstrap")
 	flag.Parse()
 
 	if strings.TrimSpace(inputPath) == "" {
@@ -89,13 +100,16 @@ func main() {
 		seed = defaultSeed(profile)
 	}
 
-	document := buildClientProfile(profile, profileName, seed)
+	document := buildClientProfile(profile, profileName, seed, bootstrapAPI)
 	if err := writeClientProfile(commonOutput, document); err != nil {
 		exitf("%v", err)
 	}
 	fmt.Printf("updated %s\n", filepath.Clean(commonOutput))
 
-	if err := writeAndroidBootstrap(androidOutput, profile.Address); err != nil {
+	if strings.TrimSpace(bootstrapAddr) == "" {
+		bootstrapAddr = profile.Address
+	}
+	if err := writeAndroidBootstrap(androidOutput, bootstrapAddr, bootstrapAPI); err != nil {
 		exitf("%v", err)
 	}
 	fmt.Printf("updated %s\n", filepath.Clean(androidOutput))
@@ -144,19 +158,26 @@ func validateServerProfile(profile serverClientProfile) error {
 	return nil
 }
 
-func buildClientProfile(profile serverClientProfile, profileName string, seed string) clientProfile {
+func buildClientProfile(profile serverClientProfile, profileName string, seed string, bootstrapAPI string) clientProfile {
+	apiBase := strings.TrimSpace(profile.APIBase)
+	if apiBase == "" {
+		apiBase = strings.TrimSpace(bootstrapAPI)
+	}
 	return clientProfile{
 		Name: profileName,
 		Server: clientServer{
-			Address:     profile.Address,
-			Port:        profile.Port,
-			UUID:        profile.UUID,
-			Flow:        profile.Flow,
-			ServerName:  profile.ServerName,
-			Fingerprint: profile.Fingerprint,
-			PublicKey:   profile.PublicKey,
-			ShortID:     profile.ShortID,
-			SpiderX:     profile.SpiderX,
+			ServerID:      strings.TrimSpace(profile.ServerID),
+			Address:       profile.Address,
+			Port:          profile.Port,
+			UUID:          profile.UUID,
+			Flow:          profile.Flow,
+			ServerName:    profile.ServerName,
+			Fingerprint:   profile.Fingerprint,
+			PublicKey:     profile.PublicKey,
+			ShortID:       profile.ShortID,
+			LocationLabel: strings.TrimSpace(profile.LocationLabel),
+			SpiderX:       profile.SpiderX,
+			APIBase:       apiBase,
 		},
 		Local: clientLocal{
 			SocksListen: "127.0.0.1",
@@ -186,9 +207,10 @@ func writeClientProfile(path string, profile clientProfile) error {
 	return nil
 }
 
-func writeAndroidBootstrap(path string, serverAddress string) error {
+func writeAndroidBootstrap(path string, serverAddress string, apiBase string) error {
 	payload, err := json.MarshalIndent(androidBootstrap{
 		ServerAddress: strings.TrimSpace(serverAddress),
+		APIBase:       strings.TrimSpace(apiBase),
 	}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal %s: %w", path, err)

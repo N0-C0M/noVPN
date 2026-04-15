@@ -28,16 +28,18 @@ data class CodeRedeemResult(
 class InviteRedeemer {
     suspend fun redeem(
         serverAddress: String,
+        apiBase: String = "",
         inviteCode: String,
         deviceId: String,
         deviceName: String
     ): CodeRedeemResult = withContext(Dispatchers.IO) {
         val normalizedAddress = serverAddress.trim().trimEnd('/')
+        val normalizedApiBase = normalizeApiBase(serverAddress, apiBase)
         val normalizedCode = inviteCode.trim()
-        require(normalizedAddress.isNotBlank()) { "No server address available for invite activation." }
+        require(normalizedAddress.isNotBlank() || normalizedApiBase.isNotBlank()) { "No server address available for invite activation." }
         require(normalizedCode.isNotBlank()) { "Enter an invite code first." }
 
-        val endpoint = URL("http://$normalizedAddress/admin/redeem/$normalizedCode")
+        val endpoint = URL("$normalizedApiBase/redeem/$normalizedCode")
         val connection = (endpoint.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -83,15 +85,7 @@ class InviteRedeemer {
                     throw IllegalStateException("Server did not return a client profile.")
                 }
 
-                val profileName = root.optJSONObject("client_profile")
-                    ?.optString("name")
-                    .orEmpty()
-                    .ifBlank {
-                        root.optJSONArray("client_profiles")
-                            ?.optJSONObject(0)
-                            ?.optString("name")
-                            .orEmpty()
-                    }
+                val profileName = extractProfileName(root)
 
                 CodeRedeemResult(
                     kind = CodeRedeemKind.INVITE,
@@ -104,15 +98,7 @@ class InviteRedeemer {
             }
             "promo" -> {
                 val payloads = extractProfilePayloads(root)
-                val profileName = root.optJSONObject("client_profile")
-                    ?.optString("name")
-                    .orEmpty()
-                    .ifBlank {
-                        root.optJSONArray("client_profiles")
-                            ?.optJSONObject(0)
-                            ?.optString("name")
-                            .orEmpty()
-                    }
+                val profileName = extractProfileName(root)
                 CodeRedeemResult(
                     kind = CodeRedeemKind.PROMO,
                     profilePayload = payloads.firstOrNull().orEmpty(),
@@ -132,16 +118,18 @@ class InviteRedeemer {
 
     suspend fun disconnect(
         serverAddress: String,
+        apiBase: String = "",
         deviceId: String,
         deviceName: String,
         clientUuid: String
     ) = withContext(Dispatchers.IO) {
         val normalizedAddress = serverAddress.trim().trimEnd('/')
-        require(normalizedAddress.isNotBlank()) { "No server address available for disconnect." }
+        val normalizedApiBase = normalizeApiBase(serverAddress, apiBase)
+        require(normalizedAddress.isNotBlank() || normalizedApiBase.isNotBlank()) { "No server address available for disconnect." }
         require(deviceId.isNotBlank()) { "Device ID is missing." }
         require(clientUuid.isNotBlank()) { "Client UUID is missing." }
 
-        val endpoint = URL("http://$normalizedAddress/admin/disconnect")
+        val endpoint = URL("$normalizedApiBase/disconnect")
         val connection = (endpoint.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -211,7 +199,87 @@ class InviteRedeemer {
                 .takeIf { it.isNotBlank() }
                 ?.let(payloads::add)
         }
+        if (payloads.isEmpty()) {
+            root.optJSONArray("client_profiles")?.let { list ->
+                for (index in 0 until list.length()) {
+                    val profileObject = list.optJSONObject(index) ?: continue
+                    buildCanonicalProfilePayload(profileObject)?.let(payloads::add)
+                }
+            }
+        }
         return payloads
+    }
+
+    private fun buildCanonicalProfilePayload(source: JSONObject): String? {
+        val name = pickString(source, "name", "Name").ifBlank { "Imported Reality Profile" }
+        val address = pickString(source, "address", "Address")
+        val port = pickInt(source, "port", "Port")
+        val uuid = pickString(source, "uuid", "UUID")
+        val flow = pickString(source, "flow", "Flow").ifBlank { "xtls-rprx-vision" }
+        val serverName = pickString(source, "server_name", "ServerName")
+        val fingerprint = pickString(source, "fingerprint", "Fingerprint").ifBlank { "chrome" }
+        val publicKey = pickString(source, "public_key", "PublicKey")
+        val shortId = pickString(source, "short_id", "ShortID")
+            .ifBlank { pickFirstString(source, "short_ids", "ShortIDs") }
+        val spiderX = pickString(source, "spider_x", "SpiderX").ifBlank { "/" }
+
+        if (address.isBlank() || port <= 0 || uuid.isBlank() || serverName.isBlank() || publicKey.isBlank() || shortId.isBlank()) {
+            return null
+        }
+
+        val payload = JSONObject()
+            .put("name", name)
+            .put(
+                "server",
+                JSONObject()
+                    .put("address", address)
+                    .put("port", port)
+                    .put("uuid", uuid)
+                    .put("flow", flow)
+                    .put("server_name", serverName)
+                    .put("fingerprint", fingerprint)
+                    .put("public_key", publicKey)
+                    .put("short_id", shortId)
+                    .put("spider_x", spiderX)
+            )
+        return payload.toString()
+    }
+
+    private fun pickString(source: JSONObject, vararg keys: String): String {
+        for (key in keys) {
+            if (source.has(key)) {
+                val value = source.optString(key).trim()
+                if (value.isNotBlank()) {
+                    return value
+                }
+            }
+        }
+        return ""
+    }
+
+    private fun pickInt(source: JSONObject, vararg keys: String): Int {
+        for (key in keys) {
+            if (source.has(key)) {
+                val value = source.optInt(key, 0)
+                if (value > 0) {
+                    return value
+                }
+            }
+        }
+        return 0
+    }
+
+    private fun pickFirstString(source: JSONObject, vararg keys: String): String {
+        for (key in keys) {
+            val array = source.optJSONArray(key) ?: continue
+            for (index in 0 until array.length()) {
+                val value = array.optString(index).trim()
+                if (value.isNotBlank()) {
+                    return value
+                }
+            }
+        }
+        return ""
     }
 
     private fun extractTrafficValue(root: JSONObject, key: String): Long? {
@@ -223,5 +291,37 @@ class InviteRedeemer {
             return null
         }
         return client.optLong(key, 0L).coerceAtLeast(0L)
+    }
+
+    private fun extractProfileName(root: JSONObject): String {
+        root.optJSONObject("client_profile")?.let { profile ->
+            pickString(profile, "name", "Name").takeIf { it.isNotBlank() }?.let { return it }
+        }
+        root.optJSONArray("client_profiles")?.let { profiles ->
+            for (index in 0 until profiles.length()) {
+                val profile = profiles.optJSONObject(index) ?: continue
+                pickString(profile, "name", "Name").takeIf { it.isNotBlank() }?.let { return it }
+            }
+        }
+        return ""
+    }
+
+    private fun normalizeApiBase(serverAddress: String, apiBase: String): String {
+        val normalized = apiBase.trim().trimEnd('/')
+        if (normalized.isNotBlank()) {
+            return if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+                normalized
+            } else {
+                "http://$normalized"
+            }
+        }
+        val normalizedAddress = serverAddress.trim()
+            .trim('/')
+            .removePrefix("http://")
+            .removePrefix("https://")
+        if (normalizedAddress.isBlank()) {
+            return ""
+        }
+        return "http://$normalizedAddress/admin"
     }
 }

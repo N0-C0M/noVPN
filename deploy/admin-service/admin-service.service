@@ -1,0 +1,16 @@
+[Unit]
+Description=noVPN admin-service control plane
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/novpn/admin-service
+ExecStart=/usr/local/bin/admin-service -config /etc/novpn/admin-service/config.yaml
+Restart=always
+RestartSec=2
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

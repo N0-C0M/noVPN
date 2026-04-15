@@ -1,0 +1,7 @@
+listen_addr: 0.0.0.0:9120
+storage_path: /var/lib/novpn/payments/orders.json
+admin_token: change-me-pay-admin-token
+public_base_url: http://2.26.85.47:9120
+control_plane_base_url: http://2.26.85.47:9112/admin
+control_plane_token: change-me-control-plane-token
+shutdown_timeout: 15s

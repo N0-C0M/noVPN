@@ -341,12 +341,19 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             appContext.getString(R.string.invite_code_missing)
         }
 
-        val serverAddress = runCatching {
-            profileRepository.loadProfile(currentProfileId()).server.address
-        }.getOrDefault(profileRepository.bootstrapServerAddress())
+        val activeProfile = runCatching {
+            profileRepository.loadProfile(currentProfileId())
+        }.getOrNull()
+        val serverAddress = activeProfile?.server?.address
+            .orEmpty()
+            .ifBlank { profileRepository.bootstrapServerAddress() }
+        val apiBase = activeProfile?.server?.apiBase
+            .orEmpty()
+            .ifBlank { profileRepository.bootstrapApiBase() }
 
         val redeemResult = inviteRedeemer.redeem(
             serverAddress = serverAddress,
+            apiBase = apiBase,
             inviteCode = inviteCode,
             deviceId = deviceIdentityStore.deviceId(),
             deviceName = deviceIdentityStore.deviceName()
@@ -385,6 +392,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         val profile = profileRepository.loadProfile(profileId)
         inviteRedeemer.disconnect(
             serverAddress = profile.server.address,
+            apiBase = profile.server.apiBase,
             deviceId = deviceIdentityStore.deviceId(),
             deviceName = deviceIdentityStore.deviceName(),
             clientUuid = profile.server.uuid
@@ -476,6 +484,9 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         val serverAddress = activeProfile?.server?.address
             .orEmpty()
             .ifBlank { profileRepository.bootstrapServerAddress() }
+        val apiBase = activeProfile?.server?.apiBase
+            .orEmpty()
+            .ifBlank { profileRepository.bootstrapApiBase() }
 
         if (serverAddress.isBlank()) {
             _state.update {
@@ -493,10 +504,22 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         runCatching {
             gatewayPolicyService.fetch(
                 serverAddress = serverAddress,
+                apiBase = apiBase,
                 deviceId = deviceIdentityStore.deviceId(),
                 clientUuid = activeProfile?.server?.uuid.orEmpty()
             )
         }.onSuccess { snapshot ->
+            if (snapshot.profilePayloads.isNotEmpty()) {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        profileRepository.importProfilePayloads(
+                            payloads = snapshot.profilePayloads,
+                            nameHint = "quota-sync-$serverAddress"
+                        )
+                    }
+                }
+                refreshStateFromPreferences()
+            }
             val nextTrafficUsed = snapshot.trafficUsedBytes ?: preferences.trafficUsedBytes()
             val nextTrafficLimit = snapshot.trafficLimitBytes ?: preferences.trafficLimitBytes()
             if (snapshot.trafficUsedBytes != null || snapshot.trafficLimitBytes != null) {

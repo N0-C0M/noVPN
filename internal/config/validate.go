@@ -36,6 +36,17 @@ func (c Config) Validate() error {
 		if c.Admin.StoragePath == "" {
 			return errors.New("admin.storage_path must not be empty")
 		}
+		if c.Admin.CatalogPath == "" {
+			return errors.New("admin.catalog_path must not be empty")
+		}
+		switch strings.ToLower(strings.TrimSpace(c.Admin.RuntimeMode)) {
+		case "", "local", "remote":
+		default:
+			return errors.New("admin.runtime_mode must be one of local, remote")
+		}
+	}
+	if err := validateControlPlane(c.ControlPlane); err != nil {
+		return err
 	}
 	if err := validateSecurity(c.Security); err != nil {
 		return err
@@ -80,6 +91,22 @@ func (c Config) Validate() error {
 		return errors.New("at least one enabled TCP or UDP listener is required")
 	}
 
+	return nil
+}
+
+func validateControlPlane(c ControlPlaneConfig) error {
+	if !c.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(c.BaseURL) == "" {
+		return errors.New("control_plane.base_url must not be empty when control_plane.enabled=true")
+	}
+	if strings.TrimSpace(c.Token) == "" {
+		return errors.New("control_plane.token must not be empty when control_plane.enabled=true")
+	}
+	if c.PollInterval <= 0 {
+		return errors.New("control_plane.poll_interval must be greater than zero when control_plane.enabled=true")
+	}
 	return nil
 }
 

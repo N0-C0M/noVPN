@@ -13,8 +13,18 @@ admin:
   enabled: true
   listen_addr: 127.0.0.1:9112
   storage_path: /var/lib/novpn/admin
+  catalog_path: /var/lib/novpn/admin/catalog.json
   token: change-me-admin-token
   base_path: /admin
+  public_base_url: http://127.0.0.1:9112/admin
+  runtime_mode: local
+  control_plane_token: change-me-control-plane-token
+
+control_plane:
+  enabled: false
+  base_url: http://127.0.0.1:9112/admin
+  token: change-me-control-plane-token
+  poll_interval: 15s
 
 security:
   auth:
@@ -59,6 +69,7 @@ core:
       binary_path: /usr/local/bin/xray
       config_path: /usr/local/etc/xray/config.json
       state_path: /var/lib/novpn/reality/state.yaml
+      registry_path: /var/lib/novpn/reality/registry.json
       client_profile_path: /var/lib/novpn/reality/client-profile.yaml
       service_name: xray
       install:

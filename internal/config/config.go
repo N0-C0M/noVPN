@@ -15,6 +15,7 @@ type Config struct {
 	Server        ServerConfig        `yaml:"server"`
 	Observability ObservabilityConfig `yaml:"observability"`
 	Admin         AdminConfig         `yaml:"admin"`
+	ControlPlane  ControlPlaneConfig  `yaml:"control_plane"`
 	Security      SecurityConfig      `yaml:"security"`
 	Listeners     ListenerSet         `yaml:"listeners"`
 	Core          CoreConfig          `yaml:"core"`
@@ -34,11 +35,22 @@ type ObservabilityConfig struct {
 }
 
 type AdminConfig struct {
-	Enabled     bool   `yaml:"enabled"`
-	ListenAddr  string `yaml:"listen_addr"`
-	StoragePath string `yaml:"storage_path"`
-	Token       string `yaml:"token"`
-	BasePath    string `yaml:"base_path"`
+	Enabled           bool   `yaml:"enabled"`
+	ListenAddr        string `yaml:"listen_addr"`
+	StoragePath       string `yaml:"storage_path"`
+	CatalogPath       string `yaml:"catalog_path"`
+	Token             string `yaml:"token"`
+	BasePath          string `yaml:"base_path"`
+	PublicBaseURL     string `yaml:"public_base_url"`
+	RuntimeMode       string `yaml:"runtime_mode"`
+	ControlPlaneToken string `yaml:"control_plane_token"`
+}
+
+type ControlPlaneConfig struct {
+	Enabled      bool          `yaml:"enabled"`
+	BaseURL      string        `yaml:"base_url"`
+	Token        string        `yaml:"token"`
+	PollInterval time.Duration `yaml:"poll_interval"`
 }
 
 type SecurityConfig struct {
@@ -216,8 +228,18 @@ func (c *Config) setDefaults() {
 	if c.Admin.StoragePath == "" {
 		c.Admin.StoragePath = "/var/lib/novpn/admin"
 	}
+	if c.Admin.CatalogPath == "" {
+		c.Admin.CatalogPath = filepath.Join(c.Admin.StoragePath, "catalog.json")
+	}
 	if c.Admin.BasePath == "" {
 		c.Admin.BasePath = "/admin"
+	}
+	if strings.TrimSpace(c.Admin.RuntimeMode) == "" {
+		c.Admin.RuntimeMode = "local"
+	}
+
+	if c.ControlPlane.PollInterval <= 0 {
+		c.ControlPlane.PollInterval = 15 * time.Second
 	}
 
 	if strings.TrimSpace(c.Security.Auth.Mode) == "" {

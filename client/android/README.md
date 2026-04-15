@@ -43,10 +43,13 @@ Profile workflow:
    sudo cat /var/lib/novpn/reality/client-profile.yaml
    ```
 
-2. Option A: update the bundled desktop profile and Android bootstrap asset in this repo:
+2. Update the bundled desktop profile and Android bootstrap asset in this repo:
 
    ```bash
-   go run ./cmd/client-profile-sync -input /path/to/client-profile.yaml
+   go run ./cmd/client-profile-sync \
+     -input /path/to/client-profile.yaml \
+     -bootstrap-address 2.26.85.47 \
+     -bootstrap-api-base http://2.26.85.47:9112/admin
    ```
 
    This rewrites:
@@ -54,9 +57,9 @@ Profile workflow:
    - `client/common/profiles/reality/default.profile.json`
    - `client/android/app/src/main/secure/bootstrap.json`
 
-3. Option B: build the APK once, then import the server profile inside the app with the new
-   `Import` button in the top-right corner. The importer accepts the server-generated
-   `client-profile.yaml` directly and stores it as an internal selectable profile.
+3. Build the APK and distribute activation codes from the admin control plane. The mobile client is
+   now centered around end-user flows: select a server, enter a code, run the quick test, and tap
+   connect. Direct profile import is no longer the main path in the home screen UI.
 
 Build workflow:
 

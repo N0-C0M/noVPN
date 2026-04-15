@@ -17,6 +17,7 @@ data class AvailableProfile(
 )
 
 data class ServerProfile(
+    val serverId: String = "",
     val address: String,
     val port: Int,
     val uuid: String,
@@ -26,7 +27,8 @@ data class ServerProfile(
     val publicKey: String,
     val shortId: String,
     val locationLabel: String = "",
-    val spiderX: String = "/"
+    val spiderX: String = "/",
+    val apiBase: String = ""
 )
 
 data class LocalPorts(

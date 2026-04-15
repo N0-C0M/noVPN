@@ -12,7 +12,7 @@ class ProfileRepository(private val context: Context) {
     private val importedProfilesDir by lazy {
         File(context.filesDir, "profiles").apply { mkdirs() }
     }
-    private val bootstrapFallbackAddress by lazy { loadBootstrapServerAddress() }
+    private val bootstrapFallback by lazy { loadBootstrapConfig() }
 
     fun defaultProfileId(): String {
         return listProfileEntries().firstOrNull()?.profileId.orEmpty()
@@ -25,7 +25,11 @@ class ProfileRepository(private val context: Context) {
     }
 
     fun bootstrapServerAddress(): String {
-        return bootstrapFallbackAddress
+        return bootstrapFallback.serverAddress
+    }
+
+    fun bootstrapApiBase(): String {
+        return bootstrapFallback.apiBase
     }
 
     fun loadProfile(profileId: String): ClientProfile {
@@ -133,6 +137,7 @@ class ProfileRepository(private val context: Context) {
         return ClientProfile(
             name = root.optString("name").ifBlank { DEFAULT_PROFILE_NAME },
             server = ServerProfile(
+                serverId = server.optString("server_id").trim(),
                 address = address,
                 port = server.getInt("port"),
                 uuid = server.getString("uuid"),
@@ -142,7 +147,8 @@ class ProfileRepository(private val context: Context) {
                 publicKey = server.getString("public_key"),
                 shortId = shortId,
                 locationLabel = locationLabel,
-                spiderX = server.optString("spider_x", "/")
+                spiderX = server.optString("spider_x", "/"),
+                apiBase = server.optString("api_base").trim()
             ),
             local = LocalPorts(
                 socksListen = local?.optString("socks_listen", DEFAULT_SOCKS_LISTEN) ?: DEFAULT_SOCKS_LISTEN,
@@ -207,6 +213,7 @@ class ProfileRepository(private val context: Context) {
         return ClientProfile(
             name = scalars["name"].orEmpty().ifBlank { DEFAULT_IMPORTED_NAME },
             server = ServerProfile(
+                serverId = scalars["server_id"].orEmpty(),
                 address = address,
                 port = scalars["port"]?.toIntOrNull() ?: 0,
                 uuid = scalars["uuid"].orEmpty(),
@@ -216,7 +223,8 @@ class ProfileRepository(private val context: Context) {
                 publicKey = scalars["public_key"].orEmpty(),
                 shortId = shortId,
                 locationLabel = ServerLocationCatalog.labelFor(address),
-                spiderX = scalars["spider_x"].orEmpty().ifBlank { "/" }
+                spiderX = scalars["spider_x"].orEmpty().ifBlank { "/" },
+                apiBase = scalars["api_base"].orEmpty()
             ),
             local = LocalPorts(
                 socksListen = DEFAULT_SOCKS_LISTEN,
@@ -238,6 +246,7 @@ class ProfileRepository(private val context: Context) {
             .put(
                 "server",
                 JSONObject()
+                    .put("server_id", profile.server.serverId)
                     .put("address", profile.server.address)
                     .put("port", profile.server.port)
                     .put("uuid", profile.server.uuid)
@@ -248,6 +257,7 @@ class ProfileRepository(private val context: Context) {
                     .put("short_id", profile.server.shortId)
                     .put("location_label", profile.server.locationLabel)
                     .put("spider_x", profile.server.spiderX)
+                    .put("api_base", profile.server.apiBase)
             )
             .put(
                 "local",
@@ -374,7 +384,7 @@ class ProfileRepository(private val context: Context) {
         }
 
         if (preferences.forceServerIpMode()) {
-            val fallback = bootstrapFallbackAddress
+            val fallback = bootstrapFallback.serverAddress
             if (isNumericAddress(fallback)) {
                 return fallback
             }
@@ -382,7 +392,7 @@ class ProfileRepository(private val context: Context) {
 
         val lowerAddress = address.lowercase(Locale.ROOT)
         if (lowerAddress == PENDING_ROOT_DOMAIN || lowerAddress.endsWith(".$PENDING_ROOT_DOMAIN")) {
-            return bootstrapFallbackAddress.ifBlank { address }
+            return bootstrapFallback.serverAddress.ifBlank { address }
         }
 
         return address
@@ -395,7 +405,7 @@ class ProfileRepository(private val context: Context) {
         return IPV4_REGEX.matches(value)
     }
 
-    private fun loadBootstrapServerAddress(): String {
+    private fun loadBootstrapConfig(): BootstrapConfig {
         return runCatching {
             val payload = AssetPayloadCodec.decodeAssetText(
                 context = context,
@@ -403,8 +413,11 @@ class ProfileRepository(private val context: Context) {
                 salt = BOOTSTRAP_SALT
             )
             val root = JSONObject(payload)
-            root.optString("server_address").trim()
-        }.getOrDefault("")
+            BootstrapConfig(
+                serverAddress = root.optString("server_address").trim(),
+                apiBase = root.optString("api_base").trim()
+            )
+        }.getOrDefault(BootstrapConfig())
     }
 
     private fun defaultSeed(shortId: String): String {
@@ -422,6 +435,11 @@ class ProfileRepository(private val context: Context) {
         val profileId: String,
         val fileName: String,
         val source: ProfileSource
+    )
+
+    private data class BootstrapConfig(
+        val serverAddress: String = "",
+        val apiBase: String = ""
     )
 
     private enum class ProfileSource {

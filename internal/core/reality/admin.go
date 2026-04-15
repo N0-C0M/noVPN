@@ -42,6 +42,10 @@ func (p *Provisioner) CreatePromo(input PromoCreateRequest) (PromoRecord, error)
 	return p.registryStore.CreatePromo(input)
 }
 
+func (p *Provisioner) RedeemInviteNoRefresh(code string, deviceID string, deviceName string) (InviteRedeemResult, error) {
+	return p.registryStore.RedeemInvite(code, deviceID, deviceName)
+}
+
 func (p *Provisioner) RedeemInvite(ctx context.Context, code string, deviceID string, deviceName string) (InviteRedeemResult, Result, error) {
 	redeemResult, err := p.registryStore.RedeemInvite(code, deviceID, deviceName)
 	if err != nil {
@@ -54,6 +58,10 @@ func (p *Provisioner) RedeemInvite(ctx context.Context, code string, deviceID st
 	}
 
 	return redeemResult, refreshResult, nil
+}
+
+func (p *Provisioner) RedeemPromoNoRefresh(code string, deviceID string, deviceName string) (PromoRedeemResult, error) {
+	return p.registryStore.RedeemPromo(code, deviceID, deviceName)
 }
 
 func (p *Provisioner) RedeemPromo(ctx context.Context, code string, deviceID string, deviceName string) (PromoRedeemResult, Result, error) {
@@ -70,6 +78,10 @@ func (p *Provisioner) RedeemPromo(ctx context.Context, code string, deviceID str
 	return redeemResult, refreshResult, nil
 }
 
+func (p *Provisioner) RevokeClientNoRefresh(clientID string) (ClientRecord, error) {
+	return p.registryStore.RevokeClient(clientID)
+}
+
 func (p *Provisioner) RevokeClient(ctx context.Context, clientID string) (ClientRecord, Result, error) {
 	client, err := p.registryStore.RevokeClient(clientID)
 	if err != nil {
@@ -82,6 +94,14 @@ func (p *Provisioner) RevokeClient(ctx context.Context, clientID string) (Client
 	}
 
 	return client, refreshResult, nil
+}
+
+func (p *Provisioner) DisconnectDeviceNoRefresh(deviceID string, clientUUID string) (ClientRecord, error) {
+	return p.registryStore.DisconnectDevice(deviceID, clientUUID)
+}
+
+func (p *Provisioner) ApplyTrafficUsages(usages map[string]TrafficUsage) (TrafficSyncResult, error) {
+	return p.registryStore.ApplyTrafficStats(usages)
 }
 
 func (p *Provisioner) DisconnectDevice(ctx context.Context, deviceID string, clientUUID string) (ClientRecord, Result, error) {

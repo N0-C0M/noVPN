@@ -72,30 +72,14 @@ class MainActivity : ComponentActivity() {
         renderState(viewModel.state.value)
     }
 
-    private val importProfileLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        if (uri == null) {
-            return@registerForActivityResult
-        }
-
-        runCatching {
-            viewModel.importProfile(uri)
-        }.onSuccess {
-            renderState(viewModel.state.value)
-            Toast.makeText(
-                this,
-                getString(R.string.import_profile_success, viewModel.selectedProfileName()),
-                Toast.LENGTH_SHORT
-            ).show()
-        }.onFailure { error ->
-            statusTitle.text = getString(R.string.import_profile_failed)
-            statusDetail.text = error.message ?: getString(R.string.runtime_profile_incomplete)
-            Toast.makeText(
-                this,
-                error.message ?: getString(R.string.import_profile_failed),
-                Toast.LENGTH_LONG
-            ).show()
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            startVpnRuntime()
+        } else {
+            statusTitle.text = getString(R.string.status_permission_required)
+            statusDetail.text = getString(R.string.status_permission_denied_detail)
         }
     }
 
@@ -145,21 +129,6 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != VPN_PERMISSION_REQUEST_CODE) {
-            return
-        }
-
-        if (resultCode == Activity.RESULT_OK) {
-            startVpnRuntime()
-        } else {
-            statusTitle.text = getString(R.string.status_permission_required)
-            statusDetail.text = getString(R.string.status_permission_denied_detail)
-        }
-    }
-
     private fun buildContentView(): View {
         val root = FrameLayout(this)
 
@@ -184,7 +153,6 @@ class MainActivity : ComponentActivity() {
 
         content.addView(buildHeader())
         content.addView(buildHeroSection())
-        content.addView(buildDiagnosticsSection())
         content.addView(buildInviteSection())
         content.addView(buildServerSection())
         root.addView(
@@ -301,17 +269,15 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.END
         }
 
-        val importButton = Button(this).apply {
-            text = getString(R.string.import_profile)
+        diagnosticsButton = Button(this).apply {
+            text = getString(R.string.run_diagnostics)
             isAllCaps = false
             setTextColor(Color.parseColor("#F3F6FB"))
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             background = roundedDrawable("#0E1520", "#243244", 22f, 2)
             setPadding(dp(18), dp(12), dp(18), dp(12))
-            setOnClickListener {
-                importProfileLauncher.launch("*/*")
-            }
+            setOnClickListener { runDiagnostics() }
         }
 
         val settingsButton = Button(this).apply {
@@ -333,7 +299,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        actionRow.addView(importButton)
+        actionRow.addView(diagnosticsButton)
         actionRow.addView(settingsButton)
 
         row.addView(titleBlock)
@@ -385,6 +351,12 @@ class MainActivity : ComponentActivity() {
                 setPadding(dp(10), dp(12), dp(10), 0)
             }
             addView(statusDetail)
+
+            diagnosticsDetail = label(getString(R.string.diagnostics_idle), 12f, "#7B8DA3", false).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(10), dp(14), dp(10), 0)
+            }
+            addView(diagnosticsDetail)
 
         }
     }
@@ -690,19 +662,19 @@ class MainActivity : ComponentActivity() {
         profiles.forEachIndexed { index, profile ->
             val selected = profile.profileId == selectedProfileId
             val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
                 background = roundedDrawable(
                     if (selected) "#122232" else "#0D141D",
-                    if (selected) "#345273" else "#1A2634",
-                    30f,
+                    if (selected) "#3E678C" else "#1A2634",
+                    24f,
                     2
                 )
-                setPadding(dp(18), dp(18), dp(18), dp(18))
+                setPadding(dp(14), dp(14), dp(14), dp(14))
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
                     viewModel.selectProfile(profile.profileId)
-                    runCatching { viewModel.generateConfig() }
                     renderState(viewModel.state.value)
                     lifecycleScope.launch {
                         viewModel.refreshGatewayPolicy()
@@ -717,32 +689,50 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            card.addView(label(profile.name, 15f, "#F3F6FB", true))
-            card.addView(
+            val textBlock = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            }
+
+            textBlock.addView(label(profile.name, 14f, "#F3F6FB", true))
+            textBlock.addView(
                 label(
-                    profile.locationLabel.ifBlank { getString(R.string.server_location_unknown) },
-                    12f,
+                    buildString {
+                        append(profile.locationLabel.ifBlank { getString(R.string.server_location_unknown) })
+                        append("  |  ")
+                        append(
+                            getString(
+                                if (profile.isImported) R.string.profile_source_imported else R.string.profile_source_bundled
+                            )
+                        )
+                    },
+                    11.5f,
                     if (selected) "#D8E5F3" else "#93A3B7",
                     false
                 ).apply {
-                    setPadding(0, dp(8), 0, 0)
+                    setPadding(0, dp(6), 0, 0)
                 }
             )
-            card.addView(
-                label(getString(R.string.server_sni_format, profile.serverName), 12f, "#6E88A6", false).apply {
-                    setPadding(0, dp(10), 0, 0)
-                }
-            )
+            card.addView(textBlock)
+
             card.addView(
                 label(
-                    getString(
-                        if (profile.isImported) R.string.profile_source_imported else R.string.profile_source_bundled
-                    ),
-                    11f,
-                    if (selected) "#7ACAA7" else "#6B7F95",
-                    false
+                    if (selected) "Selected" else "Switch",
+                    11.5f,
+                    if (selected) "#A7E8C7" else "#9FB3C8",
+                    true
                 ).apply {
-                    setPadding(0, dp(10), 0, 0)
+                    background = roundedDrawable(
+                        if (selected) "#123326" else "#101A26",
+                        if (selected) "#3A8C68" else "#284059",
+                        18f,
+                        1
+                    )
+                    setPadding(dp(12), dp(7), dp(12), dp(7))
                 }
             )
 
@@ -824,7 +814,7 @@ class MainActivity : ComponentActivity() {
     private fun beginVpnStartFlow() {
         val prepareIntent = VpnService.prepare(this)
         if (prepareIntent != null) {
-            startActivityForResult(prepareIntent, VPN_PERMISSION_REQUEST_CODE)
+            vpnPermissionLauncher.launch(prepareIntent)
         } else {
             startVpnRuntime()
         }
@@ -946,9 +936,10 @@ class MainActivity : ComponentActivity() {
 
     private fun startVpnRuntime() {
         runCatching {
+            viewModel.runtimePreflight().requireReady()
             val request = viewModel.buildRuntimeRequest()
-            viewModel.generateConfig()
-            val configPath = viewModel.state.value.generatedConfigPath
+            updateTextWithFade(statusTitle, getString(R.string.runtime_starting))
+            updateTextWithFade(statusDetail, getString(R.string.runtime_starting_detail))
             val intent = NoVpnService.startIntent(
                 context = this,
                 profileId = request.profileId,
@@ -959,8 +950,6 @@ class MainActivity : ComponentActivity() {
                 patternStrategy = request.patternStrategy
             )
             ContextCompat.startForegroundService(this, intent)
-            viewModel.markRuntimeStarted(configPath)
-            renderState(viewModel.state.value)
             lifecycleScope.launch {
                 repeat(8) {
                     delay(500)
@@ -1150,7 +1139,6 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val VPN_PERMISSION_REQUEST_CODE = 4107
         private const val RUNTIME_STATUS_SYNC_INTERVAL_MS = 350L
     }
 

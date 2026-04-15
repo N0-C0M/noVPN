@@ -1,6 +1,7 @@
 package reality
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -45,6 +46,10 @@ type InviteRecord struct {
 	Code               string     `json:"code"`
 	Name               string     `json:"name"`
 	Note               string     `json:"note,omitempty"`
+	PlanID             string     `json:"plan_id,omitempty"`
+	PlanName           string     `json:"plan_name,omitempty"`
+	AllowedServerIDs   []string   `json:"allowed_server_ids,omitempty"`
+	AccessDurationDays int        `json:"access_duration_days,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
 	MaxUses            int        `json:"max_uses,omitempty"`
@@ -95,10 +100,14 @@ type ClientRecord struct {
 	UUID                 string     `json:"uuid"`
 	Email                string     `json:"email"`
 	InviteCode           string     `json:"invite_code,omitempty"`
+	PlanID               string     `json:"plan_id,omitempty"`
+	PlanName             string     `json:"plan_name,omitempty"`
+	AllowedServerIDs     []string   `json:"allowed_server_ids,omitempty"`
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
 	RevokedAt            *time.Time `json:"revoked_at,omitempty"`
 	LastSeenAt           *time.Time `json:"last_seen_at,omitempty"`
+	AccessExpiresAt      *time.Time `json:"access_expires_at,omitempty"`
 	TrafficLimitBytes    int64      `json:"traffic_limit_bytes,omitempty"`
 	TrafficBonusBytes    int64      `json:"traffic_bonus_bytes,omitempty"`
 	TrafficUsedBytes     int64      `json:"traffic_used_bytes,omitempty"`
@@ -124,11 +133,15 @@ type RegistrySummary struct {
 }
 
 type InviteCreateRequest struct {
-	Name              string
-	Note              string
-	MaxUses           int
-	TrafficLimitBytes int64
-	ExpiresAfter      time.Duration
+	Name               string
+	Note               string
+	PlanID             string
+	PlanName           string
+	AllowedServerIDs   []string
+	AccessDurationDays int
+	MaxUses            int
+	TrafficLimitBytes  int64
+	ExpiresAfter       time.Duration
 }
 
 type PromoCreateRequest struct {
@@ -165,11 +178,15 @@ type TrafficSyncResult struct {
 }
 
 func (c ClientRecord) Enabled() bool {
-	return c.Active && c.RevokedAt == nil && c.TrafficBlockedAt == nil
+	return c.Active && c.RevokedAt == nil && c.TrafficBlockedAt == nil && !c.AccessExpired(time.Now().UTC())
 }
 
 func (c ClientRecord) Bound() bool {
 	return c.Active && c.RevokedAt == nil
+}
+
+func (c ClientRecord) AccessExpired(now time.Time) bool {
+	return c.AccessExpiresAt != nil && now.After(*c.AccessExpiresAt)
 }
 
 func (c ClientRecord) TrafficLimited() bool {
@@ -370,13 +387,17 @@ func (s *RegistryStore) CreateInvite(input InviteCreateRequest) (InviteRecord, e
 	_, err := s.Update(func(registry *Registry) error {
 		now := time.Now().UTC()
 		created = InviteRecord{
-			Code:              generateRegistryToken("inv"),
-			Name:              firstNonEmpty(strings.TrimSpace(input.Name), "New device"),
-			Note:              strings.TrimSpace(input.Note),
-			MaxUses:           normalizeInviteMaxUses(input.MaxUses),
-			TrafficLimitBytes: normalizeTrafficBytes(input.TrafficLimitBytes),
-			CreatedAt:         now,
-			Active:            true,
+			Code:               generateRegistryToken("inv"),
+			Name:               firstNonEmpty(strings.TrimSpace(input.Name), "New device"),
+			Note:               strings.TrimSpace(input.Note),
+			PlanID:             strings.TrimSpace(input.PlanID),
+			PlanName:           strings.TrimSpace(input.PlanName),
+			AllowedServerIDs:   normalizeStringSlice(input.AllowedServerIDs),
+			AccessDurationDays: normalizeInviteAccessDays(input.AccessDurationDays),
+			MaxUses:            normalizeInviteMaxUses(input.MaxUses),
+			TrafficLimitBytes:  normalizeTrafficBytes(input.TrafficLimitBytes),
+			CreatedAt:          now,
+			Active:             true,
 		}
 		if input.ExpiresAfter > 0 {
 			expiresAt := now.Add(input.ExpiresAfter)
@@ -452,6 +473,13 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 			}
 			existing.DeviceName = normalizedDeviceName
 			existing.Name = firstNonEmpty(strings.TrimSpace(existing.Name), strings.TrimSpace(invite.Name), normalizedDeviceName)
+			existing.PlanID = strings.TrimSpace(invite.PlanID)
+			existing.PlanName = strings.TrimSpace(invite.PlanName)
+			existing.AllowedServerIDs = append([]string(nil), invite.AllowedServerIDs...)
+			if invite.AccessDurationDays > 0 {
+				expiresAt := now.Add(time.Duration(invite.AccessDurationDays) * 24 * time.Hour)
+				existing.AccessExpiresAt = &expiresAt
+			}
 			existing.UpdatedAt = now
 			bindInviteRedemption(invite, *existing, now)
 			result = InviteRedeemResult{
@@ -475,10 +503,17 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 			UUID:              clientUUID,
 			Email:             buildClientEmail(clientID, invite.Name, normalizedDeviceName, normalizedDeviceID),
 			InviteCode:        invite.Code,
+			PlanID:            strings.TrimSpace(invite.PlanID),
+			PlanName:          strings.TrimSpace(invite.PlanName),
+			AllowedServerIDs:  append([]string(nil), invite.AllowedServerIDs...),
 			CreatedAt:         now,
 			UpdatedAt:         now,
 			TrafficLimitBytes: normalizeTrafficBytes(invite.TrafficLimitBytes),
 			Active:            true,
+		}
+		if invite.AccessDurationDays > 0 {
+			expiresAt := now.Add(time.Duration(invite.AccessDurationDays) * 24 * time.Hour)
+			client.AccessExpiresAt = &expiresAt
 		}
 
 		invite.RedeemedUses++
@@ -739,6 +774,9 @@ func (r *Registry) normalize() {
 			client.DeviceName = bootstrapDeviceName(client.DeviceName)
 		}
 		client.Email = ensureUniqueClientEmail(*client, seenEmails)
+		client.PlanID = strings.TrimSpace(client.PlanID)
+		client.PlanName = strings.TrimSpace(client.PlanName)
+		client.AllowedServerIDs = normalizeStringSlice(client.AllowedServerIDs)
 		if client.TrafficLimitBytes < 0 {
 			client.TrafficLimitBytes = 0
 		}
@@ -767,6 +805,10 @@ func (r *Registry) normalize() {
 	}
 
 	for i := range r.Invites {
+		r.Invites[i].PlanID = strings.TrimSpace(r.Invites[i].PlanID)
+		r.Invites[i].PlanName = strings.TrimSpace(r.Invites[i].PlanName)
+		r.Invites[i].AllowedServerIDs = normalizeStringSlice(r.Invites[i].AllowedServerIDs)
+		r.Invites[i].AccessDurationDays = normalizeInviteAccessDays(r.Invites[i].AccessDurationDays)
 		if r.Invites[i].MaxUses <= 0 {
 			r.Invites[i].MaxUses = 1
 		}
@@ -916,6 +958,7 @@ func buildClientProfileFor(cfg config.RealityConfig, state State, client ClientR
 		GeneratedAt: time.Now().UTC(),
 		Name:        name,
 		Type:        "vless-reality",
+		ServerID:    "primary",
 		Address:     cfg.PublicHost,
 		Port:        cfg.PublicPort,
 		UUID:        client.UUID,
@@ -928,6 +971,7 @@ func buildClientProfileFor(cfg config.RealityConfig, state State, client ClientR
 		ShortID:     shortID,
 		ShortIDs:    append([]string(nil), state.ShortIDs...),
 		SpiderX:     cfg.SpiderX,
+		Location:    cfg.PublicHost,
 	}
 }
 
@@ -980,6 +1024,7 @@ func buildClientProfilesFor(cfg config.RealityConfig, state State, client Client
 			GeneratedAt: time.Now().UTC(),
 			Name:        profileName,
 			Type:        "vless-reality",
+			ServerID:    fmt.Sprintf("additional-%d", index+1),
 			Address:     address,
 			Port:        additional.PublicPort,
 			UUID:        client.UUID,
@@ -992,6 +1037,7 @@ func buildClientProfilesFor(cfg config.RealityConfig, state State, client Client
 			ShortID:     shortID,
 			ShortIDs:    shortIDs,
 			SpiderX:     additional.SpiderX,
+			Location:    strings.TrimSpace(additional.Name),
 		})
 	}
 
@@ -1014,6 +1060,13 @@ func normalizeInviteMaxUses(value int) int {
 	return value
 }
 
+func normalizeInviteAccessDays(value int) int {
+	if value <= 0 {
+		return 0
+	}
+	return value
+}
+
 func normalizePromoMaxUses(value int) int {
 	if value <= 0 {
 		return 0
@@ -1026,6 +1079,23 @@ func normalizeTrafficBytes(value int64) int64 {
 		return 0
 	}
 	return value
+}
+
+func normalizeStringSlice(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
 }
 
 func (i InviteRecord) remainingUses() int {
@@ -1185,4 +1255,64 @@ func normalizeCustomPromoCode(raw string) (string, error) {
 		}
 	}
 	return code, nil
+}
+
+func (s *RegistryStore) MergeRemote(remote Registry) (bool, Registry, error) {
+	var changed bool
+	snapshot, err := s.Update(func(local *Registry) error {
+		local.normalize()
+		remote.normalize()
+
+		before, err := json.Marshal(local)
+		if err != nil {
+			return err
+		}
+
+		merged := mergeRegistrySnapshots(*local, remote)
+		after, err := json.Marshal(merged)
+		if err != nil {
+			return err
+		}
+
+		changed = !bytes.Equal(before, after)
+		*local = merged
+		return nil
+	})
+	return changed, snapshot, err
+}
+
+func mergeRegistrySnapshots(local Registry, remote Registry) Registry {
+	merged := remote
+	localClients := make(map[string]ClientRecord, len(local.Clients))
+	for _, client := range local.Clients {
+		localClients[client.ID] = client
+	}
+
+	for index := range merged.Clients {
+		remoteClient := &merged.Clients[index]
+		localClient, ok := localClients[remoteClient.ID]
+		if !ok {
+			continue
+		}
+		if localClient.TrafficUsedBytes > remoteClient.TrafficUsedBytes {
+			remoteClient.TrafficUsedBytes = localClient.TrafficUsedBytes
+		}
+		if localClient.TrafficObservedBytes > remoteClient.TrafficObservedBytes {
+			remoteClient.TrafficObservedBytes = localClient.TrafficObservedBytes
+		}
+		if remoteClient.LastTrafficSyncAt == nil || (localClient.LastTrafficSyncAt != nil && localClient.LastTrafficSyncAt.After(*remoteClient.LastTrafficSyncAt)) {
+			remoteClient.LastTrafficSyncAt = localClient.LastTrafficSyncAt
+		}
+		if remoteClient.LastSeenAt == nil {
+			remoteClient.LastSeenAt = localClient.LastSeenAt
+		}
+		if remoteClient.AccessExpiresAt == nil {
+			remoteClient.AccessExpiresAt = localClient.AccessExpiresAt
+		}
+	}
+
+	if merged.BootstrapClientID == "" {
+		merged.BootstrapClientID = local.BootstrapClientID
+	}
+	return merged
 }

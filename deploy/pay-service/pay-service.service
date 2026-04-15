@@ -1,0 +1,16 @@
+[Unit]
+Description=noVPN pay-service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/novpn/pay-service
+ExecStart=/usr/local/bin/pay-service -config /etc/novpn/pay-service/config.yaml
+Restart=always
+RestartSec=2
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

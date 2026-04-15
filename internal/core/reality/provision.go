@@ -60,6 +60,7 @@ type ClientProfile struct {
 	GeneratedAt time.Time `yaml:"generated_at"`
 	Name        string    `yaml:"name"`
 	Type        string    `yaml:"type"`
+	ServerID    string    `yaml:"server_id,omitempty"`
 	Address     string    `yaml:"address"`
 	Port        int       `yaml:"port"`
 	UUID        string    `yaml:"uuid"`
@@ -72,6 +73,8 @@ type ClientProfile struct {
 	ShortID     string    `yaml:"short_id"`
 	ShortIDs    []string  `yaml:"short_ids"`
 	SpiderX     string    `yaml:"spider_x,omitempty"`
+	Location    string    `yaml:"location_label,omitempty"`
+	APIBase     string    `yaml:"api_base,omitempty"`
 }
 
 func NewProvisioner(cfg config.RealityConfig, logger *slog.Logger) *Provisioner {

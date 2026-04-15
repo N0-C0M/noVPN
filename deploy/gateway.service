@@ -1,13 +1,13 @@
 [Unit]
-Description=Transport Gateway for VPN core
+Description=noVPN legacy compatibility wrapper for vpn-service
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/transport-gateway
-ExecStart=/usr/local/bin/gateway -config /etc/gateway/config.yaml
+WorkingDirectory=/opt/novpn/vpn-service
+ExecStart=/usr/local/bin/vpn-service -config /etc/novpn/vpn-service/config.yaml
 Restart=always
 RestartSec=2
 LimitNOFILE=200000

@@ -184,74 +184,82 @@ class NoVpnService : VpnService() {
         trafficStrategy: TrafficObfuscationStrategy,
         patternStrategy: PatternMaskingStrategy
     ) {
-        stopCore()
-        preflightChecker.evaluate(profileId).requireReady()
+        synchronized(coreLock) {
+            stopCoreLocked()
+            preflightChecker.evaluate(profileId).requireReady()
 
-        val profile = profileRepository.loadProfile(profileId)
-        profile.requireRuntimeReady()
-        val effectiveProfile = profile.withObfuscationSeed(
-            seedStore.loadOrSaveDefault(profile.obfuscation.seed)
-        ).withRuntimeStrategies(trafficStrategy, patternStrategy)
-        val useSimplifiedYoutubePath = shouldUseSimplifiedYoutubePath(appRoutingMode, selectedPackages)
-        val localProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
-        val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
-        val bridgeProxy = if (useSimplifiedYoutubePath) xrayInboundProxy else localProxy
-        coreSessionActive = true
+            val profile = profileRepository.loadProfile(profileId)
+            profile.requireRuntimeReady()
+            val effectiveProfile = profile.withObfuscationSeed(
+                seedStore.loadOrSaveDefault(profile.obfuscation.seed)
+            ).withRuntimeStrategies(trafficStrategy, patternStrategy)
+            val useSimplifiedYoutubePath = shouldUseSimplifiedYoutubePath(appRoutingMode, selectedPackages)
+            val localProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
+            val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
+            val bridgeProxy = if (useSimplifiedYoutubePath) xrayInboundProxy else localProxy
+            coreSessionActive = true
 
-        try {
-            val sessionPlan = SessionObfuscationPlanner.build(
-                profile = effectiveProfile,
-                deviceId = deviceIdentityStore.deviceId()
-            )
-            val xrayConfig = xrayConfigWriter.write(
-                effectiveProfile,
-                bypassRu,
-                xrayInboundProxy,
-                sessionPlan
-            )
-            val obfuscatorConfig = obfuscatorConfigWriter.write(
-                effectiveProfile,
-                xrayConfig,
-                localProxy,
-                xrayInboundProxy,
-                sessionPlan
-            )
-            runtimeManager.start(xrayConfig, obfuscatorConfig)
-            tun2ProxyBridge.waitForLocalProxy(bridgeProxy)
-            tunnelInterface = establishTunnel(
-                appRoutingMode = appRoutingMode,
-                packageNames = selectedPackages,
-                upstreamAddress = effectiveProfile.server.address
-            )
-            tunnelInterface?.let {
-                tun2ProxyBridge.start(it, bridgeProxy, TUN_MTU)
-                tun2ProxyBridge.confirmStarted()
+            try {
+                val sessionPlan = SessionObfuscationPlanner.build(
+                    profile = effectiveProfile,
+                    deviceId = deviceIdentityStore.deviceId()
+                )
+                val xrayConfig = xrayConfigWriter.write(
+                    effectiveProfile,
+                    bypassRu,
+                    xrayInboundProxy,
+                    sessionPlan
+                )
+                val obfuscatorConfig = obfuscatorConfigWriter.write(
+                    effectiveProfile,
+                    xrayConfig,
+                    localProxy,
+                    xrayInboundProxy,
+                    sessionPlan
+                )
+                runtimeManager.start(xrayConfig, obfuscatorConfig)
+                tun2ProxyBridge.waitForLocalProxy(bridgeProxy)
+                tunnelInterface = establishTunnel(
+                    appRoutingMode = appRoutingMode,
+                    packageNames = selectedPackages,
+                    upstreamAddress = effectiveProfile.server.address
+                )
+                tunnelInterface?.let {
+                    tun2ProxyBridge.start(it, bridgeProxy, TUN_MTU)
+                    tun2ProxyBridge.confirmStarted()
+                }
+                    ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
+            } catch (error: Exception) {
+                val detail = buildFailureDetail(error)
+                stopCoreLocked()
+                throw IllegalStateException(detail, error)
             }
-                ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
-        } catch (error: Exception) {
-            throw IllegalStateException(buildFailureDetail(error), error)
-        }
 
-        runtimeStatusStore.markRunning(
-            status = getString(R.string.runtime_active_profile, effectiveProfile.name),
-            detail = getString(R.string.runtime_running_detail)
-        )
-        RuntimeLocalProxySession.update(bridgeProxy)
-        startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
+            runtimeStatusStore.markRunning(
+                status = getString(R.string.runtime_active_profile, effectiveProfile.name),
+                detail = getString(R.string.runtime_running_detail)
+            )
+            RuntimeLocalProxySession.update(bridgeProxy)
+            startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
+        }
     }
 
     private fun stopCore() {
         synchronized(coreLock) {
-            if (!coreSessionActive && tunnelInterface == null && !runtimeManager.isRunning()) {
-                return
-            }
-            coreSessionActive = false
-            tun2ProxyBridge.stop()
-            runtimeManager.stop()
-            runCatching { tunnelInterface?.close() }
-            tunnelInterface = null
-            RuntimeLocalProxySession.update(null)
+            stopCoreLocked()
         }
+    }
+
+    private fun stopCoreLocked() {
+        if (!coreSessionActive && tunnelInterface == null && !runtimeManager.isRunning()) {
+            return
+        }
+        coreSessionActive = false
+        tun2ProxyBridge.stop()
+        runtimeManager.stop()
+        runCatching { tunnelInterface?.close() }
+        tunnelInterface = null
+        RuntimeLocalProxySession.update(null)
     }
 
     private fun applyApplicationRouting(

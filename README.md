@@ -51,12 +51,37 @@ The server bootstrap exports a client profile YAML to
 You can sync that file into the bundled desktop client profile and Android bootstrap asset with:
 
 ```bash
-go run ./cmd/client-profile-sync -input /path/to/client-profile.yaml
+go run ./cmd/client-profile-sync \
+  -input /path/to/client-profile.yaml \
+  -bootstrap-address 2.26.85.47 \
+  -bootstrap-api-base http://2.26.85.47:9112/admin
 ```
 
 ## Admin Panel
 
-The gateway can expose a small admin panel for Reality registry management and monitoring.
+The control plane can now run separately from the VPN edge node. The repo includes three entry
+points:
+
+- `cmd/admin-service`: admin panel, invite registry, subscription plans, server catalog
+- `cmd/pay-service`: independent order/payment facade that issues invites through the control plane
+- `cmd/vpn-service`: VPN edge node that syncs registry and traffic usage with the control plane
+
+Deployment presets for the split layout live in:
+
+- `deploy/admin-service/`
+- `deploy/pay-service/`
+- `deploy/vpn-service/`
+- `deploy/README.md`
+
+The admin panel supports:
+
+- creating invite codes with both expiry and max-use limits;
+- managing subscription plans and attaching VPN nodes to plans;
+- managing VPN node catalog entries independently from plans;
+- redeeming invites into per-device client records;
+- downloading per-client profile YAML files;
+- revoking clients;
+- viewing service metrics and quota state on the dashboard.
 
 Default example config:
 
