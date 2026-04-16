@@ -1,0 +1,16 @@
+[Unit]
+Description=noVPN vpn-service backup edge node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/novpn/vpn-service-backup
+ExecStart=/usr/local/bin/vpn-service -config /etc/novpn/vpn-service-backup/config.yaml
+Restart=always
+RestartSec=2
+LimitNOFILE=200000
+
+[Install]
+WantedBy=multi-user.target

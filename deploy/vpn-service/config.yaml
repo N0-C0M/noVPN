@@ -24,6 +24,7 @@ control_plane:
   enabled: true
   base_url: http://2.26.85.47:9112/admin
   token: change-me-control-plane-token
+  listen_addr: 0.0.0.0:9202
   poll_interval: 15s
 
 security:

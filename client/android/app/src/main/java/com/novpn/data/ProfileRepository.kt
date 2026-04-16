@@ -64,7 +64,7 @@ class ProfileRepository(private val context: Context) {
                 "$nameHint-${index + 1}"
             }
             importProfilePayload(payload, hint)
-        }
+        }.distinctBy { it.profileId }
     }
 
     fun importProfilePayload(payload: String, nameHint: String = ""): AvailableProfile {
@@ -72,11 +72,13 @@ class ProfileRepository(private val context: Context) {
         profile.requireRuntimeReady()
 
         val serializedProfile = serializeProfile(profile)
-        val fileName = buildImportedFileName(nameHint, profile, serializedProfile)
-        val outputFile = File(importedProfilesDir, fileName)
+        val outputFile = listDistinctImportedProfiles()
+            .firstOrNull { it.signature == profileSignature(profile) }
+            ?.file
+            ?: File(importedProfilesDir, buildImportedFileName(nameHint, profile, serializedProfile))
         outputFile.writeText(serializedProfile)
         return AvailableProfile(
-            profileId = fileProfileId(fileName),
+            profileId = fileProfileId(outputFile.name),
             name = profile.name,
             address = "${profile.server.address}:${profile.server.port}",
             serverName = profile.server.serverName,
@@ -98,15 +100,15 @@ class ProfileRepository(private val context: Context) {
     }
 
     fun listProfiles(): List<AvailableProfile> {
-        return listProfileEntries().map { entry ->
-            val profile = loadProfile(entry.profileId)
+        return listDistinctImportedProfiles().map { record ->
+            val profile = record.profile
             AvailableProfile(
-                profileId = entry.profileId,
+                profileId = record.entry.profileId,
                 name = profile.name,
                 address = "${profile.server.address}:${profile.server.port}",
                 serverName = profile.server.serverName,
                 locationLabel = profile.server.locationLabel,
-                isImported = entry.source == ProfileSource.IMPORTED
+                isImported = true
             )
         }
     }
@@ -279,7 +281,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     private fun listProfileEntries(): List<ProfileEntry> {
-        return listImportedProfileEntries()
+        return listDistinctImportedProfiles().map { it.entry }
     }
 
     private fun listImportedProfileEntries(): List<ProfileEntry> {
@@ -294,6 +296,104 @@ class ProfileRepository(private val context: Context) {
                     source = ProfileSource.IMPORTED
                 )
             }
+    }
+
+    private fun listDistinctImportedProfiles(): List<ImportedProfileRecord> {
+        val rawRecords = importedProfilesDir.listFiles()
+            .orEmpty()
+            .filter { it.isFile && it.name.startsWith("profile.") && it.name.endsWith(".json") }
+            .sortedBy { it.name.lowercase(Locale.ROOT) }
+            .mapNotNull(::readImportedProfileRecord)
+        if (rawRecords.size < 2) {
+            return rawRecords
+        }
+
+        val selectedProfileId = preferences.selectedProfileId("")
+        var selectedReplacementId: String? = null
+        val distinct = rawRecords
+            .groupBy { it.signature }
+            .values
+            .map { group ->
+                val canonical = chooseCanonicalProfileRecord(group, selectedProfileId)
+                group.filter { it.file.absolutePath != canonical.file.absolutePath }.forEach { duplicate ->
+                    if (duplicate.entry.profileId == selectedProfileId) {
+                        selectedReplacementId = canonical.entry.profileId
+                    }
+                    duplicate.file.delete()
+                }
+                canonical
+            }
+            .sortedBy { it.file.name.lowercase(Locale.ROOT) }
+
+        if (!selectedReplacementId.isNullOrBlank()) {
+            preferences.saveSelectedProfileId(selectedReplacementId.orEmpty())
+        }
+
+        return distinct
+    }
+
+    private fun readImportedProfileRecord(file: File): ImportedProfileRecord? {
+        val payload = runCatching { file.readText() }.getOrNull() ?: return null
+        val profile = runCatching { parseClientProfileJson(payload) }.getOrNull() ?: return null
+        return ImportedProfileRecord(
+            entry = ProfileEntry(
+                profileId = fileProfileId(file.name),
+                fileName = file.name,
+                source = ProfileSource.IMPORTED
+            ),
+            file = file,
+            profile = profile,
+            signature = profileSignature(profile)
+        )
+    }
+
+    private fun chooseCanonicalProfileRecord(
+        group: List<ImportedProfileRecord>,
+        selectedProfileId: String
+    ): ImportedProfileRecord {
+        return group.maxWithOrNull(
+            compareBy<ImportedProfileRecord>(
+                { profileRichnessScore(it.profile) },
+                { if (it.entry.profileId == selectedProfileId) 1 else 0 },
+                { it.file.lastModified() }
+            )
+        ) ?: group.first()
+    }
+
+    private fun profileRichnessScore(profile: ClientProfile): Int {
+        var score = 0
+        if (profile.server.serverId.isNotBlank()) {
+            score += 50
+        }
+        if (profile.server.apiBase.isNotBlank()) {
+            score += 20
+        }
+        if (profile.name != DEFAULT_IMPORTED_NAME && profile.name != DEFAULT_PROFILE_NAME) {
+            score += 10
+        }
+        if (!profile.name.endsWith(".jar", ignoreCase = true) &&
+            !profile.name.endsWith(".json", ignoreCase = true)
+        ) {
+            score += 5
+        }
+        if (profile.server.locationLabel.isNotBlank()) {
+            score += 3
+        }
+        if (profile.server.serverName.isNotBlank()) {
+            score += 2
+        }
+        return score
+    }
+
+    private fun profileSignature(profile: ClientProfile): ProfileSignature {
+        return ProfileSignature(
+            address = profile.server.address.trim().lowercase(Locale.ROOT),
+            port = profile.server.port,
+            uuid = profile.server.uuid.trim().lowercase(Locale.ROOT),
+            serverName = profile.server.serverName.trim().lowercase(Locale.ROOT),
+            publicKey = profile.server.publicKey.trim(),
+            shortId = profile.server.shortId.trim().lowercase(Locale.ROOT)
+        )
     }
 
     private fun resolveProfileEntry(profileId: String): ProfileEntry {
@@ -435,6 +535,22 @@ class ProfileRepository(private val context: Context) {
         val profileId: String,
         val fileName: String,
         val source: ProfileSource
+    )
+
+    private data class ImportedProfileRecord(
+        val entry: ProfileEntry,
+        val file: File,
+        val profile: ClientProfile,
+        val signature: ProfileSignature
+    )
+
+    private data class ProfileSignature(
+        val address: String,
+        val port: Int,
+        val uuid: String,
+        val serverName: String,
+        val publicKey: String,
+        val shortId: String
     )
 
     private data class BootstrapConfig(

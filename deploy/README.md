@@ -1,7 +1,7 @@
 # Split Deployment
 
-- `2.26.85.47`: `admin-service` and `pay-service`
-- `87.121.105.190`: `vpn-service`
+- `2.26.85.47`: `admin-service`, `pay-service`, and optional backup `vpn-service`
+- `87.121.105.190`: primary `vpn-service`
 
 ## Required state
 
@@ -28,6 +28,21 @@ sudo systemctl enable --now admin-service
 sudo systemctl enable --now pay-service
 sudo systemctl enable --now vpn-service
 ```
+
+## Backup VPN node on admin host
+
+To keep a hot spare VPN endpoint on the admin host, deploy the dedicated backup config and service:
+
+```bash
+sudo install -d /etc/novpn/vpn-service-backup /opt/novpn/vpn-service-backup /var/lib/novpn/reality-backup
+sudo cp deploy/vpn-service-backup/config.yaml /etc/novpn/vpn-service-backup/config.yaml
+sudo cp deploy/vpn-service-backup/vpn-service-backup.service /etc/systemd/system/vpn-service-backup.service
+sudo /usr/local/bin/reality-bootstrap -config /etc/novpn/vpn-service-backup/config.yaml
+sudo systemctl daemon-reload
+sudo systemctl enable --now vpn-service-backup
+```
+
+After bootstrap, copy the generated public key and short ID into the admin catalog entry for the backup node so clients receive the correct endpoint credentials.
 
 ## Android bootstrap
 
