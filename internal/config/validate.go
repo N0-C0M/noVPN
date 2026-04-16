@@ -107,6 +107,12 @@ func validateControlPlane(c ControlPlaneConfig) error {
 	if c.PollInterval <= 0 {
 		return errors.New("control_plane.poll_interval must be greater than zero when control_plane.enabled=true")
 	}
+	if strings.TrimSpace(c.ListenAddr) == "" {
+		return errors.New("control_plane.listen_addr must not be empty when control_plane.enabled=true")
+	}
+	if _, _, err := net.SplitHostPort(strings.TrimSpace(c.ListenAddr)); err != nil {
+		return fmt.Errorf("control_plane.listen_addr: %w", err)
+	}
 	return nil
 }
 

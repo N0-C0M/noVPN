@@ -32,6 +32,8 @@ type ServerNode struct {
 	Name          string    `json:"name"`
 	Address       string    `json:"address"`
 	Port          int       `json:"port"`
+	Role          string    `json:"role,omitempty"`
+	Purpose       string    `json:"purpose,omitempty"`
 	Flow          string    `json:"flow,omitempty"`
 	ServerName    string    `json:"server_name"`
 	Fingerprint   string    `json:"fingerprint"`
@@ -40,6 +42,7 @@ type ServerNode struct {
 	ShortIDs      []string  `json:"short_ids,omitempty"`
 	SpiderX       string    `json:"spider_x,omitempty"`
 	LocationLabel string    `json:"location_label,omitempty"`
+	MonitorURL    string    `json:"monitor_url,omitempty"`
 	VPNOnly       bool      `json:"vpn_only,omitempty"`
 	Active        bool      `json:"active"`
 	Primary       bool      `json:"primary,omitempty"`
@@ -67,6 +70,8 @@ type ServerCreateRequest struct {
 	Name          string
 	Address       string
 	Port          int
+	Role          string
+	Purpose       string
 	Flow          string
 	ServerName    string
 	Fingerprint   string
@@ -75,6 +80,7 @@ type ServerCreateRequest struct {
 	ShortIDs      []string
 	SpiderX       string
 	LocationLabel string
+	MonitorURL    string
 	VPNOnly       bool
 	Primary       bool
 }
@@ -158,12 +164,15 @@ func (s *CatalogStore) EnsureDefaults(cfg config.RealityConfig) (CatalogSnapshot
 				Name:          firstNonEmpty(strings.TrimSpace(cfg.PublicHost), "Primary VPN"),
 				Address:       strings.TrimSpace(cfg.PublicHost),
 				Port:          cfg.PublicPort,
+				Role:          "vpn-primary",
+				Purpose:       "Primary VPN ingress node for client tunnels",
 				Flow:          strings.TrimSpace(cfg.Flow),
 				ServerName:    serverName,
 				Fingerprint:   firstNonEmpty(strings.TrimSpace(cfg.Fingerprint), "chrome"),
 				ShortIDs:      append([]string(nil), cfg.ShortIDs...),
 				SpiderX:       firstNonEmpty(strings.TrimSpace(cfg.SpiderX), "/"),
 				LocationLabel: strings.TrimSpace(cfg.PublicHost),
+				MonitorURL:    defaultServerMonitorURL(strings.TrimSpace(cfg.PublicHost)),
 				Active:        true,
 				Primary:       true,
 				SortOrder:     10,
@@ -191,6 +200,8 @@ func (s *CatalogStore) EnsureDefaults(cfg config.RealityConfig) (CatalogSnapshot
 				Name:          firstNonEmpty(strings.TrimSpace(additional.Name), fmt.Sprintf("VPN node %d", index+2)),
 				Address:       strings.TrimSpace(additional.PublicHost),
 				Port:          additional.PublicPort,
+				Role:          defaultServerRole(ServerNode{Primary: false, VPNOnly: additional.VPNOnly}),
+				Purpose:       defaultServerPurpose(ServerNode{Name: additional.Name, Address: additional.PublicHost, VPNOnly: additional.VPNOnly}),
 				Flow:          firstNonEmpty(strings.TrimSpace(additional.Flow), strings.TrimSpace(cfg.Flow)),
 				ServerName:    serverName,
 				Fingerprint:   firstNonEmpty(strings.TrimSpace(additional.Fingerprint), strings.TrimSpace(cfg.Fingerprint), "chrome"),
@@ -199,6 +210,7 @@ func (s *CatalogStore) EnsureDefaults(cfg config.RealityConfig) (CatalogSnapshot
 				ShortIDs:      shortIDs,
 				SpiderX:       firstNonEmpty(strings.TrimSpace(additional.SpiderX), strings.TrimSpace(cfg.SpiderX), "/"),
 				LocationLabel: strings.TrimSpace(additional.PublicHost),
+				MonitorURL:    defaultServerMonitorURL(strings.TrimSpace(additional.PublicHost)),
 				VPNOnly:       additional.VPNOnly,
 				Active:        true,
 				SortOrder:     sortOrder,
@@ -290,6 +302,8 @@ func (s *CatalogStore) CreateServer(input ServerCreateRequest) (ServerNode, erro
 			Name:          firstNonEmpty(strings.TrimSpace(input.Name), id),
 			Address:       strings.TrimSpace(input.Address),
 			Port:          input.Port,
+			Role:          strings.TrimSpace(input.Role),
+			Purpose:       strings.TrimSpace(input.Purpose),
 			Flow:          strings.TrimSpace(input.Flow),
 			ServerName:    strings.TrimSpace(input.ServerName),
 			Fingerprint:   firstNonEmpty(strings.TrimSpace(input.Fingerprint), "chrome"),
@@ -298,6 +312,7 @@ func (s *CatalogStore) CreateServer(input ServerCreateRequest) (ServerNode, erro
 			ShortIDs:      shortIDs,
 			SpiderX:       firstNonEmpty(strings.TrimSpace(input.SpiderX), "/"),
 			LocationLabel: strings.TrimSpace(input.LocationLabel),
+			MonitorURL:    normalizeMonitorURL(input.MonitorURL, input.Address),
 			VPNOnly:       input.VPNOnly,
 			Active:        true,
 			Primary:       input.Primary,
@@ -366,6 +381,8 @@ func (snapshot *CatalogSnapshot) normalize() {
 		}
 		server.Name = firstNonEmpty(strings.TrimSpace(server.Name), server.ID)
 		server.Address = strings.TrimSpace(server.Address)
+		server.Role = firstNonEmpty(strings.TrimSpace(server.Role), defaultServerRole(*server))
+		server.Purpose = firstNonEmpty(strings.TrimSpace(server.Purpose), defaultServerPurpose(*server))
 		server.Flow = strings.TrimSpace(server.Flow)
 		server.ServerName = strings.TrimSpace(server.ServerName)
 		server.Fingerprint = firstNonEmpty(strings.TrimSpace(server.Fingerprint), "chrome")
@@ -376,6 +393,7 @@ func (snapshot *CatalogSnapshot) normalize() {
 			server.ShortIDs = []string{server.ShortID}
 		}
 		server.SpiderX = firstNonEmpty(strings.TrimSpace(server.SpiderX), "/")
+		server.MonitorURL = normalizeMonitorURL(server.MonitorURL, server.Address)
 		if server.CreatedAt.IsZero() {
 			server.CreatedAt = now
 		}
@@ -563,6 +581,50 @@ func normalizeStringList(values []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func defaultServerRole(server ServerNode) string {
+	switch {
+	case server.Primary:
+		return "vpn-primary"
+	case server.VPNOnly:
+		return "vpn-dedicated"
+	default:
+		return "vpn-node"
+	}
+}
+
+func defaultServerPurpose(server ServerNode) string {
+	switch {
+	case server.Primary:
+		return "Primary VPN endpoint used by the default tunnel profile"
+	case server.VPNOnly:
+		return "Dedicated VPN node assigned to selected subscription plans"
+	default:
+		return "Shared VPN node for client profile delivery"
+	}
+}
+
+func normalizeMonitorURL(raw string, address string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return defaultServerMonitorURL(strings.TrimSpace(address))
+	}
+	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+		return strings.TrimRight(trimmed, "/")
+	}
+	return "http://" + strings.TrimRight(trimmed, "/")
+}
+
+func defaultServerMonitorURL(address string) string {
+	host := strings.TrimSpace(address)
+	if host == "" {
+		return ""
+	}
+	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+		host = "[" + host + "]"
+	}
+	return fmt.Sprintf("http://%s:9202/control-plane/system", host)
 }
 
 func clampPositiveInt(value int) int {

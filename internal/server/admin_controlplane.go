@@ -101,10 +101,24 @@ func (a *adminApp) handleServersPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	plans, err := a.catalogStore.ListPlans()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	forceMonitoringRefresh := strings.TrimSpace(r.URL.Query().Get("refresh_monitoring")) == "1"
+	monitoringSnapshot, monitoringErr := a.ensureServerMonitoring(r.Context(), servers, forceMonitoringRefresh)
+	if monitoringErr != nil {
+		a.logger.Warn("server page monitoring refresh failed", "error", monitoringErr)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := a.serversTpl.Execute(w, serverPageView{
-		BasePath: a.basePath,
-		Servers:  servers,
+	if err := a.serversTpl.Execute(w, serverPageViewV2{
+		BasePath:             a.basePath,
+		MonitoringRefreshURL: a.basePath + "/servers?refresh_monitoring=1",
+		MonitoringObservedAt: formatMonitorTimestamp(monitoringSnapshot.UpdatedAt),
+		InfrastructureRows:   a.infrastructureRows(),
+		VPNInventoryRows:     buildVPNInventoryViews(servers, plans, monitoringSnapshot),
+		Servers:              servers,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -481,6 +495,8 @@ func decodeServerCreateRequest(r *http.Request) (controlplane.ServerCreateReques
 			Name          string   `json:"name"`
 			Address       string   `json:"address"`
 			Port          int      `json:"port"`
+			Role          string   `json:"role"`
+			Purpose       string   `json:"purpose"`
 			Flow          string   `json:"flow"`
 			ServerName    string   `json:"server_name"`
 			Fingerprint   string   `json:"fingerprint"`
@@ -489,6 +505,7 @@ func decodeServerCreateRequest(r *http.Request) (controlplane.ServerCreateReques
 			ShortIDs      []string `json:"short_ids"`
 			SpiderX       string   `json:"spider_x"`
 			LocationLabel string   `json:"location_label"`
+			MonitorURL    string   `json:"monitor_url"`
 			VPNOnly       bool     `json:"vpn_only"`
 			Primary       bool     `json:"primary"`
 		}
@@ -500,6 +517,8 @@ func decodeServerCreateRequest(r *http.Request) (controlplane.ServerCreateReques
 			Name:          payload.Name,
 			Address:       payload.Address,
 			Port:          payload.Port,
+			Role:          payload.Role,
+			Purpose:       payload.Purpose,
 			Flow:          payload.Flow,
 			ServerName:    payload.ServerName,
 			Fingerprint:   payload.Fingerprint,
@@ -508,6 +527,7 @@ func decodeServerCreateRequest(r *http.Request) (controlplane.ServerCreateReques
 			ShortIDs:      payload.ShortIDs,
 			SpiderX:       payload.SpiderX,
 			LocationLabel: payload.LocationLabel,
+			MonitorURL:    payload.MonitorURL,
 			VPNOnly:       payload.VPNOnly,
 			Primary:       payload.Primary,
 		}, nil
@@ -522,6 +542,8 @@ func decodeServerCreateRequest(r *http.Request) (controlplane.ServerCreateReques
 		Name:          r.FormValue("name"),
 		Address:       r.FormValue("address"),
 		Port:          port,
+		Role:          r.FormValue("role"),
+		Purpose:       r.FormValue("purpose"),
 		Flow:          r.FormValue("flow"),
 		ServerName:    r.FormValue("server_name"),
 		Fingerprint:   r.FormValue("fingerprint"),
@@ -530,6 +552,7 @@ func decodeServerCreateRequest(r *http.Request) (controlplane.ServerCreateReques
 		ShortIDs:      splitMultilineList(r.FormValue("short_ids")),
 		SpiderX:       r.FormValue("spider_x"),
 		LocationLabel: r.FormValue("location_label"),
+		MonitorURL:    r.FormValue("monitor_url"),
 		VPNOnly:       strings.EqualFold(strings.TrimSpace(r.FormValue("vpn_only")), "on"),
 		Primary:       strings.EqualFold(strings.TrimSpace(r.FormValue("primary")), "on"),
 	}, nil

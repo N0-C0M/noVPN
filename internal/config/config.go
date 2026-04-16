@@ -50,6 +50,7 @@ type ControlPlaneConfig struct {
 	Enabled      bool          `yaml:"enabled"`
 	BaseURL      string        `yaml:"base_url"`
 	Token        string        `yaml:"token"`
+	ListenAddr   string        `yaml:"listen_addr"`
 	PollInterval time.Duration `yaml:"poll_interval"`
 }
 
@@ -240,6 +241,9 @@ func (c *Config) setDefaults() {
 
 	if c.ControlPlane.PollInterval <= 0 {
 		c.ControlPlane.PollInterval = 15 * time.Second
+	}
+	if c.ControlPlane.ListenAddr == "" {
+		c.ControlPlane.ListenAddr = "127.0.0.1:9202"
 	}
 
 	if strings.TrimSpace(c.Security.Auth.Mode) == "" {

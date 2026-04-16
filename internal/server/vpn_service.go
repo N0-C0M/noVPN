@@ -16,10 +16,11 @@ import (
 )
 
 type VPNService struct {
-	cfg     config.Config
-	logger  *slog.Logger
-	gateway *Gateway
-	syncer  *controlPlaneSyncer
+	cfg                config.Config
+	logger             *slog.Logger
+	gateway            *Gateway
+	syncer             *controlPlaneSyncer
+	controlPlaneServer *http.Server
 }
 
 func NewVPNService(cfg config.Config, logger *slog.Logger) (*VPNService, error) {
@@ -40,6 +41,7 @@ func NewVPNService(cfg config.Config, logger *slog.Logger) (*VPNService, error) 
 			return nil, fmt.Errorf("control_plane.enabled requires core.reality.enabled")
 		}
 		service.syncer = newControlPlaneSyncer(cfg.ControlPlane, gateway.reality, logger)
+		service.controlPlaneServer = newVPNControlPlaneServer(cfg.ControlPlane, gateway, logger)
 	}
 	return service, nil
 }
@@ -62,6 +64,13 @@ func (s *VPNService) Start(ctx context.Context) error {
 	if err := s.gateway.Start(ctx); err != nil {
 		return err
 	}
+	if s.controlPlaneServer != nil {
+		go func() {
+			if err := s.controlPlaneServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				s.logger.Error("vpn control-plane server stopped unexpectedly", "error", err)
+			}
+		}()
+	}
 	if s.syncer != nil {
 		s.syncer.Start()
 	}
@@ -71,6 +80,11 @@ func (s *VPNService) Start(ctx context.Context) error {
 func (s *VPNService) Shutdown(ctx context.Context) error {
 	if s.syncer != nil {
 		s.syncer.Stop()
+	}
+	if s.controlPlaneServer != nil {
+		if err := s.controlPlaneServer.Shutdown(ctx); err != nil && err != http.ErrServerClosed {
+			return err
+		}
 	}
 	return s.gateway.Shutdown(ctx)
 }

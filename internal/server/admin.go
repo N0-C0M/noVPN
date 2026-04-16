@@ -33,6 +33,7 @@ type adminApp struct {
 	logger        *slog.Logger
 	policyStore   *clientPolicyStore
 	catalogStore  *controlplane.CatalogStore
+	serverMonitor *serverMonitorStore
 	dashboardTpl  *template.Template
 	plansTpl      *template.Template
 	serversTpl    *template.Template
@@ -88,6 +89,7 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		logger:        logger.With("component", "admin"),
 		policyStore:   newClientPolicyStore(cfg.StoragePath),
 		catalogStore:  controlplane.NewCatalogStore(cfg.CatalogPath, logger.With("component", "catalog")),
+		serverMonitor: newServerMonitorStore(filepath.Join(cfg.StoragePath, "server-monitoring.json"), cfg.ControlPlaneToken, logger.With("component", "server-monitoring")),
 		basePath:      strings.TrimRight(cfg.BasePath, "/"),
 		token:         strings.TrimSpace(cfg.Token),
 		cookieName:    "novpn_admin_token",
@@ -106,14 +108,25 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		"formatPromoUses":     formatPromoUses,
 		"joinLines":           strings.Join,
 	}
-	app.dashboardTpl = template.Must(template.New("dashboard").Funcs(funcs).Parse(adminDashboardTemplate))
-	app.plansTpl = template.Must(template.New("plans").Funcs(funcs).Parse(adminPlansTemplate))
-	app.serversTpl = template.Must(template.New("servers").Funcs(funcs).Parse(adminServersTemplate))
+	app.dashboardTpl = template.Must(template.New("dashboard").Funcs(funcs).Parse(adminDashboardTemplateV2))
+	app.plansTpl = template.Must(template.New("plans").Funcs(funcs).Parse(adminPlansTemplateV2))
+	app.serversTpl = template.Must(template.New("servers").Funcs(funcs).Parse(adminServersTemplateV2))
 	app.loginTpl = template.Must(template.New("login").Funcs(funcs).Parse(adminLoginTemplate))
 	app.httpServer = &http.Server{
 		Addr:    cfg.ListenAddr,
 		Handler: app.routes(),
 	}
+	app.serverMonitor.StartAutoRefresh(func() []serverMonitorTarget {
+		servers, err := app.catalogStore.ListServers()
+		if err != nil {
+			app.logger.Warn("load servers for monitoring refresh failed", "error", err)
+			return nil
+		}
+		return app.monitorTargets(servers)
+	}, serverMonitoringRefreshInterval)
+	app.httpServer.RegisterOnShutdown(func() {
+		app.serverMonitor.Stop()
+	})
 	return app.httpServer
 }
 
@@ -299,6 +312,7 @@ func (a *adminApp) isAuthorized(r *http.Request) bool {
 
 func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	a.syncTraffic(r.Context())
+	activeTab := normalizeDashboardTab(r.URL.Query().Get("tab"))
 
 	summary, err := a.reality.RegistrySummary()
 	if err != nil {
@@ -340,14 +354,23 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	servers, err := a.catalogStore.ListServers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	realityCfg := a.reality.Config()
 	clientSort := normalizeClientSort(r.URL.Query().Get("clients_sort"))
 	sortClients(clients, clientSort)
+	forceMonitoringRefresh := strings.TrimSpace(r.URL.Query().Get("refresh_monitoring")) == "1"
+	monitoringSnapshot, monitoringErr := a.ensureServerMonitoring(r.Context(), servers, forceMonitoringRefresh)
 
-	view := dashboardView{
+	view := dashboardViewV2{
 		BasePath:          a.basePath,
 		GeneratedAt:       time.Now().UTC(),
 		PanelVersion:      adminPanelVersion(),
+		DashboardTab:      activeTab,
+		Tabs:              a.dashboardTabs(activeTab),
 		Summary:           summary,
 		Clients:           clients,
 		Invites:           invites,
@@ -373,11 +396,23 @@ func (a *adminApp) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Plans:             plans,
 		PlanPageURL:       a.basePath + "/plans",
 		ServerPageURL:     a.basePath + "/servers",
+		MonitoringObservedAt: formatMonitorTimestamp(monitoringSnapshot.UpdatedAt),
+		MonitoringRefreshURL: fmt.Sprintf("%s/dashboard?tab=%s&refresh_monitoring=1", a.basePath, activeTab),
+		MonitoringRows:       buildServerMonitoringViews(servers, monitoringSnapshot),
+		InfrastructureRows:   a.infrastructureRows(),
+		VPNInventoryRows:     buildVPNInventoryViews(servers, plans, monitoringSnapshot),
+		ServerMonitoringCount: len(monitoringSnapshot.Servers),
 	}
 
 	if len(state.ShortIDs) == 0 {
 		view.Ready = false
 		view.Notice = "Reality state does not have any short IDs yet."
+	}
+	if monitoringErr != nil {
+		if view.Notice != "" {
+			view.Notice += " "
+		}
+		view.Notice += "Server monitoring refresh failed: " + monitoringErr.Error()
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -400,6 +435,15 @@ func (a *adminApp) handleAPI(w http.ResponseWriter, r *http.Request) {
 				"observed_at": time.Now().UTC(),
 				"rows":        a.serverStatSnapshot(),
 			}, nil
+		})
+	case r.URL.Path == a.basePath+"/api/monitoring/servers":
+		force := r.Method == http.MethodPost || strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
+		a.writeJSON(w, r, func() (any, error) {
+			servers, err := a.catalogStore.ListServers()
+			if err != nil {
+				return nil, err
+			}
+			return a.ensureServerMonitoring(r.Context(), servers, force)
 		})
 	case r.URL.Path == a.basePath+"/api/clients":
 		switch r.Method {
