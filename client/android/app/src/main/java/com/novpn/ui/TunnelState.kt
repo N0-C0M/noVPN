@@ -25,6 +25,5 @@ data class TunnelState(
     val blockedAppsCount: Int = 0,
     val mandatoryNotices: List<String> = emptyList(),
     val diagnosticsRunning: Boolean = false,
-    val diagnosticsSummary: String = "",
-    val connectionLogs: String = ""
+    val diagnosticsSummary: String = ""
 )

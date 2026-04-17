@@ -10,7 +10,6 @@ import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
 import android.os.Bundle
 import android.text.InputType
-import android.text.method.ScrollingMovementMethod
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -29,7 +28,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.novpn.R
 import com.novpn.data.AvailableProfile
-import com.novpn.data.ClientLogStore
 import com.novpn.data.CodeRedeemKind
 import com.novpn.data.ClientPreferences
 import com.novpn.vpn.NoVpnService
@@ -41,7 +39,6 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<TunnelViewModel>()
     private val preferences by lazy { ClientPreferences(this) }
-    private val clientLogStore by lazy { ClientLogStore(this) }
 
     private lateinit var headerLabel: TextView
     private lateinit var headerServer: TextView
@@ -54,13 +51,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var diagnosticsButton: Button
     private lateinit var diagnosticsDetail: TextView
     private lateinit var serverStrip: LinearLayout
-    private lateinit var homeSectionsContainer: LinearLayout
-    private lateinit var logsSection: LinearLayout
-    private lateinit var logsText: TextView
-    private lateinit var logsRefreshButton: Button
-    private lateinit var logsClearButton: Button
-    private lateinit var homeTabButton: Button
-    private lateinit var logsTabButton: Button
     private lateinit var startupOverlay: View
     private lateinit var startupCard: LinearLayout
     private lateinit var startupTitleLabel: TextView
@@ -74,7 +64,6 @@ class MainActivity : ComponentActivity() {
     private var firstRenderCompleted = false
     private var startupWarmupReady = false
     private var runtimeStatusSyncJob: Job? = null
-    private var activeTab = MainTab.HOME
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -87,10 +76,8 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            clientLogStore.append("ui", "VPN permission granted by Android.")
             startVpnRuntime()
         } else {
-            clientLogStore.append("ui", "VPN permission denied by Android.")
             statusTitle.text = getString(R.string.status_permission_required)
             statusDetail.text = getString(R.string.status_permission_denied_detail)
         }
@@ -165,19 +152,9 @@ class MainActivity : ComponentActivity() {
         )
 
         content.addView(buildHeader())
-        content.addView(buildTabBar())
-
-        homeSectionsContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(buildHeroSection())
-            addView(buildInviteSection())
-            addView(buildServerSection())
-        }
-        content.addView(homeSectionsContainer)
-
-        logsSection = buildLogsSection()
-        content.addView(logsSection)
-        applyActiveTab()
+        content.addView(buildHeroSection())
+        content.addView(buildInviteSection())
+        content.addView(buildServerSection())
         root.addView(
             scroll,
             FrameLayout.LayoutParams(
@@ -330,32 +307,6 @@ class MainActivity : ComponentActivity() {
         return row
     }
 
-    private fun buildTabBar(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(18)
-            }
-
-            homeTabButton = buildTabButton("Home", MainTab.HOME).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginEnd = dp(6)
-                }
-            }
-            addView(homeTabButton)
-
-            logsTabButton = buildTabButton("Logs", MainTab.LOGS).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = dp(6)
-                }
-            }
-            addView(logsTabButton)
-        }
-    }
-
     private fun buildHeroSection(): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -395,90 +346,6 @@ class MainActivity : ComponentActivity() {
             }
             addView(statusDetail)
 
-        }
-    }
-
-    private fun buildLogsSection(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedDrawable("#0A1018", "#182432", 38f, 2)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(18)
-            }
-
-            addView(label("Client logs", 16f, "#F3F6FB", true))
-            addView(
-                label(
-                    "Detailed startup, diagnostics and runtime events. Use this tab to see why VPN start failed.",
-                    12f,
-                    "#7B8DA3",
-                    false
-                ).apply {
-                    setPadding(0, dp(6), 0, dp(14))
-                }
-            )
-
-            val controlsRow = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-            }
-
-            logsRefreshButton = Button(this@MainActivity).apply {
-                text = "refresh"
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 12f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 20f, 2)
-                setPadding(dp(16), dp(10), dp(16), dp(10))
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginEnd = dp(6)
-                }
-                setOnClickListener {
-                    viewModel.refreshConnectionLogs()
-                    renderState(viewModel.state.value)
-                }
-            }
-            controlsRow.addView(logsRefreshButton)
-
-            logsClearButton = Button(this@MainActivity).apply {
-                text = "clear"
-                isAllCaps = false
-                setTextColor(Color.parseColor("#F3F6FB"))
-                textSize = 12f
-                typeface = Typeface.DEFAULT_BOLD
-                background = roundedDrawable("#0E1520", "#243244", 20f, 2)
-                setPadding(dp(16), dp(10), dp(16), dp(10))
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = dp(6)
-                }
-                setOnClickListener {
-                    viewModel.clearConnectionLogs()
-                    renderState(viewModel.state.value)
-                }
-            }
-            controlsRow.addView(logsClearButton)
-            addView(controlsRow)
-
-            logsText = label("No logs yet.", 11.5f, "#C5D2E0", false).apply {
-                typeface = Typeface.MONOSPACE
-                movementMethod = ScrollingMovementMethod()
-                background = roundedDrawable("#09111A", "#1C2C3F", 24f, 1)
-                setPadding(dp(14), dp(14), dp(14), dp(14))
-                setTextIsSelectable(true)
-            }
-            addView(
-                logsText,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    topMargin = dp(12)
-                }
-            )
         }
     }
 
@@ -638,19 +505,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun buildTabButton(title: String, tab: MainTab): Button {
-        return Button(this).apply {
-            text = title
-            isAllCaps = false
-            textSize = 12.5f
-            typeface = Typeface.DEFAULT_BOLD
-            setOnClickListener {
-                activeTab = tab
-                applyActiveTab()
-            }
-        }
-    }
-
     private fun renderState(state: TunnelState) {
         val selected = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
             ?: state.availableProfiles.firstOrNull()
@@ -720,31 +574,8 @@ class MainActivity : ComponentActivity() {
         }
 
         rebuildServerCards(state.availableProfiles, state.selectedProfileId)
-        renderLogs(state)
-        applyActiveTab()
         firstRenderCompleted = true
         maybeDismissStartupOverlay()
-    }
-
-    private fun renderLogs(state: TunnelState) {
-        if (!::logsText.isInitialized) {
-            return
-        }
-        val text = state.connectionLogs.ifBlank {
-            "No logs yet. Try starting VPN and then open this tab again."
-        }
-        logsText.text = text
-    }
-
-    private fun applyActiveTab() {
-        if (!::homeSectionsContainer.isInitialized || !::logsSection.isInitialized) {
-            return
-        }
-        val homeSelected = activeTab == MainTab.HOME
-        homeSectionsContainer.visibility = if (homeSelected) View.VISIBLE else View.GONE
-        logsSection.visibility = if (homeSelected) View.GONE else View.VISIBLE
-        styleTabButton(homeTabButton, homeSelected)
-        styleTabButton(logsTabButton, !homeSelected)
     }
 
     private fun rebuildServerCards(profiles: List<AvailableProfile>, selectedProfileId: String) {
@@ -899,7 +730,6 @@ class MainActivity : ComponentActivity() {
 
     private fun toggleRuntime() {
         if (viewModel.state.value.runtimeRunning) {
-            clientLogStore.append("ui", "User requested VPN stop.")
             animateDisconnectTransition()
             startService(NoVpnService.stopIntent(this))
             viewModel.markRuntimeStopped()
@@ -907,7 +737,6 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        clientLogStore.append("ui", "User requested VPN start.")
         beginVpnStartFlow()
     }
 
@@ -1048,7 +877,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runDiagnostics() {
-        clientLogStore.append("ui", "User opened net test from the main screen.")
         viewModel.markDiagnosticsStarted()
         renderState(viewModel.state.value)
 
@@ -1080,11 +908,6 @@ class MainActivity : ComponentActivity() {
         runCatching {
             viewModel.runtimePreflight().requireReady()
             val request = viewModel.buildRuntimeRequest()
-            clientLogStore.append(
-                "ui",
-                "Dispatching VPN start to service for profileId=${request.profileId}, " +
-                    "routing=${request.appRoutingMode.storageValue}, selectedPackages=${request.selectedPackages.size}."
-            )
             updateTextWithFade(statusTitle, getString(R.string.runtime_starting))
             updateTextWithFade(statusDetail, getString(R.string.runtime_starting_detail))
             val intent = NoVpnService.startIntent(
@@ -1105,10 +928,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }.onFailure { error ->
-            clientLogStore.append(
-                "ui",
-                "VPN start flow failed before service launch: ${error.message ?: error.javaClass.simpleName}"
-            )
             statusTitle.text = getString(R.string.runtime_profile_incomplete)
             statusDetail.text = error.message ?: getString(R.string.import_profile_failed)
             Toast.makeText(
@@ -1194,18 +1013,6 @@ class MainActivity : ComponentActivity() {
             view.text = text
             view.animate().alpha(1f).setDuration(200).start()
         }.start()
-    }
-
-    private fun styleTabButton(button: Button, selected: Boolean) {
-        button.setTextColor(Color.parseColor(if (selected) "#F3F6FB" else "#A1B3C7"))
-        button.background = roundedDrawable(
-            if (selected) "#132131" else "#0A1018",
-            if (selected) "#3D688C" else "#182432",
-            20f,
-            2
-        )
-        button.alpha = if (selected) 1f else 0.88f
-        button.setPadding(dp(16), dp(12), dp(16), dp(12))
     }
 
     private fun trafficStrategyLabel(strategy: com.novpn.data.TrafficObfuscationStrategy): String {
@@ -1323,24 +1130,17 @@ class MainActivity : ComponentActivity() {
         ERROR
     }
 
-    private enum class MainTab {
-        HOME,
-        LOGS
-    }
-
     private data class RuntimeStatusSnapshot(
         val running: Boolean,
         val status: String,
-        val detail: String,
-        val logs: String
+        val detail: String
     ) {
         companion object {
             fun from(state: TunnelState): RuntimeStatusSnapshot {
                 return RuntimeStatusSnapshot(
                     running = state.runtimeRunning,
                     status = state.runtimeStatus,
-                    detail = state.runtimeDetail,
-                    logs = state.connectionLogs
+                    detail = state.runtimeDetail
                 )
             }
         }

@@ -7,7 +7,6 @@ import com.novpn.data.DeviceIdentityStore
 import com.novpn.data.InviteRedeemer
 import com.novpn.R
 import com.novpn.data.AppRoutingMode
-import com.novpn.data.ClientLogStore
 import com.novpn.data.ClientPreferences
 import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.ProfileRepository
@@ -57,7 +56,6 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     private val diagnosticsRunner = NetworkDiagnosticsRunner()
     private val runtimeManager = EmbeddedRuntimeManager(application)
     private val gatewayPolicyService = GatewayPolicyService()
-    private val clientLogStore = ClientLogStore(application)
     @Volatile
     private var startupWarmupCompleted = false
 
@@ -86,7 +84,6 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         val runtimeStatus = runtimeStatusStore.load()
-        val connectionLogs = buildConnectionLogs(runtimeStatus.detail)
 
         _state.update {
             it.copy(
@@ -105,8 +102,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 },
                 runtimeDetail = runtimeStatus.detail,
                 trafficUsedBytes = preferences.trafficUsedBytes(),
-                trafficLimitBytes = preferences.trafficLimitBytes(),
-                connectionLogs = connectionLogs
+                trafficLimitBytes = preferences.trafficLimitBytes()
             )
         }
     }
@@ -329,14 +325,12 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun selectProfile(profileId: String) {
-        clientLogStore.append("ui", "Selected profile: $profileId")
         preferences.saveSelectedProfileId(profileId)
         refreshStateFromPreferences()
     }
 
     fun importProfile(uri: Uri) {
         val profile = profileRepository.importProfile(uri)
-        clientLogStore.append("profiles", "Imported profile '${profile.name}' from external payload.")
         preferences.saveSelectedProfileId(profile.profileId)
         refreshStateFromPreferences()
     }
@@ -439,35 +433,29 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun markRuntimeStopped() {
-        clientLogStore.append("runtime", "Runtime marked as stopped from UI.")
         _state.update {
             it.copy(
                 runtimeRunning = false,
                 runtimeStatus = appContext.getString(R.string.service_stopped),
-                runtimeDetail = "",
-                connectionLogs = buildConnectionLogs()
+                runtimeDetail = ""
             )
         }
     }
 
     fun markDiagnosticsStarted() {
-        clientLogStore.append("diagnostics", "User started in-app network test.")
         _state.update {
             it.copy(
                 diagnosticsRunning = true,
-                diagnosticsSummary = appContext.getString(R.string.diagnostics_running),
-                connectionLogs = buildConnectionLogs()
+                diagnosticsSummary = appContext.getString(R.string.diagnostics_running)
             )
         }
     }
 
     fun markDiagnosticsFailed(message: String) {
-        clientLogStore.append("diagnostics", "Network test failed: $message")
         _state.update {
             it.copy(
                 diagnosticsRunning = false,
-                diagnosticsSummary = message,
-                connectionLogs = buildConnectionLogs()
+                diagnosticsSummary = message
             )
         }
     }
@@ -481,31 +469,16 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
             diagnosticsRunner.run(
                 profile = profile,
                 proxy = localProxy,
-                apiBaseFallback = profileRepository.bootstrapApiBase(),
-                logger = { message -> clientLogStore.append("diagnostics", message) }
+                apiBaseFallback = profileRepository.bootstrapApiBase()
             )
         }
-        clientLogStore.append("diagnostics", "Network test result: ${result.summary.replace('\n', ' ')}")
         _state.update {
             it.copy(
                 diagnosticsRunning = false,
-                diagnosticsSummary = result.summary,
-                connectionLogs = buildConnectionLogs()
+                diagnosticsSummary = result.summary
             )
         }
         return result.summary
-    }
-
-    fun refreshConnectionLogs() {
-        _state.update {
-            it.copy(connectionLogs = buildConnectionLogs())
-        }
-    }
-
-    fun clearConnectionLogs() {
-        clientLogStore.clear()
-        clientLogStore.append("logs", "Client log cleared from in-app logs tab.")
-        refreshStateFromPreferences()
     }
 
     suspend fun refreshGatewayPolicy() {
@@ -598,25 +571,5 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun runtimePreflight(profileId: String): RuntimePreflightReport {
         return preflightChecker.evaluate(profileId)
-    }
-
-    private fun buildConnectionLogs(runtimeDetailOverride: String = ""): String {
-        val sections = buildList {
-            val runtimeDetail = runtimeDetailOverride.trim()
-            if (runtimeDetail.isNotBlank()) {
-                add("Runtime status detail\n$runtimeDetail")
-            }
-
-            val runtimeSummary = runtimeManager.diagnosticsSummary().trim()
-            if (runtimeSummary.isNotBlank()) {
-                add("Runtime processes\n$runtimeSummary")
-            }
-
-            val clientEvents = clientLogStore.readTail().trim()
-            if (clientEvents.isNotBlank()) {
-                add("Client events\n$clientEvents")
-            }
-        }
-        return sections.joinToString("\n\n").trim()
     }
 }
