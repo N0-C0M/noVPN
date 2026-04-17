@@ -11,6 +11,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+layout.buildDirectory.set(file("build-codex"))
+
 val disguiseAppId = providers.gradleProperty("novpnAppId").orNull
     ?: System.getenv("NOVPN_APP_ID")
     ?: "safety.turtle"
@@ -144,7 +146,7 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            buildStagingDirectory = file("$buildDir/cxx")
+            buildStagingDirectory = file(".cxx")
         }
     }
 

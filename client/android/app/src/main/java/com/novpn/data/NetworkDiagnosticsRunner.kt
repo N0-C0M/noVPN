@@ -8,9 +8,9 @@ import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.net.URI
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -24,34 +24,63 @@ data class NetworkDiagnosticsResult(
 )
 
 class NetworkDiagnosticsRunner {
-    fun verifyTunnel(profile: ClientProfile, proxy: RuntimeLocalProxyConfig, apiBaseFallback: String = "") {
+    fun verifyTunnel(
+        profile: ClientProfile,
+        proxy: RuntimeLocalProxyConfig,
+        apiBaseFallback: String = "",
+        logger: ((String) -> Unit)? = null
+    ) {
         val target = resolveTarget(profile, apiBaseFallback)
+        logger?.invoke(
+            "Startup verification target: ${target.host}:${target.port}, " +
+                "httpDiagnostics=${target.supportsHttpDiagnostics}"
+        )
+
         if (target.supportsHttpDiagnostics) {
-            runStage("Control-plane probe") {
-                executeRequest(
-                    proxy = proxy,
-                    host = target.host,
-                    port = target.port,
-                    method = "HEAD",
-                    path = target.diagPath("/ping?startup=1&ts=${System.currentTimeMillis()}"),
-                    body = ByteArray(0)
+            runCatching {
+                runStage("Control-plane probe", logger) {
+                    executeRequest(
+                        proxy = proxy,
+                        host = target.host,
+                        port = target.port,
+                        method = "HEAD",
+                        path = target.diagPath("/ping?startup=1&ts=${System.currentTimeMillis()}"),
+                        body = ByteArray(0)
+                    )
+                }
+            }.onSuccess {
+                logger?.invoke("Control-plane startup probe succeeded.")
+                return
+            }.onFailure { error ->
+                logger?.invoke(
+                    "Control-plane startup probe failed, switching to direct VPN endpoint check: " +
+                        (error.message ?: error.javaClass.simpleName)
                 )
             }
-            return
         }
 
-        runStage("Proxy handshake") {
-            openSocksSocket(proxy, target.host, target.port).use { }
+        runStage("VPN endpoint probe", logger) {
+            openSocksSocket(proxy, profile.server.address, profile.server.port).use { }
         }
+        logger?.invoke("Direct VPN endpoint probe succeeded.")
     }
 
-    fun run(profile: ClientProfile, proxy: RuntimeLocalProxyConfig, apiBaseFallback: String = ""): NetworkDiagnosticsResult {
+    fun run(
+        profile: ClientProfile,
+        proxy: RuntimeLocalProxyConfig,
+        apiBaseFallback: String = "",
+        logger: ((String) -> Unit)? = null
+    ): NetworkDiagnosticsResult {
         val target = resolveTarget(profile, apiBaseFallback)
+        logger?.invoke(
+            "Network test target: ${target.host}:${target.port}, " +
+                "httpDiagnostics=${target.supportsHttpDiagnostics}"
+        )
 
         val latencySamples = (1..3).map { index ->
             val startedAt = System.nanoTime()
             if (target.supportsHttpDiagnostics) {
-                runStage("Latency probe #$index") {
+                runStage("Latency probe #$index", logger) {
                     executeRequest(
                         proxy = proxy,
                         host = target.host,
@@ -62,11 +91,13 @@ class NetworkDiagnosticsRunner {
                     )
                 }
             } else {
-                runStage("Latency probe #$index") {
+                runStage("Latency probe #$index", logger) {
                     openSocksSocket(proxy, target.host, target.port).use { }
                 }
             }
-            elapsedMillis(startedAt)
+            elapsedMillis(startedAt).also { sample ->
+                logger?.invoke("Latency probe #$index result: ${sample}ms")
+            }
         }
 
         val latencyAverage = latencySamples.average().roundToInt()
@@ -75,15 +106,14 @@ class NetworkDiagnosticsRunner {
         val downloadMbps: Double
         val uploadMbps: Double
         if (target.supportsHttpDiagnostics) {
-            val downloadBytes = DOWNLOAD_BYTES
             val downloadStartedAt = System.nanoTime()
-            val downloaded = runStage("Download test") {
+            val downloaded = runStage("Download test", logger) {
                 executeRequest(
                     proxy = proxy,
                     host = target.host,
                     port = target.port,
                     method = "GET",
-                    path = target.diagPath("/download?bytes=$downloadBytes"),
+                    path = target.diagPath("/download?bytes=$DOWNLOAD_BYTES"),
                     body = ByteArray(0)
                 ).bodyBytes
             }
@@ -93,10 +123,15 @@ class NetworkDiagnosticsRunner {
             } else {
                 (downloaded * 8.0) / downloadDurationSeconds / 1_000_000.0
             }
+            logger?.invoke(
+                "Download test: ${downloaded} bytes in " +
+                    String.format(Locale.US, "%.2f", downloadDurationSeconds) +
+                    "s (${formatMbps(downloadMbps)})"
+            )
 
             val uploadPayload = ByteArray(UPLOAD_BYTES) { index -> (index % 251).toByte() }
             val uploadStartedAt = System.nanoTime()
-            runStage("Upload test") {
+            runStage("Upload test", logger) {
                 executeRequest(
                     proxy = proxy,
                     host = target.host,
@@ -112,9 +147,15 @@ class NetworkDiagnosticsRunner {
             } else {
                 (uploadPayload.size * 8.0) / uploadDurationSeconds / 1_000_000.0
             }
+            logger?.invoke(
+                "Upload test: ${uploadPayload.size} bytes in " +
+                    String.format(Locale.US, "%.2f", uploadDurationSeconds) +
+                    "s (${formatMbps(uploadMbps)})"
+            )
         } else {
             downloadMbps = 0.0
             uploadMbps = 0.0
+            logger?.invoke("HTTP diagnostics unavailable; download/upload tests skipped.")
         }
 
         val summary = buildString {
@@ -133,6 +174,7 @@ class NetworkDiagnosticsRunner {
                 append("\nControl plane diagnostics unavailable for this profile")
             }
         }
+        logger?.invoke("Network test finished: ${summary.replace('\n', ' ')}")
 
         return NetworkDiagnosticsResult(
             latencyMs = latencyAverage,
@@ -162,11 +204,10 @@ class NetworkDiagnosticsRunner {
                         scheme == "https" -> 443
                         else -> 80
                     }
-                    val path = uri.path.orEmpty().trimEnd('/')
                     return DiagnosticsTarget(
                         host = host,
                         port = port,
-                        basePath = path,
+                        basePath = uri.path.orEmpty().trimEnd('/'),
                         supportsHttpDiagnostics = scheme != "https"
                     )
                 }
@@ -195,7 +236,7 @@ class NetworkDiagnosticsRunner {
 
         socket.use { activeSocket ->
             val output = BufferedOutputStream(activeSocket.getOutputStream())
-            val bodyLength = body.size
+            val requestBodySize = body.size
             val request = buildString {
                 append(method)
                 append(' ')
@@ -206,17 +247,17 @@ class NetworkDiagnosticsRunner {
                 append("\r\n")
                 append("Connection: close\r\n")
                 append("Accept: application/json, application/octet-stream\r\n")
-                if (bodyLength > 0) {
+                if (requestBodySize > 0) {
                     append("Content-Type: application/octet-stream\r\n")
                     append("Content-Length: ")
-                    append(bodyLength)
+                    append(requestBodySize)
                     append("\r\n")
                 }
                 append("\r\n")
             }.toByteArray(StandardCharsets.US_ASCII)
 
             output.write(request)
-            if (bodyLength > 0) {
+            if (requestBodySize > 0) {
                 output.write(body)
             }
             output.flush()
@@ -224,16 +265,14 @@ class NetworkDiagnosticsRunner {
             val input = BufferedInputStream(activeSocket.getInputStream())
             val statusLine = readAsciiLine(input)
             if (statusLine.isBlank()) {
-                throw IllegalStateException(
-                    "Сервер диагностики не вернул строку HTTP-статуса. Похоже, туннель не довёл запрос до /admin/diag/ping."
-                )
+                throw IllegalStateException("Diagnostics endpoint returned an empty HTTP status line.")
             }
 
             val statusCode = statusLine.split(' ')
                 .drop(1)
                 .firstOrNull()
                 ?.toIntOrNull()
-                ?: throw IllegalStateException("Сервер диагностики вернул некорректный HTTP-ответ: $statusLine")
+                ?: throw IllegalStateException("Diagnostics endpoint returned invalid HTTP response: $statusLine")
 
             var contentLength = -1L
             while (true) {
@@ -259,7 +298,7 @@ class NetworkDiagnosticsRunner {
             }
 
             if (statusCode !in 200..299) {
-                throw IllegalStateException("Сервер диагностики вернул HTTP $statusCode.")
+                throw IllegalStateException("Diagnostics endpoint returned HTTP $statusCode.")
             }
 
             return HttpProbeResponse(statusCode = statusCode, bodyBytes = bodyBytes)
@@ -320,30 +359,37 @@ class NetworkDiagnosticsRunner {
 
         val header = readExactly(input, 4)
         if (header[0].toInt() != 0x05 || header[1].toInt() != 0x00) {
-            throw IllegalStateException("Локальный SOCKS отклонил CONNECT с кодом ${header[1].toInt() and 0xff}.")
+            throw IllegalStateException("Local SOCKS bridge rejected CONNECT with code ${header[1].toInt() and 0xff}.")
         }
 
-        val atyp = header[3].toInt() and 0xff
-        when (atyp) {
+        when (val atyp = header[3].toInt() and 0xff) {
             0x01 -> readExactly(input, 4)
             0x03 -> {
                 val length = readExactly(input, 1)[0].toInt() and 0xff
                 readExactly(input, length)
             }
             0x04 -> readExactly(input, 16)
+            else -> throw IllegalStateException("Local SOCKS bridge returned unsupported atyp $atyp.")
         }
         readExactly(input, 2)
         return socket
     }
 
-    private fun <T> runStage(name: String, block: () -> T): T {
+    private fun <T> runStage(name: String, logger: ((String) -> Unit)? = null, block: () -> T): T {
+        logger?.invoke("$name started.")
         return try {
-            block()
+            block().also {
+                logger?.invoke("$name completed.")
+            }
         } catch (error: SocketTimeoutException) {
+            logger?.invoke("$name timed out.")
             throw IllegalStateException(
-                "$name: время ожидания истекло. Туннель отвечает слишком медленно для текущего теста.",
+                "$name timed out. Tunnel response is too slow for this diagnostics step.",
                 error
             )
+        } catch (error: Exception) {
+            logger?.invoke("$name failed: ${error.message ?: error.javaClass.simpleName}")
+            throw error
         }
     }
 
@@ -363,10 +409,7 @@ class NetworkDiagnosticsRunner {
         val output = ByteArrayOutputStream()
         while (true) {
             val next = input.read()
-            if (next == -1) {
-                break
-            }
-            if (next == '\n'.code) {
+            if (next == -1 || next == '\n'.code) {
                 break
             }
             if (next != '\r'.code) {
@@ -382,7 +425,7 @@ class NetworkDiagnosticsRunner {
         while (offset < count) {
             val read = input.read(buffer, offset, count - offset)
             if (read < 0) {
-                throw IllegalStateException("Диагностический поток завершился раньше ожидаемого.")
+                throw IllegalStateException("Diagnostics stream ended before the expected amount of data was read.")
             }
             offset += read
         }
@@ -420,7 +463,7 @@ class NetworkDiagnosticsRunner {
     private fun expectBytes(input: BufferedInputStream, expected: ByteArray) {
         val actual = readExactly(input, expected.size)
         if (!actual.contentEquals(expected)) {
-            throw IllegalStateException("Локальный SOCKS вернул неожиданный ответ на handshake.")
+            throw IllegalStateException("Local SOCKS bridge returned an unexpected handshake response.")
         }
     }
 
