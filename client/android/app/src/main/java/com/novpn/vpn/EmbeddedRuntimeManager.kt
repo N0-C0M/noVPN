@@ -78,6 +78,12 @@ class EmbeddedRuntimeManager(private val context: Context) {
         }
     }
 
+    fun healthFailureDetail(): String? {
+        buildProcessFailureDetail("xray", xrayProcess, xrayLogFile)?.let { return it }
+        buildProcessFailureDetail("obfuscator", obfuscatorProcess, obfuscatorLogFile)?.let { return it }
+        return null
+    }
+
     fun logsDirectory(): File = logsDir
 
     fun diagnosticsSummary(): String {
@@ -168,6 +174,20 @@ class EmbeddedRuntimeManager(private val context: Context) {
             return null
         }
         return "Лог $label: $tail"
+    }
+
+    private fun buildProcessFailureDetail(label: String, process: Process?, logFile: File): String? {
+        process ?: return null
+        if (process.isAlive) {
+            return null
+        }
+        val exitCode = runCatching { process.exitValue() }.getOrElse { -1 }
+        val tail = readLogTail(logFile)
+        return if (tail.isBlank()) {
+            "$label exited with code $exitCode."
+        } else {
+            "$label exited with code $exitCode. Log tail: $tail"
+        }
     }
 
     private fun readLogTail(logFile: File, lineCount: Int = 12): String {

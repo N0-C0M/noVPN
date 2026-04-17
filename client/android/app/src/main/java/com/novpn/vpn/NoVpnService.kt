@@ -18,6 +18,7 @@ import androidx.core.app.ServiceCompat
 import com.novpn.R
 import com.novpn.data.AppRoutingMode
 import com.novpn.data.DeviceIdentityStore
+import com.novpn.data.NetworkDiagnosticsRunner
 import com.novpn.data.PatternMaskingStrategy
 import com.novpn.data.ProfileRepository
 import com.novpn.data.TrafficObfuscationStrategy
@@ -44,6 +45,7 @@ class NoVpnService : VpnService() {
     private val runtimeManager by lazy { EmbeddedRuntimeManager(this) }
     private val runtimeStatusStore by lazy { VpnRuntimeStatusStore(this) }
     private val preflightChecker by lazy { RuntimePreflightChecker(this) }
+    private val diagnosticsRunner by lazy { NetworkDiagnosticsRunner() }
     private val worker: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "novpn-service-worker").apply { isDaemon = true }
     }
@@ -51,8 +53,19 @@ class NoVpnService : VpnService() {
     private val coreLock = Any()
     private val latestStartId = AtomicInteger(0)
     private var tunnelInterface: ParcelFileDescriptor? = null
+    private var activeBridgeProxy: RuntimeLocalProxyConfig? = null
     @Volatile
     private var coreSessionActive = false
+    private val runtimeHealthWatchdog = object : Runnable {
+        override fun run() {
+            worker.execute {
+                monitorRuntimeHealth()
+            }
+            if (coreSessionActive) {
+                mainHandler.postDelayed(this, RUNTIME_HEALTH_CHECK_INTERVAL_MS)
+            }
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         latestStartId.updateAndGet { maxOf(it, startId) }
@@ -219,6 +232,12 @@ class NoVpnService : VpnService() {
                 )
                 runtimeManager.start(xrayConfig, obfuscatorConfig)
                 tun2ProxyBridge.waitForLocalProxy(bridgeProxy)
+                diagnosticsRunner.verifyTunnel(
+                    profile = effectiveProfile,
+                    proxy = bridgeProxy,
+                    apiBaseFallback = profileRepository.bootstrapApiBase()
+                )
+                activeBridgeProxy = bridgeProxy
                 tunnelInterface = establishTunnel(
                     appRoutingMode = appRoutingMode,
                     packageNames = selectedPackages,
@@ -241,6 +260,7 @@ class NoVpnService : VpnService() {
             )
             RuntimeLocalProxySession.update(bridgeProxy)
             startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
+            scheduleRuntimeHealthWatchdog()
         }
     }
 
@@ -251,7 +271,9 @@ class NoVpnService : VpnService() {
     }
 
     private fun stopCoreLocked() {
+        cancelRuntimeHealthWatchdog()
         if (!coreSessionActive && tunnelInterface == null && !runtimeManager.isRunning()) {
+            activeBridgeProxy = null
             return
         }
         coreSessionActive = false
@@ -259,7 +281,41 @@ class NoVpnService : VpnService() {
         runtimeManager.stop()
         runCatching { tunnelInterface?.close() }
         tunnelInterface = null
+        activeBridgeProxy = null
         RuntimeLocalProxySession.update(null)
+    }
+
+    private fun scheduleRuntimeHealthWatchdog() {
+        mainHandler.removeCallbacks(runtimeHealthWatchdog)
+        mainHandler.postDelayed(runtimeHealthWatchdog, RUNTIME_HEALTH_CHECK_INTERVAL_MS)
+    }
+
+    private fun cancelRuntimeHealthWatchdog() {
+        mainHandler.removeCallbacks(runtimeHealthWatchdog)
+    }
+
+    private fun monitorRuntimeHealth() {
+        synchronized(coreLock) {
+            if (!coreSessionActive) {
+                return
+            }
+            val bridgeProxy = activeBridgeProxy
+            val runtimeFailure = runtimeManager.healthFailureDetail()
+            val proxyHealthy = bridgeProxy != null && tun2ProxyBridge.isLocalProxyReachable(bridgeProxy)
+            if (runtimeFailure == null && proxyHealthy) {
+                return
+            }
+
+            val detail = runtimeFailure ?: "Local VPN bridge stopped accepting connections."
+            runtimeStatusStore.markFailed(
+                status = getString(R.string.runtime_start_failed),
+                detail = detail
+            )
+            stopCoreLocked()
+            mainHandler.post {
+                stopServiceForStartId(latestStartId.get())
+            }
+        }
     }
 
     private fun applyApplicationRouting(
@@ -431,6 +487,7 @@ class NoVpnService : VpnService() {
         private const val TUN_IPV6_PREFIX_LENGTH = 126
         private const val TUN_DNS_PRIMARY = "1.1.1.1"
         private const val TUN_DNS_SECONDARY = "8.8.8.8"
+        private const val RUNTIME_HEALTH_CHECK_INTERVAL_MS = 2_500L
         private val YOUTUBE_EXACT_PACKAGES = setOf(
             "com.google.android.youtube",
             "com.google.android.apps.youtube.music",

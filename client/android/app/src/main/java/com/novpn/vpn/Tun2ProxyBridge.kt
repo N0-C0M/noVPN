@@ -3,6 +3,7 @@ package com.novpn.vpn
 import android.util.Log
 import android.os.ParcelFileDescriptor
 import java.util.concurrent.ExecutionException
+import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -104,12 +105,21 @@ class Tun2ProxyBridge {
     fun waitForLocalProxy(proxy: RuntimeLocalProxyConfig, timeoutSeconds: Long = 10) {
         val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
         while (System.nanoTime() < deadlineNanos) {
-            runCatching {
-                Socket(proxy.listenHost, proxy.socksPort).use { return }
+            if (isLocalProxyReachable(proxy)) {
+                return
             }
             Thread.sleep(100)
         }
         throw IllegalStateException("Local obfuscator SOCKS bridge did not become ready in time.")
+    }
+
+    fun isLocalProxyReachable(proxy: RuntimeLocalProxyConfig, timeoutMillis: Int = 1200): Boolean {
+        return runCatching {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(proxy.listenHost, proxy.socksPort), timeoutMillis)
+            }
+            true
+        }.getOrDefault(false)
     }
 
     private external fun nativeRunWithFd(

@@ -8,6 +8,7 @@ import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.URI
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.nio.charset.StandardCharsets
@@ -23,21 +24,47 @@ data class NetworkDiagnosticsResult(
 )
 
 class NetworkDiagnosticsRunner {
-    fun run(profile: ClientProfile, proxy: RuntimeLocalProxyConfig): NetworkDiagnosticsResult {
-        val host = profile.server.address
-        val diagnosticsPort = DIAGNOSTICS_PORT
+    fun verifyTunnel(profile: ClientProfile, proxy: RuntimeLocalProxyConfig, apiBaseFallback: String = "") {
+        val target = resolveTarget(profile, apiBaseFallback)
+        if (target.supportsHttpDiagnostics) {
+            runStage("Control-plane probe") {
+                executeRequest(
+                    proxy = proxy,
+                    host = target.host,
+                    port = target.port,
+                    method = "HEAD",
+                    path = target.diagPath("/ping?startup=1&ts=${System.currentTimeMillis()}"),
+                    body = ByteArray(0)
+                )
+            }
+            return
+        }
+
+        runStage("Proxy handshake") {
+            openSocksSocket(proxy, target.host, target.port).use { }
+        }
+    }
+
+    fun run(profile: ClientProfile, proxy: RuntimeLocalProxyConfig, apiBaseFallback: String = ""): NetworkDiagnosticsResult {
+        val target = resolveTarget(profile, apiBaseFallback)
 
         val latencySamples = (1..3).map { index ->
             val startedAt = System.nanoTime()
-            runStage("Latency probe #$index") {
-                executeRequest(
-                    proxy = proxy,
-                    host = host,
-                    port = diagnosticsPort,
-                    method = "HEAD",
-                    path = "/admin/diag/ping?seq=$index&ts=${System.currentTimeMillis()}",
-                    body = ByteArray(0)
-                )
+            if (target.supportsHttpDiagnostics) {
+                runStage("Latency probe #$index") {
+                    executeRequest(
+                        proxy = proxy,
+                        host = target.host,
+                        port = target.port,
+                        method = "HEAD",
+                        path = target.diagPath("/ping?seq=$index&ts=${System.currentTimeMillis()}"),
+                        body = ByteArray(0)
+                    )
+                }
+            } else {
+                runStage("Latency probe #$index") {
+                    openSocksSocket(proxy, target.host, target.port).use { }
+                }
             }
             elapsedMillis(startedAt)
         }
@@ -45,42 +72,49 @@ class NetworkDiagnosticsRunner {
         val latencyAverage = latencySamples.average().roundToInt()
         val jitter = (latencySamples.maxOrNull() ?: latencyAverage) - (latencySamples.minOrNull() ?: latencyAverage)
 
-        val downloadBytes = DOWNLOAD_BYTES
-        val downloadStartedAt = System.nanoTime()
-        val downloaded = runStage("Download test") {
-            executeRequest(
-                proxy = proxy,
-                host = host,
-                port = diagnosticsPort,
-                method = "GET",
-                path = "/admin/diag/download?bytes=$downloadBytes",
-                body = ByteArray(0)
-            ).bodyBytes
-        }
-        val downloadDurationSeconds = elapsedSeconds(downloadStartedAt)
-        val downloadMbps = if (downloadDurationSeconds <= 0.0) {
-            0.0
-        } else {
-            (downloaded * 8.0) / downloadDurationSeconds / 1_000_000.0
-        }
+        val downloadMbps: Double
+        val uploadMbps: Double
+        if (target.supportsHttpDiagnostics) {
+            val downloadBytes = DOWNLOAD_BYTES
+            val downloadStartedAt = System.nanoTime()
+            val downloaded = runStage("Download test") {
+                executeRequest(
+                    proxy = proxy,
+                    host = target.host,
+                    port = target.port,
+                    method = "GET",
+                    path = target.diagPath("/download?bytes=$downloadBytes"),
+                    body = ByteArray(0)
+                ).bodyBytes
+            }
+            val downloadDurationSeconds = elapsedSeconds(downloadStartedAt)
+            downloadMbps = if (downloadDurationSeconds <= 0.0) {
+                0.0
+            } else {
+                (downloaded * 8.0) / downloadDurationSeconds / 1_000_000.0
+            }
 
-        val uploadPayload = ByteArray(UPLOAD_BYTES) { index -> (index % 251).toByte() }
-        val uploadStartedAt = System.nanoTime()
-        runStage("Upload test") {
-            executeRequest(
-                proxy = proxy,
-                host = host,
-                port = diagnosticsPort,
-                method = "POST",
-                path = "/admin/diag/upload",
-                body = uploadPayload
-            )
-        }
-        val uploadDurationSeconds = elapsedSeconds(uploadStartedAt)
-        val uploadMbps = if (uploadDurationSeconds <= 0.0) {
-            0.0
+            val uploadPayload = ByteArray(UPLOAD_BYTES) { index -> (index % 251).toByte() }
+            val uploadStartedAt = System.nanoTime()
+            runStage("Upload test") {
+                executeRequest(
+                    proxy = proxy,
+                    host = target.host,
+                    port = target.port,
+                    method = "POST",
+                    path = target.diagPath("/upload"),
+                    body = uploadPayload
+                )
+            }
+            val uploadDurationSeconds = elapsedSeconds(uploadStartedAt)
+            uploadMbps = if (uploadDurationSeconds <= 0.0) {
+                0.0
+            } else {
+                (uploadPayload.size * 8.0) / uploadDurationSeconds / 1_000_000.0
+            }
         } else {
-            (uploadPayload.size * 8.0) / uploadDurationSeconds / 1_000_000.0
+            downloadMbps = 0.0
+            uploadMbps = 0.0
         }
 
         val summary = buildString {
@@ -90,10 +124,14 @@ class NetworkDiagnosticsRunner {
             append(" | Jitter ")
             append(jitter)
             append(" ms")
-            append("\nDownload ")
-            append(formatMbps(downloadMbps))
-            append(" | Upload ")
-            append(formatMbps(uploadMbps))
+            if (target.supportsHttpDiagnostics) {
+                append("\nDownload ")
+                append(formatMbps(downloadMbps))
+                append(" | Upload ")
+                append(formatMbps(uploadMbps))
+            } else {
+                append("\nControl plane diagnostics unavailable for this profile")
+            }
         }
 
         return NetworkDiagnosticsResult(
@@ -102,6 +140,44 @@ class NetworkDiagnosticsRunner {
             downloadMbps = downloadMbps,
             uploadMbps = uploadMbps,
             summary = summary
+        )
+    }
+
+    private fun resolveTarget(profile: ClientProfile, apiBaseFallback: String): DiagnosticsTarget {
+        val apiBase = profile.server.apiBase
+            .ifBlank { apiBaseFallback }
+            .trim()
+        if (apiBase.isNotBlank()) {
+            val normalized = if (apiBase.startsWith("http://") || apiBase.startsWith("https://")) {
+                apiBase
+            } else {
+                "http://$apiBase"
+            }
+            runCatching { URI(normalized) }.getOrNull()?.let { uri ->
+                val host = uri.host?.trim().orEmpty()
+                if (host.isNotBlank()) {
+                    val scheme = uri.scheme?.lowercase(Locale.US).orEmpty()
+                    val port = when {
+                        uri.port > 0 -> uri.port
+                        scheme == "https" -> 443
+                        else -> 80
+                    }
+                    val path = uri.path.orEmpty().trimEnd('/')
+                    return DiagnosticsTarget(
+                        host = host,
+                        port = port,
+                        basePath = path,
+                        supportsHttpDiagnostics = scheme != "https"
+                    )
+                }
+            }
+        }
+
+        return DiagnosticsTarget(
+            host = profile.server.address,
+            port = profile.server.port,
+            basePath = "",
+            supportsHttpDiagnostics = false
         )
     }
 
@@ -365,8 +441,22 @@ class NetworkDiagnosticsRunner {
         val bodyBytes: Long
     )
 
+    private data class DiagnosticsTarget(
+        val host: String,
+        val port: Int,
+        val basePath: String,
+        val supportsHttpDiagnostics: Boolean
+    ) {
+        fun diagPath(suffix: String): String {
+            return buildString {
+                append(basePath)
+                append("/diag")
+                append(suffix)
+            }
+        }
+    }
+
     companion object {
-        private const val DIAGNOSTICS_PORT = 80
         private const val DOWNLOAD_BYTES = 1024 * 1024L
         private const val UPLOAD_BYTES = 256 * 1024
         private const val CONNECT_TIMEOUT_MS = 10_000

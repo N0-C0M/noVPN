@@ -466,7 +466,11 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         }
         val profile = profileRepository.loadProfile(requireCurrentProfileId())
         val result = withContext(Dispatchers.IO) {
-            diagnosticsRunner.run(profile, localProxy)
+            diagnosticsRunner.run(
+                profile = profile,
+                proxy = localProxy,
+                apiBaseFallback = profileRepository.bootstrapApiBase()
+            )
         }
         _state.update {
             it.copy(
