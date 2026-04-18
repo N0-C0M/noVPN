@@ -38,6 +38,13 @@ class AndroidXrayConfigWriter(private val context: Context) {
             .put(
                 JSONObject()
                     .put("type", "field")
+                    .put("protocol", JSONArray().put("bittorrent"))
+                    .put("outboundTag", "direct")
+                    .put("ruleTag", "bittorrent-direct")
+            )
+            .put(
+                JSONObject()
+                    .put("type", "field")
                     .put(
                         "domain",
                         JSONArray().apply {
@@ -106,6 +113,12 @@ class AndroidXrayConfigWriter(private val context: Context) {
 
         val document = JSONObject()
             .put("log", JSONObject().put("loglevel", "info"))
+            .put(
+                "dns",
+                JSONObject()
+                    .put("queryStrategy", "UseIP")
+                    .put("servers", JSONArray().put("1.1.1.1").put("1.0.0.1"))
+            )
             .put("inbounds", JSONArray()
                 .put(
                     JSONObject()
@@ -119,7 +132,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
                             JSONObject()
                                 .put("enabled", true)
                                 .put("destOverride", JSONArray().put("http").put("tls").put("quic"))
-                                .put("routeOnly", true)
+                                .put("routeOnly", false)
                         )
                 )
             )
@@ -171,6 +184,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
             .put(
                 "routing",
                 JSONObject()
+                    .put("domainMatcher", "hybrid")
                     .put("domainStrategy", "IPIfNonMatch")
                     .put("rules", rules)
             )
@@ -182,6 +196,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
             "xray-config",
             "Generated config for profile=${profile.name}, server=${profile.server.address}:${profile.server.port}, " +
                 "bypassRu=$bypassRu, socksPort=${localProxy.socksPort}, udp=${localProxy.udpEnabled}, " +
+                "dns=${XRAY_DNS_SERVERS.joinToString()}, domainMatcher=hybrid, routeOnly=false, " +
                 "fingerprint=${effectivePlan.selectedFingerprint}, spiderX=${effectivePlan.selectedSpiderX}"
         )
         return outputFile
@@ -189,6 +204,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
 
     companion object {
         private const val GOOGLE_GEOSITE_SELECTOR = "geosite:google"
+        private val XRAY_DNS_SERVERS = listOf("1.1.1.1", "1.0.0.1")
 
         private val GOOGLE_PROXY_DOMAIN_SUFFIXES = listOf(
             "1e100.net",
