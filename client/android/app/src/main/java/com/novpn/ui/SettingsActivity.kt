@@ -185,7 +185,7 @@ class SettingsActivity : ComponentActivity() {
             addView(bypassRuCheckBox)
 
             defaultWhitelistCheckBox = CheckBox(this@SettingsActivity).apply {
-                text = "Default whitelist mode (YouTube, Chrome, Opera, Firefox, Edge, Brave, Vivaldi, DuckDuckGo, Telegram, AyuGram, Instagram, X, Supercell, MEGA, ChatGPT, Gemini)"
+                text = "Default whitelist mode (YouTube, Chrome, Opera, Firefox, Edge, Brave, Vivaldi, DuckDuckGo, Telegram, AyuGram, ExteraGram, Instagram, X, Roblox, Discord, Supercell, MEGA, ChatGPT, Gemini)"
                 isChecked = defaultWhitelistEnabled
                 setTextColor(Color.parseColor("#F3F6FB"))
                 textSize = 14f

@@ -216,15 +216,15 @@ class NoVpnService : VpnService() {
             val effectiveProfile = profile.withObfuscationSeed(
                 seedStore.loadOrSaveDefault(profile.obfuscation.seed)
             ).withRuntimeStrategies(trafficStrategy, patternStrategy)
-            val useSimplifiedYoutubePath = shouldUseSimplifiedYoutubePath(appRoutingMode, selectedPackages)
+            val useSimplifiedBridgePath = shouldUseSimplifiedBridgePath(appRoutingMode, selectedPackages)
             val localProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
             val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
-            val bridgeProxy = if (useSimplifiedYoutubePath) xrayInboundProxy else localProxy
+            val bridgeProxy = if (useSimplifiedBridgePath) xrayInboundProxy else localProxy
             coreSessionActive = true
             runtimeManager.appendAppLog(
                 "service",
                 "Starting core for profile=${profile.name}, server=${effectiveProfile.server.address}:${effectiveProfile.server.port}, " +
-                    "simplifiedYoutubePath=$useSimplifiedYoutubePath"
+                    "simplifiedBridgePath=$useSimplifiedBridgePath"
             )
 
             try {
@@ -363,40 +363,43 @@ class NoVpnService : VpnService() {
         }
     }
 
-    private fun shouldUseSimplifiedYoutubePath(
+    private fun shouldUseSimplifiedBridgePath(
         appRoutingMode: AppRoutingMode,
         selectedPackages: List<String>
     ): Boolean {
-        val youtubePackages = resolveInstalledYoutubePackages()
-        if (youtubePackages.isEmpty()) {
+        val simplifiedPackages = resolveInstalledSimplifiedRoutePackages()
+        if (simplifiedPackages.isEmpty()) {
             return false
         }
 
         val selectedSet = selectedPackages.toSet()
         return when (appRoutingMode) {
-            AppRoutingMode.EXCLUDE_SELECTED -> youtubePackages.any { it !in selectedSet }
-            AppRoutingMode.ONLY_SELECTED -> youtubePackages.any { it in selectedSet }
+            AppRoutingMode.EXCLUDE_SELECTED -> simplifiedPackages.any { it !in selectedSet }
+            AppRoutingMode.ONLY_SELECTED -> simplifiedPackages.any { it in selectedSet }
         }
     }
 
-    private fun resolveInstalledYoutubePackages(): Set<String> {
+    private fun resolveInstalledSimplifiedRoutePackages(): Set<String> {
         val installedPackages = runCatching {
             packageManager.getInstalledPackages(0).map { it.packageName }
         }.getOrDefault(emptyList())
 
         return installedPackages.filterTo(linkedSetOf()) { packageName ->
-            isYoutubePackage(packageName)
+            isSimplifiedRoutePackage(packageName)
         }
     }
 
-    private fun isYoutubePackage(packageName: String): Boolean {
-        if (packageName in YOUTUBE_EXACT_PACKAGES) {
+    private fun isSimplifiedRoutePackage(packageName: String): Boolean {
+        if (packageName in SIMPLIFIED_ROUTE_EXACT_PACKAGES) {
             return true
         }
-        if (YOUTUBE_PREFIXES.any { prefix -> packageName.startsWith(prefix) }) {
+        if (SIMPLIFIED_ROUTE_PREFIXES.any { prefix -> packageName.startsWith(prefix) }) {
             return true
         }
-        return packageName.contains(".youtube") || packageName.contains("youtube.")
+        return packageName.contains(".youtube") ||
+            packageName.contains("youtube.") ||
+            packageName.contains(".brawlstars") ||
+            packageName.contains("brawlstars.")
     }
 
     private fun isInstalled(packageName: String): Boolean {
@@ -509,14 +512,15 @@ class NoVpnService : VpnService() {
         private const val TUN_DNS_PRIMARY = "1.1.1.1"
         private const val TUN_DNS_SECONDARY = "8.8.8.8"
         private const val RUNTIME_HEALTH_CHECK_INTERVAL_MS = 2_500L
-        private val YOUTUBE_EXACT_PACKAGES = setOf(
+        private val SIMPLIFIED_ROUTE_EXACT_PACKAGES = setOf(
             "com.google.android.youtube",
             "com.google.android.apps.youtube.music",
             "com.google.android.apps.youtube.kids",
             "com.google.android.youtube.tv",
-            "com.google.android.youtube.googletv"
+            "com.google.android.youtube.googletv",
+            "com.supercell.brawlstars"
         )
-        private val YOUTUBE_PREFIXES = setOf(
+        private val SIMPLIFIED_ROUTE_PREFIXES = setOf(
             "com.google.android.apps.youtube.",
             "com.vanced.",
             "app.revanced.",
