@@ -6,6 +6,7 @@ import com.novpn.data.DeviceIdentityStore
 import com.novpn.obfs.SessionObfuscationPlan
 import com.novpn.obfs.SessionObfuscationPlanner
 import com.novpn.split.LocalRuExclusionCatalogLoader
+import com.novpn.vpn.RuntimeLogStore
 import com.novpn.vpn.RuntimeLocalProxyConfig
 import com.novpn.vpn.RuntimeLocalProxyFactory
 import org.json.JSONArray
@@ -13,6 +14,7 @@ import org.json.JSONObject
 import java.io.File
 
 class AndroidXrayConfigWriter(private val context: Context) {
+    private val logStore by lazy { RuntimeLogStore(context) }
 
     fun write(
         profile: ClientProfile,
@@ -103,7 +105,7 @@ class AndroidXrayConfigWriter(private val context: Context) {
         }
 
         val document = JSONObject()
-            .put("log", JSONObject().put("loglevel", "warning"))
+            .put("log", JSONObject().put("loglevel", "info"))
             .put("inbounds", JSONArray()
                 .put(
                     JSONObject()
@@ -176,6 +178,12 @@ class AndroidXrayConfigWriter(private val context: Context) {
         val configDir = File(context.filesDir, "xray").apply { mkdirs() }
         val outputFile = File(configDir, "config.json")
         outputFile.writeText(document.toString(2))
+        logStore.append(
+            "xray-config",
+            "Generated config for profile=${profile.name}, server=${profile.server.address}:${profile.server.port}, " +
+                "bypassRu=$bypassRu, socksPort=${localProxy.socksPort}, udp=${localProxy.udpEnabled}, " +
+                "fingerprint=${effectivePlan.selectedFingerprint}, spiderX=${effectivePlan.selectedSpiderX}"
+        )
         return outputFile
     }
 

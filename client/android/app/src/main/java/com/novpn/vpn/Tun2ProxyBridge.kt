@@ -1,5 +1,6 @@
 package com.novpn.vpn
 
+import android.content.Context
 import android.util.Log
 import android.os.ParcelFileDescriptor
 import java.util.concurrent.ExecutionException
@@ -10,11 +11,12 @@ import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
-class Tun2ProxyBridge {
+class Tun2ProxyBridge(context: Context) {
     init {
         ensureNativeLoaded()
     }
 
+    private val logStore = RuntimeLogStore(context)
     private val stateLock = Any()
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "novpn-tun2proxy").apply { isDaemon = true }
@@ -33,6 +35,10 @@ class Tun2ProxyBridge {
             activeTunFd = detachedFd
             activeSessionId
         }
+        logStore.append(
+            "tun2proxy",
+            "Starting bridge session=$sessionId fd=$detachedFd proxy=${proxy.listenHost}:${proxy.socksPort} mtu=$mtu"
+        )
         task = executor.submit<Int> {
             try {
                 nativeRunWithFd(
@@ -40,9 +46,10 @@ class Tun2ProxyBridge {
                     tunFd = detachedFd,
                     mtu = mtu,
                     dnsStrategy = DnsStrategy.OVER_TCP.value,
-                    verbosity = Verbosity.WARN.value
+                    verbosity = Verbosity.DEBUG.value
                 )
             } finally {
+                logStore.append("tun2proxy", "Bridge session=$sessionId finished")
                 synchronized(stateLock) {
                     if (activeSessionId == sessionId && activeTunFd == detachedFd) {
                         closeTunFdQuietly(detachedFd)
@@ -59,6 +66,7 @@ class Tun2ProxyBridge {
 
         Thread.sleep(startupDelayMillis)
         if (!currentTask.isDone) {
+            logStore.append("tun2proxy", "Bridge confirmed active after ${startupDelayMillis}ms startup delay")
             return
         }
 
@@ -97,19 +105,26 @@ class Tun2ProxyBridge {
             pendingTask.get(STOP_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         } catch (_: TimeoutException) {
             Log.w(TAG, "tun2proxy did not stop within timeout after closing TUN fd")
+            logStore.append("tun2proxy", "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s")
         } catch (_: Exception) {
             // The bridge thread is already terminating; no extra action needed here.
         }
     }
 
     fun waitForLocalProxy(proxy: RuntimeLocalProxyConfig, timeoutSeconds: Long = 10) {
+        logStore.append(
+            "tun2proxy",
+            "Waiting for local proxy ${proxy.listenHost}:${proxy.socksPort} for up to ${timeoutSeconds}s"
+        )
         val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
         while (System.nanoTime() < deadlineNanos) {
             if (isLocalProxyReachable(proxy)) {
+                logStore.append("tun2proxy", "Local proxy became reachable")
                 return
             }
             Thread.sleep(100)
         }
+        logStore.append("tun2proxy", "Local proxy did not become reachable in time")
         throw IllegalStateException("Local obfuscator SOCKS bridge did not become ready in time.")
     }
 

@@ -269,6 +269,13 @@ class SettingsActivity : ComponentActivity() {
 
             connectionDetailsSummary = label(buildConnectionDetailsText(), 12f, "#9DB1C6", false)
             addView(connectionDetailsSummary)
+            addView(
+                choiceButton("Open runtime logs") {
+                    startActivity(LogsActivity.createIntent(this@SettingsActivity))
+                }.apply {
+                    layoutParams = stackedChoiceParams()
+                }
+            )
         }
     }
 

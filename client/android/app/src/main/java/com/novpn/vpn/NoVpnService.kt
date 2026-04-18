@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 
 class NoVpnService : VpnService() {
-    private val tun2ProxyBridge by lazy { Tun2ProxyBridge() }
+    private val tun2ProxyBridge by lazy { Tun2ProxyBridge(applicationContext) }
     private val profileRepository by lazy { ProfileRepository(this) }
     private val seedStore by lazy { ObfuscationSeedStore(this) }
     private val deviceIdentityStore by lazy { DeviceIdentityStore(this) }
@@ -98,6 +98,12 @@ class NoVpnService : VpnService() {
                     status = getString(R.string.runtime_starting),
                     detail = getString(R.string.runtime_starting_detail)
                 )
+                runtimeManager.appendAppLog(
+                    "service",
+                    "Received START command startId=$startId profileId=$profileId bypassRu=$bypassRu " +
+                        "routing=${appRoutingMode.storageValue} selectedApps=${selectedPackages.size} " +
+                        "traffic=${trafficStrategy.storageValue} pattern=${patternStrategy.storageValue}"
+                )
                 worker.execute {
                     runCatching {
                         startCore(
@@ -126,6 +132,7 @@ class NoVpnService : VpnService() {
             }
 
             ACTION_STOP -> {
+                runtimeManager.appendAppLog("service", "Received STOP command startId=$startId")
                 worker.execute {
                     if (!isLatestCommand(startId)) {
                         return@execute
@@ -145,6 +152,7 @@ class NoVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        runtimeManager.appendAppLog("service", "Service onDestroy invoked")
         runCatching { stopCore() }
         runtimeStatusStore.markStopped(getString(R.string.service_stopped))
         RuntimeLocalProxySession.update(null)
@@ -153,6 +161,7 @@ class NoVpnService : VpnService() {
     }
 
     override fun onRevoke() {
+        runtimeManager.appendAppLog("service", "VPN permission revoked by system")
         worker.execute {
             stopCore()
             runtimeStatusStore.markStopped(
@@ -200,6 +209,7 @@ class NoVpnService : VpnService() {
         synchronized(coreLock) {
             stopCoreLocked()
             preflightChecker.evaluate(profileId).requireReady()
+            runtimeManager.appendAppLog("service", "Preflight passed for profileId=$profileId")
 
             val profile = profileRepository.loadProfile(profileId)
             profile.requireRuntimeReady()
@@ -211,6 +221,11 @@ class NoVpnService : VpnService() {
             val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
             val bridgeProxy = if (useSimplifiedYoutubePath) xrayInboundProxy else localProxy
             coreSessionActive = true
+            runtimeManager.appendAppLog(
+                "service",
+                "Starting core for profile=${profile.name}, server=${effectiveProfile.server.address}:${effectiveProfile.server.port}, " +
+                    "simplifiedYoutubePath=$useSimplifiedYoutubePath"
+            )
 
             try {
                 val sessionPlan = SessionObfuscationPlanner.build(
@@ -237,6 +252,7 @@ class NoVpnService : VpnService() {
                     proxy = bridgeProxy,
                     apiBaseFallback = profileRepository.bootstrapApiBase()
                 )
+                runtimeManager.appendAppLog("service", "Tunnel diagnostics check passed")
                 activeBridgeProxy = bridgeProxy
                 tunnelInterface = establishTunnel(
                     appRoutingMode = appRoutingMode,
@@ -244,16 +260,19 @@ class NoVpnService : VpnService() {
                     upstreamAddress = effectiveProfile.server.address
                 )
                 tunnelInterface?.let {
+                    runtimeManager.appendAppLog("service", "Android VPN tunnel established, starting tun2proxy")
                     tun2ProxyBridge.start(it, bridgeProxy, TUN_MTU)
                     tun2ProxyBridge.confirmStarted()
                 }
                     ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
             } catch (error: Exception) {
                 val detail = buildFailureDetail(error)
+                runtimeManager.appendAppLog("service", "Core start failed: $detail")
                 stopCoreLocked()
                 throw IllegalStateException(detail, error)
             }
 
+            runtimeManager.appendAppLog("service", "Core runtime started successfully")
             runtimeStatusStore.markRunning(
                 status = getString(R.string.runtime_active_profile, effectiveProfile.name),
                 detail = getString(R.string.runtime_running_detail)
@@ -276,6 +295,7 @@ class NoVpnService : VpnService() {
             activeBridgeProxy = null
             return
         }
+        runtimeManager.appendAppLog("service", "Stopping core runtime")
         coreSessionActive = false
         tun2ProxyBridge.stop()
         runtimeManager.stop()
@@ -307,6 +327,7 @@ class NoVpnService : VpnService() {
             }
 
             val detail = runtimeFailure ?: "Local VPN bridge stopped accepting connections."
+            runtimeManager.appendAppLog("service", "Runtime health watchdog detected failure: $detail")
             runtimeStatusStore.markFailed(
                 status = getString(R.string.runtime_start_failed),
                 detail = detail
