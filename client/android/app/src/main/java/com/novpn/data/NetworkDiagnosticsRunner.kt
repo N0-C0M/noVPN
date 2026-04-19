@@ -196,10 +196,19 @@ class NetworkDiagnosticsRunner {
         port: Int,
         method: String,
         path: String,
-        body: ByteArray
+        body: ByteArray,
+        readTimeoutMillis: Int = READ_TIMEOUT_MS,
+        connectTimeoutMillis: Int = CONNECT_TIMEOUT_MS,
+        handshakeTimeoutMillis: Int = HANDSHAKE_TIMEOUT_MS
     ): HttpProbeResponse {
-        val socket = openSocksSocket(proxy, host, port)
-        socket.soTimeout = READ_TIMEOUT_MS
+        val socket = openSocksSocket(
+            proxy = proxy,
+            host = host,
+            port = port,
+            connectTimeoutMillis = connectTimeoutMillis,
+            handshakeTimeoutMillis = handshakeTimeoutMillis
+        )
+        socket.soTimeout = readTimeoutMillis
         socket.tcpNoDelay = true
 
         socket.use { activeSocket ->
@@ -275,10 +284,16 @@ class NetworkDiagnosticsRunner {
         }
     }
 
-    private fun openSocksSocket(proxy: RuntimeLocalProxyConfig, host: String, port: Int): Socket {
+    private fun openSocksSocket(
+        proxy: RuntimeLocalProxyConfig,
+        host: String,
+        port: Int,
+        connectTimeoutMillis: Int = CONNECT_TIMEOUT_MS,
+        handshakeTimeoutMillis: Int = HANDSHAKE_TIMEOUT_MS
+    ): Socket {
         val socket = Socket()
-        socket.connect(InetSocketAddress(proxy.listenHost, proxy.socksPort), CONNECT_TIMEOUT_MS)
-        socket.soTimeout = HANDSHAKE_TIMEOUT_MS
+        socket.connect(InetSocketAddress(proxy.listenHost, proxy.socksPort), connectTimeoutMillis)
+        socket.soTimeout = handshakeTimeoutMillis
 
         val input = BufferedInputStream(socket.getInputStream())
         val output = BufferedOutputStream(socket.getOutputStream())
@@ -367,7 +382,10 @@ class NetworkDiagnosticsRunner {
                         port = target.port,
                         method = "HEAD",
                         path = target.diagPath("/ping?startup=1&attempt=${attempt + 1}&ts=${System.currentTimeMillis()}"),
-                        body = ByteArray(0)
+                        body = ByteArray(0),
+                        readTimeoutMillis = STARTUP_READ_TIMEOUT_MS,
+                        connectTimeoutMillis = STARTUP_CONNECT_TIMEOUT_MS,
+                        handshakeTimeoutMillis = STARTUP_HANDSHAKE_TIMEOUT_MS
                     )
                 }
                 return
@@ -384,7 +402,13 @@ class NetworkDiagnosticsRunner {
 
         try {
             runStage("Proxy handshake fallback") {
-                openSocksSocket(proxy, target.host, target.port).use { }
+                openSocksSocket(
+                    proxy = proxy,
+                    host = target.host,
+                    port = target.port,
+                    connectTimeoutMillis = STARTUP_CONNECT_TIMEOUT_MS,
+                    handshakeTimeoutMillis = STARTUP_HANDSHAKE_TIMEOUT_MS
+                ).use { }
             }
         } catch (fallbackError: Exception) {
             if (fallbackError is InterruptedException) {
@@ -510,7 +534,10 @@ class NetworkDiagnosticsRunner {
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val HANDSHAKE_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 60_000
-        private const val STARTUP_CONTROL_PLANE_ATTEMPTS = 4
-        private const val STARTUP_CONTROL_PLANE_BACKOFF_MS = 750L
+        private const val STARTUP_CONTROL_PLANE_ATTEMPTS = 2
+        private const val STARTUP_CONTROL_PLANE_BACKOFF_MS = 400L
+        private const val STARTUP_CONNECT_TIMEOUT_MS = 2_500
+        private const val STARTUP_HANDSHAKE_TIMEOUT_MS = 2_500
+        private const val STARTUP_READ_TIMEOUT_MS = 2_500
     }
 }
