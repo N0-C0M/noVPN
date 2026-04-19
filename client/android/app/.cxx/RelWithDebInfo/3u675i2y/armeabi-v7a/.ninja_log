@@ -1,0 +1,3 @@
+# ninja log v5
+1	719	7982358734600071	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	72d86042d64630e
+725	885	7982358736000387	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/RelWithDebInfo/3u675i2y/obj/armeabi-v7a/libnovpn_tun2proxy_jni.so	bc3dc0c35a5843aa

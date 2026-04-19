@@ -1,0 +1,7 @@
+[
+{
+  "directory": "D:/projekt/noVPN/client/android/app/.cxx/RelWithDebInfo/3u675i2y/x86_64",
+  "command": "C:\\Users\\n\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe --target=x86_64-none-linux-android26 --sysroot=C:/Users/n/AppData/Local/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Dnovpn_tun2proxy_jni_EXPORTS -ID:/projekt/noVPN/client/android/app/src/main/cpp/include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -O2 -g -DNDEBUG -fPIC -o CMakeFiles\\novpn_tun2proxy_jni.dir\\tun2proxy_jni.cpp.o -c D:\\projekt\\noVPN\\client\\android\\app\\src\\main\\cpp\\tun2proxy_jni.cpp",
+  "file": "D:\\projekt\\noVPN\\client\\android\\app\\src\\main\\cpp\\tun2proxy_jni.cpp"
+}
+]
