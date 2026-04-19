@@ -113,6 +113,15 @@ class ProfileRepository(private val context: Context) {
         }
     }
 
+    fun deleteQuotaSyncProfiles() {
+        importedProfilesDir.listFiles()
+            .orEmpty()
+            .filter { it.isFile && it.name.startsWith(QUOTA_SYNC_FILE_PREFIX) && it.name.endsWith(".json") }
+            .forEach { file ->
+                file.delete()
+            }
+    }
+
     private fun parseClientProfileJson(payload: String): ClientProfile {
         val root = JSONObject(payload)
         val server = root.optJSONObject("server") ?: root
@@ -576,6 +585,7 @@ class ProfileRepository(private val context: Context) {
         private const val DEFAULT_HTTP_PORT = 10809
         private const val ASSET_PREFIX = "asset:"
         private const val FILE_PREFIX = "file:"
+        private const val QUOTA_SYNC_FILE_PREFIX = "profile.quota-sync-"
         private const val PENDING_ROOT_DOMAIN = "xower.eu.org"
         private val IPV4_REGEX = Regex("""^\d{1,3}(\.\d{1,3}){3}$""")
     }

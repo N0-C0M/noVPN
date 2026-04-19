@@ -67,6 +67,7 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun refreshStateFromPreferences() {
+        profileRepository.deleteQuotaSyncProfiles()
         val availableProfiles = profileRepository.listProfiles()
         val defaultProfileId = profileRepository.defaultProfileId()
         val selectedProfileId = if (defaultProfileId.isBlank()) {
@@ -513,17 +514,6 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
                 clientUuid = activeProfile?.server?.uuid.orEmpty()
             )
         }.onSuccess { snapshot ->
-            if (snapshot.profilePayloads.isNotEmpty()) {
-                runCatching {
-                    withContext(Dispatchers.IO) {
-                        profileRepository.importProfilePayloads(
-                            payloads = snapshot.profilePayloads,
-                            nameHint = "quota-sync-$serverAddress"
-                        )
-                    }
-                }
-                refreshStateFromPreferences()
-            }
             val nextTrafficUsed = snapshot.trafficUsedBytes ?: preferences.trafficUsedBytes()
             val nextTrafficLimit = snapshot.trafficLimitBytes ?: preferences.trafficLimitBytes()
             if (snapshot.trafficUsedBytes != null || snapshot.trafficLimitBytes != null) {
