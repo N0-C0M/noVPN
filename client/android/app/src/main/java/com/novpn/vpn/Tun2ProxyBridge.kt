@@ -125,7 +125,7 @@ class Tun2ProxyBridge(context: Context) {
             Thread.sleep(100)
         }
         logStore.append("tun2proxy", "Local proxy did not become reachable in time")
-        throw IllegalStateException("Local obfuscator SOCKS bridge did not become ready in time.")
+        throw IllegalStateException("Local SOCKS bridge did not become ready in time.")
     }
 
     fun isLocalProxyReachable(proxy: RuntimeLocalProxyConfig, timeoutMillis: Int = 1200): Boolean {

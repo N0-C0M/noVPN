@@ -24,6 +24,26 @@ data class NetworkDiagnosticsResult(
 )
 
 class NetworkDiagnosticsRunner {
+    fun probeUdpAssociateSupport(
+        proxy: RuntimeLocalProxyConfig,
+        connectTimeoutMillis: Int = STARTUP_CONNECT_TIMEOUT_MS,
+        handshakeTimeoutMillis: Int = STARTUP_HANDSHAKE_TIMEOUT_MS
+    ): String? {
+        return runCatching {
+            openSocksCommandSocket(
+                proxy = proxy,
+                host = UDP_ASSOCIATE_PROBE_HOST,
+                port = UDP_ASSOCIATE_PROBE_PORT,
+                command = SOCKS_COMMAND_UDP_ASSOCIATE,
+                connectTimeoutMillis = connectTimeoutMillis,
+                handshakeTimeoutMillis = handshakeTimeoutMillis
+            ).use { }
+            null
+        }.getOrElse { error ->
+            error.message ?: error.javaClass.simpleName
+        }
+    }
+
     fun verifyTunnel(
         profile: ClientProfile,
         proxy: RuntimeLocalProxyConfig,
@@ -291,6 +311,24 @@ class NetworkDiagnosticsRunner {
         connectTimeoutMillis: Int = CONNECT_TIMEOUT_MS,
         handshakeTimeoutMillis: Int = HANDSHAKE_TIMEOUT_MS
     ): Socket {
+        return openSocksCommandSocket(
+            proxy = proxy,
+            host = host,
+            port = port,
+            command = SOCKS_COMMAND_CONNECT,
+            connectTimeoutMillis = connectTimeoutMillis,
+            handshakeTimeoutMillis = handshakeTimeoutMillis
+        )
+    }
+
+    private fun openSocksCommandSocket(
+        proxy: RuntimeLocalProxyConfig,
+        host: String,
+        port: Int,
+        command: Int,
+        connectTimeoutMillis: Int,
+        handshakeTimeoutMillis: Int
+    ): Socket {
         val socket = Socket()
         socket.connect(InetSocketAddress(proxy.listenHost, proxy.socksPort), connectTimeoutMillis)
         socket.soTimeout = handshakeTimeoutMillis
@@ -333,7 +371,7 @@ class NetworkDiagnosticsRunner {
         val addressBytes = buildDestinationAddress(host)
         val connectRequest = ByteArrayOutputStream().apply {
             write(0x05)
-            write(0x01)
+            write(command)
             write(0x00)
             write(addressBytes)
             write((port shr 8) and 0xff)
@@ -529,6 +567,10 @@ class NetworkDiagnosticsRunner {
     }
 
     companion object {
+        private const val SOCKS_COMMAND_CONNECT = 0x01
+        private const val SOCKS_COMMAND_UDP_ASSOCIATE = 0x03
+        private const val UDP_ASSOCIATE_PROBE_HOST = "0.0.0.0"
+        private const val UDP_ASSOCIATE_PROBE_PORT = 0
         private const val DOWNLOAD_BYTES = 1024 * 1024L
         private const val UPLOAD_BYTES = 256 * 1024
         private const val CONNECT_TIMEOUT_MS = 10_000

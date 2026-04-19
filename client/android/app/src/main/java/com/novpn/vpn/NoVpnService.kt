@@ -219,7 +219,7 @@ class NoVpnService : VpnService() {
             val useSimplifiedBridgePath = shouldUseSimplifiedBridgePath(appRoutingMode, selectedPackages)
             val localProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
             val xrayInboundProxy = RuntimeLocalProxyFactory.createProtected(udpEnabled = true)
-            val bridgeProxy = if (useSimplifiedBridgePath) xrayInboundProxy else localProxy
+            var bridgeProxy = if (useSimplifiedBridgePath) xrayInboundProxy else localProxy
             coreSessionActive = true
             runtimeManager.appendAppLog(
                 "service",
@@ -246,7 +246,11 @@ class NoVpnService : VpnService() {
                     sessionPlan
                 )
                 runtimeManager.start(xrayConfig, obfuscatorConfig)
-                tun2ProxyBridge.waitForLocalProxy(bridgeProxy)
+                bridgeProxy = resolveBridgeProxy(
+                    useSimplifiedBridgePath = useSimplifiedBridgePath,
+                    localProxy = localProxy,
+                    xrayInboundProxy = xrayInboundProxy
+                )
                 diagnosticsRunner.verifyTunnel(
                     profile = effectiveProfile,
                     proxy = bridgeProxy,
@@ -282,6 +286,41 @@ class NoVpnService : VpnService() {
             startForegroundRuntime(getString(R.string.runtime_active_profile, effectiveProfile.name))
             scheduleRuntimeHealthWatchdog()
         }
+    }
+
+    private fun resolveBridgeProxy(
+        useSimplifiedBridgePath: Boolean,
+        localProxy: RuntimeLocalProxyConfig,
+        xrayInboundProxy: RuntimeLocalProxyConfig
+    ): RuntimeLocalProxyConfig {
+        if (useSimplifiedBridgePath) {
+            tun2ProxyBridge.waitForLocalProxy(xrayInboundProxy)
+            runtimeManager.appendAppLog("service", "Using direct local Xray bridge for this VPN session")
+            return xrayInboundProxy
+        }
+
+        try {
+            tun2ProxyBridge.waitForLocalProxy(localProxy)
+            val udpAssociateFailure = diagnosticsRunner.probeUdpAssociateSupport(localProxy)
+            if (udpAssociateFailure == null) {
+                runtimeManager.appendAppLog("service", "Using obfuscator SOCKS bridge (UDP ASSOCIATE probe passed)")
+                return localProxy
+            }
+
+            runtimeManager.appendAppLog(
+                "service",
+                "Local obfuscator SOCKS bridge failed UDP probe: $udpAssociateFailure. Falling back to direct local Xray bridge"
+            )
+        } catch (error: Exception) {
+            runtimeManager.appendAppLog(
+                "service",
+                "Local obfuscator SOCKS bridge unavailable: ${error.message ?: error.javaClass.simpleName}. " +
+                    "Falling back to direct local Xray bridge"
+            )
+        }
+
+        tun2ProxyBridge.waitForLocalProxy(xrayInboundProxy)
+        return xrayInboundProxy
     }
 
     private fun stopCore() {
@@ -371,9 +410,9 @@ class NoVpnService : VpnService() {
         // The simplified bridge is session-wide. Once enabled by a single selected app
         // (for example YouTube), every routed app bypasses the obfuscator and uses the
         // direct local Xray path. That is too broad for allow-list mode and can break
-        // unrelated apps such as Telegram. The embedded obfuscator runtime already
-        // supports UDP ASSOCIATE, so keep the stable obfuscator -> Xray chain until a
-        // true per-flow simplified path exists.
+        // unrelated apps such as Telegram. Keep the obfuscator -> Xray chain as the
+        // default session path, then let runtime capability probing fall back to the
+        // direct local Xray bridge when the packaged obfuscator cannot carry UDP.
         return false
     }
 
