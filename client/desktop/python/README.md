@@ -7,7 +7,9 @@ The desktop client now includes:
 - desktop-side logging (`desktop-client.log`) plus runtime logs for `xray.exe` and `obfuscator.exe`;
 - activation and disconnect flows that honor per-profile `api_base` values;
 - scrollable main and settings windows with mouse-wheel support;
-- headless config generation and embedded runtime startup.
+- headless config generation and embedded runtime startup;
+- a Windows system-tunnel mode based on Xray TUN + `wintun.dll`, with admin-gated route switching;
+- an initial WFP helper source for future app-scoped filter work.
 
 ## Local Run
 
@@ -20,6 +22,18 @@ Headless example:
 ```powershell
 python client/desktop/python/app.py --headless --bypass-ru --start-runtime
 ```
+
+Headless system-tunnel example:
+
+```powershell
+python client/desktop/python/app.py --headless --system-tunnel --start-runtime
+```
+
+Notes:
+
+- system-tunnel mode currently requires launching the desktop client as Administrator;
+- the runtime still keeps local SOCKS/HTTP inbounds, so diagnostics and local proxy usage continue to work;
+- route switching is currently IPv4-only.
 
 ## Logs And State
 
@@ -55,7 +69,7 @@ Requirements:
 
 - Windows x64
 - Python 3.10+ in `PATH`
-- optional: Inno Setup 6+ in `PATH` for `setup.exe`
+- optional: Inno Setup 6+ in `PATH` or under `.tools/InnoSetup/` for `setup.exe`
 
 Build command:
 
@@ -73,6 +87,12 @@ Portable-only build:
 
 ```powershell
 .\build_windows.ps1 -SkipInstaller
+```
+
+The build script now also detects a repo-local Inno Setup compiler at:
+
+```text
+.tools/InnoSetup/ISCC.exe
 ```
 
 The build script now accepts `bootstrap.json` from either:
@@ -96,4 +116,10 @@ client/desktop/runtime/bin/geosite.dat
 ## Current Scope
 
 The desktop client manages local runtime processes and local proxy endpoints.
-It still does not implement a full system-level TUN backend like the Android client.
+It now has an initial Windows system-tunnel path, but it is still not at Android parity yet.
+
+Current limits:
+
+- the Windows system tunnel requires Administrator rights;
+- route switching is IPv4-only for now;
+- the WFP helper is source-only scaffolding at `client/desktop/windows/wfp/novpn_wfp_helper.cpp` and is not yet packaged into the desktop build by default.

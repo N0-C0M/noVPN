@@ -16,6 +16,7 @@ from ..models import (
     AppRoutingMode,
     ClientProfile,
     ClientState,
+    ConnectionMode,
     DesktopSettings,
     PatternMaskingStrategy,
     ProfileOption,
@@ -383,6 +384,7 @@ class MainWindow:
             selected_apps=list(self._state.selected_apps),
             traffic_strategy=self._state.traffic_strategy,
             pattern_strategy=self._state.pattern_strategy,
+            connection_mode=self._state.connection_mode,
             device_id=self._state.device_id,
             output_path=self._output_path,
         )
@@ -413,6 +415,11 @@ class MainWindow:
         location = option.location_label if option is not None and option.location_label else "not specified"
         self._header_meta.set(f"Location: {location}. Settings are saved instantly.")
 
+        connection_line = (
+            "Connection: system-wide Windows tunnel"
+            if self._state.connection_mode == ConnectionMode.SYSTEM_TUNNEL
+            else "Connection: local SOCKS/HTTP runtime"
+        )
         mode_line = "Mode: RU bypass enabled" if self._state.bypass_ru else "Mode: full tunnel"
         apps_line = (
             f"Excluded apps: {len(self._state.selected_apps)}"
@@ -432,6 +439,7 @@ class MainWindow:
             option.name if option is not None else "No profiles yet. Activate a code or import a YAML/JSON profile.",
             f"Location: {location}",
             source_line,
+            connection_line,
             mode_line,
             apps_line,
             strategy_line,
@@ -501,9 +509,17 @@ class MainWindow:
 
     def _start_runtime(self) -> None:
         try:
-            self._preflight_checker.evaluate(self._state.selected_profile_key).require_ready()
+            self._preflight_checker.evaluate(
+                self._state.selected_profile_key,
+                self._state.connection_mode,
+            ).require_ready()
             profile = self._current_profile()
-            self._logger.info("starting runtime for profile=%s address=%s", profile.name, profile.server.address)
+            self._logger.info(
+                "starting runtime for profile=%s address=%s mode=%s",
+                profile.name,
+                profile.server.address,
+                self._state.connection_mode.value,
+            )
             status = self._runtime_manager.start(profile, self._current_settings())
             self._runtime_note = (
                 f"Logs: {self._app_log_path.name}, {status.xray_log.name}, {status.obfuscator_log.name}"
@@ -730,6 +746,7 @@ class MainWindow:
         routing_var = tk.StringVar(master=window, value=self._state.app_routing_mode.value)
         traffic_var = tk.StringVar(master=window, value=self._state.traffic_strategy.value)
         pattern_var = tk.StringVar(master=window, value=self._state.pattern_strategy.value)
+        connection_mode_var = tk.StringVar(master=window, value=self._state.connection_mode.value)
         ru_catalog_summary = tk.StringVar(master=window, value="Автоподбор ещё не запускался.")
 
         tk.Checkbutton(
@@ -769,6 +786,32 @@ class MainWindow:
             activeforeground=self.TEXT,
             font=("Segoe UI", 10),
         ).pack(anchor="w", pady=(10, 0))
+
+        self._group_label(panel, "Connection mode").pack(anchor="w", pady=(18, 8))
+        for mode, text in (
+            (ConnectionMode.LOCAL_PROXY, "Local SOCKS/HTTP runtime"),
+            (ConnectionMode.SYSTEM_TUNNEL, "System-wide Windows tunnel (Administrator required)"),
+        ):
+            tk.Radiobutton(
+                panel,
+                text=text,
+                value=mode.value,
+                variable=connection_mode_var,
+                command=lambda: self._apply_settings(
+                    bypass_var.get(),
+                    force_ip_var.get(),
+                    AppRoutingMode.from_storage(routing_var.get()),
+                    TrafficObfuscationStrategy.from_storage(traffic_var.get()),
+                    PatternMaskingStrategy.from_storage(pattern_var.get()),
+                    connection_mode=ConnectionMode.from_storage(connection_mode_var.get()),
+                ),
+                bg=self.SURFACE,
+                fg=self.TEXT,
+                selectcolor=self.SURFACE_ALT,
+                activebackground=self.SURFACE,
+                activeforeground=self.TEXT,
+                font=("Segoe UI", 10),
+            ).pack(anchor="w")
 
         self._group_label(panel, "Маршрутизация приложений").pack(anchor="w", pady=(18, 8))
         for mode, text in (
@@ -941,6 +984,7 @@ class MainWindow:
         pattern_strategy: PatternMaskingStrategy,
         selected_apps: list[str] | None = None,
         reload_profiles: bool = False,
+        connection_mode: ConnectionMode | None = None,
     ) -> None:
         self._save_state(
             bypass_ru=bypass_ru,
@@ -948,6 +992,7 @@ class MainWindow:
             app_routing_mode=app_routing_mode,
             traffic_strategy=traffic_strategy,
             pattern_strategy=pattern_strategy,
+            connection_mode=connection_mode or self._state.connection_mode,
             selected_apps=list(selected_apps if selected_apps is not None else self._state.selected_apps),
         )
         if reload_profiles:

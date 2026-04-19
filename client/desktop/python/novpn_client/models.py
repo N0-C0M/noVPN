@@ -17,6 +17,18 @@ class AppRoutingMode(str, Enum):
         return cls.EXCLUDE_SELECTED
 
 
+class ConnectionMode(str, Enum):
+    LOCAL_PROXY = "local_proxy"
+    SYSTEM_TUNNEL = "system_tunnel"
+
+    @classmethod
+    def from_storage(cls, value: str | None) -> "ConnectionMode":
+        for item in cls:
+            if item.value == value:
+                return item
+        return cls.LOCAL_PROXY
+
+
 class TrafficObfuscationStrategy(str, Enum):
     BALANCED = "balanced"
     CDN_MIMIC = "cdn_mimic"
@@ -154,8 +166,11 @@ class DesktopSettings:
     selected_apps: list[str]
     traffic_strategy: TrafficObfuscationStrategy
     pattern_strategy: PatternMaskingStrategy
+    connection_mode: ConnectionMode
     device_id: str
     output_path: Path
+    network_interface_name: str = ""
+    network_interface_ipv4: str = ""
 
 
 @dataclass(slots=True)
@@ -175,6 +190,7 @@ class ClientState:
     selected_apps: list[str] = field(default_factory=list)
     traffic_strategy: TrafficObfuscationStrategy = TrafficObfuscationStrategy.BALANCED
     pattern_strategy: PatternMaskingStrategy = PatternMaskingStrategy.STEADY
+    connection_mode: ConnectionMode = ConnectionMode.LOCAL_PROXY
     selected_profile_key: str = ""
     invite_code: str = ""
     force_server_ip_mode: bool = True

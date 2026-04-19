@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .models import ClientProfile, DesktopSettings
+from .models import ClientProfile, ConnectionMode, DesktopSettings
 from .session_obfuscation import SessionObfuscationPlan, SessionObfuscationPlanner
 
 
@@ -83,34 +83,29 @@ class XrayConfigBuilder:
             }
         )
 
+        proxy_stream_settings = {
+            "network": "tcp",
+            "security": "reality",
+            "realitySettings": {
+                "serverName": profile.server.server_name,
+                "fingerprint": effective_plan.selected_fingerprint,
+                "publicKey": profile.server.public_key,
+                "shortId": profile.server.short_id,
+                "spiderX": effective_plan.selected_spider_x,
+            },
+        }
+        self._apply_network_binding(proxy_stream_settings, settings)
+
+        direct_outbound: dict = {"tag": "direct", "protocol": "freedom"}
+        self._apply_outbound_stream_settings(direct_outbound, settings)
+
+        dns_outbound: dict = {"tag": "dns-out", "protocol": "dns"}
+        self._apply_outbound_stream_settings(dns_outbound, settings)
+
         return {
             "log": {"loglevel": "warning"},
             "dns": {"servers": ["1.1.1.1", "8.8.8.8"]},
-            "inbounds": [
-                {
-                    "tag": "socks-in",
-                    "listen": profile.local.socks_listen,
-                    "port": profile.local.socks_port,
-                    "protocol": "socks",
-                    "settings": {"udp": True},
-                    "sniffing": {
-                        "enabled": True,
-                        "destOverride": ["http", "tls", "quic"],
-                        "routeOnly": True,
-                    },
-                },
-                {
-                    "tag": "http-in",
-                    "listen": profile.local.http_listen,
-                    "port": profile.local.http_port,
-                    "protocol": "http",
-                    "sniffing": {
-                        "enabled": True,
-                        "destOverride": ["http", "tls"],
-                        "routeOnly": True,
-                    },
-                },
-            ],
+            "inbounds": self._build_inbounds(profile, settings),
             "outbounds": [
                 {
                     "tag": "proxy",
@@ -130,21 +125,11 @@ class XrayConfigBuilder:
                             }
                         ]
                     },
-                    "streamSettings": {
-                        "network": "tcp",
-                        "security": "reality",
-                        "realitySettings": {
-                            "serverName": profile.server.server_name,
-                            "fingerprint": effective_plan.selected_fingerprint,
-                            "publicKey": profile.server.public_key,
-                            "shortId": profile.server.short_id,
-                            "spiderX": effective_plan.selected_spider_x,
-                        },
-                    },
+                    "streamSettings": proxy_stream_settings,
                 },
-                {"tag": "direct", "protocol": "freedom"},
+                direct_outbound,
                 {"tag": "block", "protocol": "blackhole"},
-                {"tag": "dns-out", "protocol": "dns"},
+                dns_outbound,
             ],
             "routing": {
                 "domainStrategy": "IPIfNonMatch",
@@ -170,6 +155,66 @@ class XrayConfigBuilder:
             encoding="utf-8",
         )
         return settings.output_path
+
+    def _build_inbounds(self, profile: ClientProfile, settings: DesktopSettings) -> list[dict]:
+        inbounds = [
+            {
+                "tag": "socks-in",
+                "listen": profile.local.socks_listen,
+                "port": profile.local.socks_port,
+                "protocol": "socks",
+                "settings": {"udp": True},
+                "sniffing": {
+                    "enabled": True,
+                    "destOverride": ["http", "tls", "quic"],
+                    "routeOnly": True,
+                },
+            },
+            {
+                "tag": "http-in",
+                "listen": profile.local.http_listen,
+                "port": profile.local.http_port,
+                "protocol": "http",
+                "sniffing": {
+                    "enabled": True,
+                    "destOverride": ["http", "tls"],
+                    "routeOnly": True,
+                },
+            },
+        ]
+        if settings.connection_mode == ConnectionMode.SYSTEM_TUNNEL:
+            inbounds.insert(
+                0,
+                {
+                    "tag": "tun-in",
+                    "port": 0,
+                    "protocol": "tun",
+                    "settings": {
+                        "name": "NoVPN Tunnel",
+                        "MTU": 1500,
+                    },
+                    "sniffing": {
+                        "enabled": True,
+                        "destOverride": ["http", "tls", "quic"],
+                        "routeOnly": True,
+                    },
+                },
+            )
+        return inbounds
+
+    def _apply_outbound_stream_settings(self, outbound: dict, settings: DesktopSettings) -> None:
+        stream_settings: dict = {}
+        self._apply_network_binding(stream_settings, settings)
+        if stream_settings:
+            outbound["streamSettings"] = stream_settings
+
+    def _apply_network_binding(self, stream_settings: dict, settings: DesktopSettings) -> None:
+        if settings.connection_mode != ConnectionMode.SYSTEM_TUNNEL:
+            return
+        interface_name = settings.network_interface_name.strip()
+        if not interface_name:
+            return
+        stream_settings["sockopt"] = {"interface": interface_name}
 
     def _selected_processes(self, selected_apps: list[str]) -> list[str]:
         result: list[str] = []

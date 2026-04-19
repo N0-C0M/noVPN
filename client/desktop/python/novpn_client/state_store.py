@@ -7,6 +7,7 @@ from pathlib import Path
 from .models import (
     AppRoutingMode,
     ClientState,
+    ConnectionMode,
     PatternMaskingStrategy,
     TrafficObfuscationStrategy,
 )
@@ -24,6 +25,7 @@ class ClientStateStore:
             selected_apps=self._load_selected_apps(payload),
             traffic_strategy=TrafficObfuscationStrategy.from_storage(payload.get("traffic_strategy")),
             pattern_strategy=PatternMaskingStrategy.from_storage(payload.get("pattern_strategy")),
+            connection_mode=ConnectionMode.from_storage(payload.get("connection_mode")),
             selected_profile_key=str(payload.get("selected_profile_key", "")).strip(),
             invite_code=str(payload.get("invite_code", "")).strip(),
             force_server_ip_mode=bool(payload.get("force_server_ip_mode", True)),
@@ -41,6 +43,7 @@ class ClientStateStore:
             "selected_apps": sorted(set(state.selected_apps)),
             "traffic_strategy": state.traffic_strategy.value,
             "pattern_strategy": state.pattern_strategy.value,
+            "connection_mode": state.connection_mode.value,
             "selected_profile_key": state.selected_profile_key,
             "invite_code": state.invite_code,
             "force_server_ip_mode": state.force_server_ip_mode,

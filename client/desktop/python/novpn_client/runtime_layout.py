@@ -10,6 +10,7 @@ class RuntimeLayout:
     generated_root: Path
     xray_binary: Path
     obfuscator_binary: Path
+    wintun_dll: Path
     xray_config: Path
     obfuscator_config: Path
     logs_dir: Path
@@ -32,6 +33,7 @@ class RuntimeLayout:
             generated_root=effective_generated_root,
             xray_binary=xray_binary or runtime_root / "bin" / "xray.exe",
             obfuscator_binary=obfuscator_binary or runtime_root / "bin" / "obfuscator.exe",
+            wintun_dll=runtime_root / "bin" / "wintun.dll",
             xray_config=effective_generated_root / "xray.config.json",
             obfuscator_config=effective_generated_root / "obfuscator.config.json",
             logs_dir=logs_dir,

@@ -20,7 +20,7 @@ Current baseline:
 - Gateway defaults are hardened (`security.auth.mode=source_ip_allowlist`, `security.acl.mode=policy`).
 - Obfuscator supports SOCKS5 `CONNECT` and `UDP ASSOCIATE` forwarding paths.
 - Android provides a full TUN path (`VpnService` + `tun2proxy`).
-- Desktop orchestrates local runtime binaries and proxies, includes bundled/imported multi-server profiles, and writes dedicated desktop logs.
+- Desktop orchestrates local runtime binaries and proxies, includes bundled/imported multi-server profiles, writes dedicated desktop logs, and now has an initial Windows system-tunnel path based on Xray TUN + `wintun.dll`.
 
 ## 2. High-Level Architecture
 
@@ -62,6 +62,7 @@ Desktop client:
 - Writes `desktop-client.log` plus runtime logs
 - Provides UI for activation, promo, diagnostics, routing, settings, and mouse-wheel scrolling
 - Supports Windows installer flow (Inno Setup)
+- Supports a Windows system-tunnel mode when launched with Administrator rights
 
 ## 3. Encryption and Obfuscation
 
@@ -97,9 +98,17 @@ With routing heuristics, specific flows may bypass obfuscator and use direct loc
 
 ### 4.2 Desktop Path
 
-Desktop runs local runtime processes and exposes local proxy interfaces.
-Current Python scaffold does not implement full system-level TUN backend, but it does persist
-runtime state, profile metadata, and logs for repo-mode and packaged Windows builds.
+Desktop can now operate in two modes:
+
+- local runtime mode: local SOCKS/HTTP inbounds plus embedded `xray.exe` and `obfuscator.exe`
+- Windows system-tunnel mode: the same runtime plus an Xray `tun` inbound backed by `wintun.dll`
+
+The Windows system-tunnel path currently:
+
+- requires Administrator rights
+- applies temporary IPv4 route changes for the current session
+- still keeps local SOCKS/HTTP inbounds alive for diagnostics and explicit proxy use
+- does not yet include a packaged WFP helper in the default desktop build
 
 ### 4.3 Server Path
 
@@ -194,11 +203,17 @@ Windows desktop build and installer:
 - Build script: `client/desktop/python/build_windows.ps1`
 - Inno Setup script: `client/desktop/installer/novpn-desktop.iss`
 - The build script accepts `bootstrap.json` from either `client/android/app/src/main/secure/` or `client/android/app/src/main/assets/`
+- If `ISCC.exe` is not in `PATH`, the build script also checks `.tools/InnoSetup/ISCC.exe`
 
 Desktop log locations:
 
 - repo mode: `client/desktop/python/generated/logs/desktop-client.log`
 - packaged mode: `%LOCALAPPDATA%\NoVPN Desktop\generated\logs\desktop-client.log`
+
+Windows tunnel / WFP scaffolding:
+
+- TUN orchestration: `client/desktop/python/novpn_client/windows_tunnel.py`
+- WFP helper source scaffold: `client/desktop/windows/wfp/novpn_wfp_helper.cpp`
 
 ## 10. Security Notes
 

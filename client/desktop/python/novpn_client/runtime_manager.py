@@ -9,10 +9,11 @@ from io import TextIOWrapper
 from pathlib import Path
 
 from .config_builder import XrayConfigBuilder
-from .models import ClientProfile, DesktopSettings, RuntimeStatus
+from .models import ClientProfile, ConnectionMode, DesktopSettings, RuntimeStatus
 from .obfuscator_config_builder import ObfuscatorConfigBuilder
 from .runtime_layout import RuntimeLayout
 from .session_obfuscation import SessionObfuscationPlanner
+from .windows_tunnel import WindowsSystemTunnelManager
 
 
 class DesktopRuntimeManager:
@@ -32,6 +33,8 @@ class DesktopRuntimeManager:
         self._xray_log_handle: TextIOWrapper | None = None
         self._obfuscator_log_handle: TextIOWrapper | None = None
         self._logger = logger or logging.getLogger("novpn.desktop.runtime")
+        self._windows_tunnel = WindowsSystemTunnelManager(self._logger.getChild("system_tunnel"))
+        self._active_connection_mode = ConnectionMode.LOCAL_PROXY
         atexit.register(self._shutdown_quietly)
 
     @property
@@ -44,12 +47,20 @@ class DesktopRuntimeManager:
             return self.status("Runtime already running")
 
         self._layout.ensure_directories()
+        upstream_interface_name = ""
+        if settings.connection_mode == ConnectionMode.SYSTEM_TUNNEL:
+            self._windows_tunnel.ensure_supported(self._layout)
+            tunnel_plan = self._windows_tunnel.build_plan(profile)
+            upstream_interface_name = tunnel_plan.upstream.interface_alias
+        else:
+            tunnel_plan = None
         self._logger.info(
-            "starting runtime profile=%s address=%s:%s generated_root=%s",
+            "starting runtime profile=%s address=%s:%s generated_root=%s connection_mode=%s",
             profile.name,
             profile.server.address,
             profile.server.port,
             self._layout.generated_root,
+            settings.connection_mode.value,
         )
         runtime_settings = DesktopSettings(
             bypass_ru=settings.bypass_ru,
@@ -57,8 +68,11 @@ class DesktopRuntimeManager:
             selected_apps=list(settings.selected_apps),
             traffic_strategy=settings.traffic_strategy,
             pattern_strategy=settings.pattern_strategy,
+            connection_mode=settings.connection_mode,
             device_id=settings.device_id,
             output_path=self._layout.xray_config,
+            network_interface_name=upstream_interface_name,
+            network_interface_ipv4=settings.network_interface_ipv4,
         )
         session_plan = SessionObfuscationPlanner.build(
             profile=profile,
@@ -107,6 +121,15 @@ class DesktopRuntimeManager:
                 detail += f" Last log lines: {log_excerpt}"
             self._logger.error("runtime start failed: %s", detail)
             raise RuntimeError(detail)
+
+        self._active_connection_mode = settings.connection_mode
+        if tunnel_plan is not None:
+            try:
+                self._windows_tunnel.activate(tunnel_plan)
+            except Exception:
+                self._logger.exception("system tunnel activation failed")
+                self.stop()
+                raise
         self._logger.info(
             "runtime started xray_log=%s obfuscator_log=%s",
             self._layout.xray_log,
@@ -116,10 +139,16 @@ class DesktopRuntimeManager:
 
     def stop(self) -> RuntimeStatus:
         self._logger.info("stopping runtime")
+        if self._active_connection_mode == ConnectionMode.SYSTEM_TUNNEL:
+            try:
+                self._windows_tunnel.deactivate()
+            except Exception:
+                self._logger.exception("system tunnel teardown failed")
         self._stop_process(self._xray_process)
         self._stop_process(self._obfuscator_process)
         self._xray_process = None
         self._obfuscator_process = None
+        self._active_connection_mode = ConnectionMode.LOCAL_PROXY
         self._close_log(self._xray_log_handle)
         self._close_log(self._obfuscator_log_handle)
         self._xray_log_handle = None
@@ -127,7 +156,14 @@ class DesktopRuntimeManager:
         return self.status("Runtime stopped")
 
     def status(self, detail: str | None = None) -> RuntimeStatus:
-        detail_text = detail or ("Runtime running" if self._is_running() else "Runtime stopped")
+        if detail is not None:
+            detail_text = detail
+        elif self._is_running() and self._active_connection_mode == ConnectionMode.SYSTEM_TUNNEL:
+            detail_text = "System tunnel running"
+        elif self._is_running():
+            detail_text = "Runtime running"
+        else:
+            detail_text = "Runtime stopped"
         return RuntimeStatus(
             running=self._is_running(),
             xray_binary=self._layout.xray_binary,

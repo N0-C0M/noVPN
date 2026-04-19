@@ -79,13 +79,24 @@ if ($SkipInstaller) {
 
 $iscc = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
 if ($null -eq $iscc) {
+    $localIscc = Join-Path $repoRoot ".tools\InnoSetup\ISCC.exe"
+    if (Test-Path -LiteralPath $localIscc) {
+        $iscc = Get-Item -LiteralPath $localIscc
+    }
+}
+if ($null -eq $iscc) {
     Write-Warning "Inno Setup compiler (ISCC.exe) is not in PATH. Install Inno Setup or run with -SkipInstaller."
     exit 0
 }
 
 $issPath = Join-Path $repoRoot "client\desktop\installer\novpn-desktop.iss"
+$isccPath = if ($iscc | Get-Member -Name Source -ErrorAction SilentlyContinue) {
+    $iscc.Source
+} else {
+    $iscc.FullName
+}
 Write-Host "Building setup.exe with Inno Setup"
-& $iscc.Source $issPath "/DMyAppVersion=$Version" "/DSourceDir=$appDistDir" "/DOutputDir=$installerRoot"
+& $isccPath $issPath "/DMyAppVersion=$Version" "/DSourceDir=$appDistDir" "/DOutputDir=$installerRoot"
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup build failed."
 }

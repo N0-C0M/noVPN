@@ -66,7 +66,9 @@ The desktop client lives under `client/desktop/python/` and now supports:
 - per-profile `api_base` handling for redeem and disconnect flows;
 - desktop-side logs in addition to `xray` and `obfuscator` runtime logs;
 - mouse-wheel scrolling in the main window and settings window;
-- headless config generation and embedded runtime lifecycle commands.
+- headless config generation and embedded runtime lifecycle commands;
+- portable `.exe` and Inno Setup installer builds for Windows;
+- an initial Windows system-tunnel mode based on Xray TUN + `wintun.dll`.
 
 Local repo run:
 
@@ -80,8 +82,22 @@ Headless example:
 python client/desktop/python/app.py --headless --bypass-ru --start-runtime
 ```
 
+Headless system-tunnel example:
+
+```powershell
+python client/desktop/python/app.py --headless --system-tunnel --start-runtime
+```
+
 Repo-mode generated files are written under `client/desktop/python/generated/`.
 Packaged Windows builds write user state and logs under `%LOCALAPPDATA%\\NoVPN Desktop\\generated`.
+
+Windows build script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File client/desktop/python/build_windows.ps1 -Version 0.1.0
+```
+
+If `ISCC.exe` is not in `PATH`, the script also checks `.tools/InnoSetup/ISCC.exe`.
 
 ## Admin Panel
 

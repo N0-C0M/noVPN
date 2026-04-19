@@ -12,7 +12,13 @@ from .config_builder import XrayConfigBuilder
 from .device_identity_store import DeviceIdentityStore
 from .invite_redeemer import InviteRedeemer
 from .logger import configure_logging, get_logger
-from .models import AppRoutingMode, DesktopSettings, PatternMaskingStrategy, TrafficObfuscationStrategy
+from .models import (
+    AppRoutingMode,
+    ConnectionMode,
+    DesktopSettings,
+    PatternMaskingStrategy,
+    TrafficObfuscationStrategy,
+)
 from .network_diagnostics import NetworkDiagnosticsRunner
 from .profile_store import ProfileStore
 from .runtime_manager import DesktopRuntimeManager
@@ -38,6 +44,7 @@ def main() -> int:
     parser.add_argument("--exclude-app", action="append", default=[])
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--start-runtime", action="store_true")
+    parser.add_argument("--system-tunnel", action="store_true")
     parser.add_argument("--xray-bin", type=Path)
     parser.add_argument("--obfuscator-bin", type=Path)
     args = parser.parse_args()
@@ -76,6 +83,9 @@ def main() -> int:
                 selected_apps=args.exclude_app,
                 traffic_strategy=TrafficObfuscationStrategy.BALANCED,
                 pattern_strategy=PatternMaskingStrategy.STEADY,
+                connection_mode=(
+                    ConnectionMode.SYSTEM_TUNNEL if args.system_tunnel else ConnectionMode.LOCAL_PROXY
+                ),
                 device_id=device_identity_store.device_id(),
                 output_path=args.output,
             )
