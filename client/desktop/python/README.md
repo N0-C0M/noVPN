@@ -1,56 +1,90 @@
 # Desktop Client
 
-ПК-клиент теперь включает:
+The desktop client now includes:
 
-- активацию кода / промокода и отвязку устройства;
-- импорт профиля (JSON/YAML), выбор серверов и предпросмотр конфига;
-- встроенный runtime (`xray.exe` + `obfuscator.exe`) с диагностикой;
-- live-настройки маршрутизации/маскировки;
-- автоподбор RU-приложений в настройках (аналог Android-каталога);
-- прокрутку в главном окне и окне настроек;
-- headless-режим для автоматизации.
+- bundled default profile support, so the app can start with a built-in profile before any manual import;
+- multi-server profile handling for imported JSON/YAML files and invite responses that return several server profiles;
+- desktop-side logging (`desktop-client.log`) plus runtime logs for `xray.exe` and `obfuscator.exe`;
+- activation and disconnect flows that honor per-profile `api_base` values;
+- scrollable main and settings windows with mouse-wheel support;
+- headless config generation and embedded runtime startup.
 
-## Локальный запуск из репозитория
+## Local Run
 
 ```powershell
 python client/desktop/python/app.py
 ```
 
-Headless-пример:
+Headless example:
 
 ```powershell
 python client/desktop/python/app.py --headless --bypass-ru --start-runtime
 ```
 
-## Сборка Windows `.exe`
+## Logs And State
 
-Требования:
+Repository mode writes generated files to:
 
-- Windows x64;
-- Python 3.10+ в `PATH`;
-- (опционально) Inno Setup 6+ в `PATH` для сборки `setup.exe`.
+```text
+client/desktop/python/generated/
+```
 
-Команда сборки:
+Important paths:
+
+- client state: `client/desktop/python/generated/client_state.json`
+- imported profiles: `client/desktop/python/generated/profiles/`
+- desktop app log: `client/desktop/python/generated/logs/desktop-client.log`
+- runtime logs: `client/desktop/python/generated/runtime/logs/xray.log` and `client/desktop/python/generated/runtime/logs/obfuscator.log`
+
+Packaged Windows builds write the same data under:
+
+```text
+%LOCALAPPDATA%\NoVPN Desktop\generated
+```
+
+## Multi-Server Behavior
+
+- The bundled profile is always available as a fallback entry.
+- Invite activation can import more than one profile from the control plane.
+- Imported files keep unique names even when several servers share the same display name.
+- Desktop now preserves `server_id` and `api_base`, so activation and disconnect requests can target the correct control-plane endpoint per server.
+
+## Windows Build
+
+Requirements:
+
+- Windows x64
+- Python 3.10+ in `PATH`
+- optional: Inno Setup 6+ in `PATH` for `setup.exe`
+
+Build command:
 
 ```powershell
 cd client/desktop/python
 .\build_windows.ps1 -Version 0.1.0
 ```
 
-Результат:
+Output:
 
-- portable-сборка: `client/desktop/build/dist/NoVPN Desktop/NoVPN Desktop.exe`
-- установщик (если найден `ISCC.exe`): `client/desktop/build/installer/NoVPN-Desktop-Setup-<version>.exe`
+- portable build: `client/desktop/build/dist/NoVPN Desktop/NoVPN Desktop.exe`
+- installer, when `ISCC.exe` is available: `client/desktop/build/installer/NoVPN-Desktop-Setup-<version>.exe`
 
-Если нужен только portable `.exe` без установщика:
+Portable-only build:
 
 ```powershell
 .\build_windows.ps1 -SkipInstaller
 ```
 
-## Runtime-ассеты
+The build script now accepts `bootstrap.json` from either:
 
-В build включаются файлы из:
+```text
+client/android/app/src/main/secure/bootstrap.json
+client/android/app/src/main/assets/bootstrap.json
+```
+
+## Runtime Assets
+
+The Windows build packages files from:
 
 ```text
 client/desktop/runtime/bin/xray.exe
@@ -59,4 +93,7 @@ client/desktop/runtime/bin/geoip.dat
 client/desktop/runtime/bin/geosite.dat
 ```
 
-Во время установки пользовательские данные и логи пишутся в `%LOCALAPPDATA%\NoVPN Desktop\generated`, поэтому приложение корректно работает из `Program Files`.
+## Current Scope
+
+The desktop client manages local runtime processes and local proxy endpoints.
+It still does not implement a full system-level TUN backend like the Android client.

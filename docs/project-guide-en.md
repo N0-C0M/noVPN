@@ -19,7 +19,8 @@ Current baseline:
 
 - Gateway defaults are hardened (`security.auth.mode=source_ip_allowlist`, `security.acl.mode=policy`).
 - Obfuscator supports SOCKS5 `CONNECT` and `UDP ASSOCIATE` forwarding paths.
-- Android provides a full TUN path (`VpnService` + `tun2proxy`), desktop currently orchestrates local runtime binaries and proxies.
+- Android provides a full TUN path (`VpnService` + `tun2proxy`).
+- Desktop orchestrates local runtime binaries and proxies, includes bundled/imported multi-server profiles, and writes dedicated desktop logs.
 
 ## 2. High-Level Architecture
 
@@ -53,10 +54,13 @@ Android client:
 
 Desktop client:
 
-- Imports and stores profiles
+- Loads a bundled default profile and imported profiles
+- Preserves per-profile `server_id` and `api_base`
+- Accepts invite responses that return multiple server profiles
 - Builds runtime configs
 - Starts/stops `xray.exe` and `obfuscator.exe`
-- Provides UI for activation, promo, diagnostics, routing, and settings
+- Writes `desktop-client.log` plus runtime logs
+- Provides UI for activation, promo, diagnostics, routing, settings, and mouse-wheel scrolling
 - Supports Windows installer flow (Inno Setup)
 
 ## 3. Encryption and Obfuscation
@@ -94,7 +98,8 @@ With routing heuristics, specific flows may bypass obfuscator and use direct loc
 ### 4.2 Desktop Path
 
 Desktop runs local runtime processes and exposes local proxy interfaces.
-Current Python scaffold does not implement full system-level TUN backend.
+Current Python scaffold does not implement full system-level TUN backend, but it does persist
+runtime state, profile metadata, and logs for repo-mode and packaged Windows builds.
 
 ### 4.3 Server Path
 
@@ -117,6 +122,7 @@ Public redeem endpoint:
 Behavior:
 
 - invite redemption creates/updates a per-device client record
+- invite redemption may return one or more client profiles for different VPN servers
 - promo redemption adds traffic bonus to an already bound device
 
 Disconnect endpoint:
@@ -187,6 +193,12 @@ Windows desktop build and installer:
 
 - Build script: `client/desktop/python/build_windows.ps1`
 - Inno Setup script: `client/desktop/installer/novpn-desktop.iss`
+- The build script accepts `bootstrap.json` from either `client/android/app/src/main/secure/` or `client/android/app/src/main/assets/`
+
+Desktop log locations:
+
+- repo mode: `client/desktop/python/generated/logs/desktop-client.log`
+- packaged mode: `%LOCALAPPDATA%\NoVPN Desktop\generated\logs\desktop-client.log`
 
 ## 10. Security Notes
 

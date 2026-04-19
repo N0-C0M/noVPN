@@ -15,6 +15,15 @@ $specRoot = Join-Path $buildRoot "pyinstaller-spec"
 $installerRoot = Join-Path $buildRoot "installer"
 $appName = "NoVPN Desktop"
 $entryPoint = Join-Path $repoRoot "client\desktop\python\app.py"
+$bootstrapCandidates = @(
+    (Join-Path $repoRoot "client\android\app\src\main\secure\bootstrap.json"),
+    (Join-Path $repoRoot "client\android\app\src\main\assets\bootstrap.json")
+)
+$bootstrapSource = $bootstrapCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+
+if ([string]::IsNullOrWhiteSpace($bootstrapSource)) {
+    throw "bootstrap.json not found under client\\android\\app\\src\\main\\{secure,assets}."
+}
 
 New-Item -ItemType Directory -Force -Path $buildRoot, $installerRoot | Out-Null
 if (Test-Path $distRoot) {
@@ -44,7 +53,7 @@ $pyInstallerArgs = @(
     "--specpath", $specRoot,
     "--paths", (Join-Path $repoRoot "client\desktop\python"),
     "--add-data", ((Join-Path $repoRoot "client\common\profiles\reality\default.profile.json") + ";client\common\profiles\reality"),
-    "--add-data", ((Join-Path $repoRoot "client\android\app\src\main\secure\bootstrap.json") + ";client\android\app\src\main\secure"),
+    "--add-data", ($bootstrapSource + ";client\android\app\src\main\secure"),
     "--add-data", ((Join-Path $repoRoot "client\desktop\runtime\bin") + ";client\desktop\runtime\bin"),
     $entryPoint
 )

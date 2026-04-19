@@ -107,8 +107,10 @@ class ServerProfile:
     fingerprint: str
     public_key: str
     short_id: str
+    server_id: str = ""
     location_label: str = ""
     spider_x: str = "/"
+    api_base: str = ""
 
 
 @dataclass(slots=True)
@@ -142,6 +144,7 @@ class ProfileOption:
     server_name: str
     location_label: str
     is_imported: bool
+    server_id: str = ""
 
 
 @dataclass(slots=True)

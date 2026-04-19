@@ -57,6 +57,32 @@ go run ./cmd/client-profile-sync \
   -bootstrap-api-base http://2.26.85.47/admin
 ```
 
+## Desktop Client
+
+The desktop client lives under `client/desktop/python/` and now supports:
+
+- a bundled default profile plus imported server profiles;
+- invite redemption that can import multiple server profiles at once;
+- per-profile `api_base` handling for redeem and disconnect flows;
+- desktop-side logs in addition to `xray` and `obfuscator` runtime logs;
+- mouse-wheel scrolling in the main window and settings window;
+- headless config generation and embedded runtime lifecycle commands.
+
+Local repo run:
+
+```powershell
+python client/desktop/python/app.py
+```
+
+Headless example:
+
+```powershell
+python client/desktop/python/app.py --headless --bypass-ru --start-runtime
+```
+
+Repo-mode generated files are written under `client/desktop/python/generated/`.
+Packaged Windows builds write user state and logs under `%LOCALAPPDATA%\\NoVPN Desktop\\generated`.
+
 ## Admin Panel
 
 The control plane can now run separately from the VPN edge node. The repo includes three entry

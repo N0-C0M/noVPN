@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import tkinter as tk
@@ -69,6 +70,8 @@ class MainWindow:
         invite_redeemer: InviteRedeemer,
         diagnostics_runner: NetworkDiagnosticsRunner,
         preflight_checker: RuntimePreflightChecker,
+        logger: logging.Logger,
+        app_log_path: Path,
     ) -> None:
         self._profile_store = profile_store
         self._state_store = state_store
@@ -80,12 +83,16 @@ class MainWindow:
         self._invite_redeemer = invite_redeemer
         self._diagnostics_runner = diagnostics_runner
         self._preflight_checker = preflight_checker
+        self._logger = logger
+        self._app_log_path = app_log_path
 
         self._root = tk.Tk()
         self._root.title("NoVPN Desktop")
         self._root.geometry("1120x860")
         self._root.minsize(980, 760)
         self._root.configure(bg=self.BG)
+        self._root.protocol("WM_DELETE_WINDOW", self._close)
+        self._root.report_callback_exception = self._report_callback_exception
 
         self._state = self._state_store.load()
         self._state = replace(self._state, device_id=self._device_identity_store.device_id())
@@ -112,6 +119,8 @@ class MainWindow:
         self._disconnect_device_button: tk.Button | None = None
         self._diagnostics_button: tk.Button | None = None
         self._settings_window: tk.Toplevel | None = None
+        self._scroll_contexts: list[tuple[tk.Canvas, tk.Widget]] = []
+        self._mousewheel_bound = False
         self._runtime_note = ""
         self._idle_status_title = "Готово"
         self._idle_status_detail = "Активируйте код или импортируйте профиль."
@@ -122,10 +131,49 @@ class MainWindow:
             self._invite_entry.insert(0, self._state.invite_code)
         self._sync_preview_config()
         self._render()
+        self._logger.info(
+            "main window ready profiles=%s selected_profile=%s app_log=%s",
+            len(self._profiles),
+            self._state.selected_profile_key,
+            self._app_log_path,
+        )
 
     def run(self) -> int:
         self._root.mainloop()
         return 0
+
+    def _close(self) -> None:
+        self._logger.info("closing desktop window")
+        try:
+            self._close_settings_window()
+            if self._runtime_manager.status().running:
+                self._runtime_manager.stop()
+        except Exception:
+            self._logger.exception("shutdown sequence failed")
+        finally:
+            self._root.destroy()
+
+    def _close_settings_window(self) -> None:
+        if self._settings_window is None:
+            return
+        if self._settings_window.winfo_exists():
+            self._settings_window.destroy()
+        self._settings_window = None
+
+    def _report_callback_exception(self, exc_type, exc_value, exc_traceback) -> None:
+        self._logger.exception(
+            "tk callback failed",
+            exc_info=(exc_type, exc_value, exc_traceback),
+        )
+        messagebox.showerror("NoVPN", str(exc_value))
+
+    def _current_api_base(self) -> str:
+        if self._state.selected_profile_key:
+            try:
+                return self._current_profile().server.api_base
+            except Exception:
+                self._logger.exception("failed to resolve selected profile api base")
+        return self._profile_store.bootstrap_api_base()
 
     def _build_layout(self) -> None:
         shell = self._create_scrollable_surface(self._root, bg=self.BG, padx=26, pady=22)
@@ -156,28 +204,61 @@ class MainWindow:
         window_id = canvas.create_window((0, 0), window=content, anchor="nw")
         content.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window_id, width=event.width))
-        self._bind_canvas_wheel(canvas, content)
+        self._register_scroll_context(canvas, content)
         return content
 
-    def _bind_canvas_wheel(self, canvas: tk.Canvas, *targets: tk.Widget) -> None:
-        def on_mouse_wheel(event: tk.Event) -> None:
-            delta = int(event.delta / 120) if event.delta else 0
-            if delta:
-                canvas.yview_scroll(-delta, "units")
+    def _register_scroll_context(self, canvas: tk.Canvas, content: tk.Widget) -> None:
+        self._scroll_contexts.append((canvas, content))
+        if self._mousewheel_bound:
+            return
+        self._root.bind_all("<MouseWheel>", self._dispatch_mouse_wheel, add="+")
+        self._root.bind_all("<Button-4>", self._dispatch_mouse_wheel, add="+")
+        self._root.bind_all("<Button-5>", self._dispatch_mouse_wheel, add="+")
+        self._mousewheel_bound = True
 
-        def on_button_up(_event: tk.Event) -> None:
-            canvas.yview_scroll(-1, "units")
+    def _dispatch_mouse_wheel(self, event: tk.Event) -> str | None:
+        widget = self._root.winfo_containing(event.x_root, event.y_root) or event.widget
+        canvas = self._resolve_scroll_canvas(widget)
+        if canvas is None:
+            return None
 
-        def on_button_down(_event: tk.Event) -> None:
-            canvas.yview_scroll(1, "units")
+        if getattr(event, "num", None) == 4:
+            delta = -1
+        elif getattr(event, "num", None) == 5:
+            delta = 1
+        else:
+            raw_delta = int(getattr(event, "delta", 0) or 0)
+            if raw_delta == 0:
+                return None
+            steps = max(1, abs(raw_delta) // 120)
+            delta = -steps if raw_delta > 0 else steps
 
-        bind_targets = (canvas, *targets)
-        for target in bind_targets:
-            target.bind("<Enter>", lambda _event: canvas.bind_all("<MouseWheel>", on_mouse_wheel))
-            target.bind("<Leave>", lambda _event: canvas.unbind_all("<MouseWheel>"))
-        canvas.bind("<Destroy>", lambda _event: canvas.unbind_all("<MouseWheel>"))
-        canvas.bind("<Button-4>", on_button_up)
-        canvas.bind("<Button-5>", on_button_down)
+        canvas.yview_scroll(delta, "units")
+        return "break"
+
+    def _resolve_scroll_canvas(self, widget: tk.Widget | None) -> tk.Canvas | None:
+        if widget is None:
+            return None
+        for canvas, content in reversed(self._scroll_contexts):
+            if not canvas.winfo_exists() or not content.winfo_exists():
+                continue
+            if self._is_widget_descendant(widget, canvas) or self._is_widget_descendant(widget, content):
+                return canvas
+        return None
+
+    def _is_widget_descendant(self, widget: tk.Widget, ancestor: tk.Widget) -> bool:
+        current: tk.Widget | None = widget
+        while current is not None:
+            if current == ancestor:
+                return True
+            parent_name = current.winfo_parent()
+            if not parent_name:
+                return False
+            try:
+                current = current._nametowidget(parent_name)
+            except KeyError:
+                return False
+        return False
 
     def _build_header(self, parent: tk.Widget) -> tk.Frame:
         row = tk.Frame(parent, bg=self.BG)
@@ -278,6 +359,7 @@ class MainWindow:
             selected_key = self._profiles[0].key if self._profiles else ""
         if selected_key != self._state.selected_profile_key:
             self._save_state(selected_profile_key=selected_key)
+        self._logger.info("profiles reloaded count=%s selected=%s", len(self._profiles), selected_key)
 
     def _save_state(self, **changes: object) -> None:
         updated = replace(self._state, **changes)
@@ -327,33 +409,41 @@ class MainWindow:
         option = self._current_profile_option()
         runtime_status = self._runtime_manager.status()
 
-        self._header_server.set(option.name if option is not None else "Нет активированного профиля")
-        location = option.location_label if option is not None and option.location_label else "не указана"
-        self._header_meta.set(f"Локация: {location}. Настройки сохраняются сразу.")
+        self._header_server.set(option.name if option is not None else "No active profile")
+        location = option.location_label if option is not None and option.location_label else "not specified"
+        self._header_meta.set(f"Location: {location}. Settings are saved instantly.")
 
-        mode_line = "Режим: обход RU включён" if self._state.bypass_ru else "Режим: полный туннель"
+        mode_line = "Mode: RU bypass enabled" if self._state.bypass_ru else "Mode: full tunnel"
         apps_line = (
-            f"Исключено приложений: {len(self._state.selected_apps)}"
+            f"Excluded apps: {len(self._state.selected_apps)}"
             if self._state.app_routing_mode == AppRoutingMode.EXCLUDE_SELECTED
-            else f"Только через VPN: {len(self._state.selected_apps)}"
+            else f"VPN-only apps: {len(self._state.selected_apps)}"
         )
         strategy_line = (
-            f"Стратегии: {self._traffic_label(self._state.traffic_strategy)} / "
+            f"Strategies: {self._traffic_label(self._state.traffic_strategy)} / "
             f"{self._pattern_label(self._state.pattern_strategy)}"
         )
+        source_line = (
+            "Source: imported profile"
+            if option is not None and option.is_imported
+            else "Source: bundled profile"
+        )
         base_lines = [
-            option.name if option is not None else "Пока нет профилей. Активируйте код или импортируйте YAML/JSON профиль.",
-            f"Локация: {location}",
+            option.name if option is not None else "No profiles yet. Activate a code or import a YAML/JSON profile.",
+            f"Location: {location}",
+            source_line,
             mode_line,
             apps_line,
             strategy_line,
+            f"Profiles available: {len(self._profiles)}",
+            f"Client log: {self._app_log_path.name}",
         ]
         baseline = "\n".join(base_lines)
 
         if runtime_status.running:
-            self._status.set("Подключено")
+            self._status.set("Connected")
             runtime_detail = self._runtime_note or (
-                f"Логи: {runtime_status.xray_log.name} и {runtime_status.obfuscator_log.name}"
+                f"Logs: {self._app_log_path.name}, {runtime_status.xray_log.name}, {runtime_status.obfuscator_log.name}"
             )
             self._detail.set(runtime_detail + "\n\n" + baseline)
         else:
@@ -413,40 +503,47 @@ class MainWindow:
         try:
             self._preflight_checker.evaluate(self._state.selected_profile_key).require_ready()
             profile = self._current_profile()
+            self._logger.info("starting runtime for profile=%s address=%s", profile.name, profile.server.address)
             status = self._runtime_manager.start(profile, self._current_settings())
-            self._runtime_note = f"Логи: {status.xray_log.name} и {status.obfuscator_log.name}"
-            self._idle_status_title = "Готово"
-            self._idle_status_detail = "Подключение активно."
+            self._runtime_note = (
+                f"Logs: {self._app_log_path.name}, {status.xray_log.name}, {status.obfuscator_log.name}"
+            )
+            self._idle_status_title = "Ready"
+            self._idle_status_detail = "Connection is active."
             self._render()
         except Exception as exc:
-            self._idle_status_title = "Нужно исправить окружение"
+            self._logger.exception("runtime start failed")
+            self._idle_status_title = "Environment needs attention"
             self._idle_status_detail = str(exc)
             self._render()
             messagebox.showerror("NoVPN", str(exc))
 
     def _stop_runtime(self) -> None:
+        self._logger.info("stopping runtime from UI")
         self._runtime_manager.stop()
         self._runtime_note = ""
-        self._idle_status_title = "Остановлено"
-        self._idle_status_detail = "Подключение остановлено."
+        self._idle_status_title = "Stopped"
+        self._idle_status_detail = "Connection has been stopped."
         self._render()
 
     def _import_profile(self) -> None:
         file_path = filedialog.askopenfilename(
-            title="Импорт профиля",
+            title="Import profile",
             filetypes=[("Profile files", "*.json *.yaml *.yml"), ("All files", "*.*")],
         )
         if not file_path:
             return
         try:
             option = self._profile_store.import_profile_file(Path(file_path))
+            self._logger.info("profile imported from %s key=%s", file_path, option.key)
             self._reload_profiles(option.key)
-            self._idle_status_title = "Готово"
-            self._idle_status_detail = f"Профиль импортирован: {option.name}"
+            self._idle_status_title = "Ready"
+            self._idle_status_detail = f"Profile imported: {option.name}"
             self._sync_preview_config()
             self._render()
-            messagebox.showinfo("NoVPN", f"Профиль импортирован: {option.name}")
+            messagebox.showinfo("NoVPN", f"Profile imported: {option.name}")
         except Exception as exc:
+            self._logger.exception("profile import failed")
             messagebox.showerror("NoVPN", str(exc))
 
     def _activate_code(self) -> None:
@@ -455,16 +552,20 @@ class MainWindow:
         code = self._invite_entry.get().strip() if self._invite_entry is not None else ""
         self._save_state(invite_code=code)
         self._busy = True
-        self._idle_status_title = "Активация кода..."
-        self._idle_status_detail = "Запрашиваю профиль или бонус трафика у сервера."
+        self._idle_status_title = "Activating code..."
+        self._idle_status_detail = "Requesting a profile or traffic bonus from the server."
         self._render()
 
         def task() -> tuple[CodeRedeemResult, list[str]]:
             server_address = self._profile_store.bootstrap_server_address()
+            api_base = self._current_api_base()
             if self._state.selected_profile_key:
-                server_address = self._current_profile().server.address
+                profile = self._current_profile()
+                server_address = profile.server.address
+                api_base = profile.server.api_base or api_base
             result = self._invite_redeemer.redeem(
                 server_address=server_address,
+                api_base=api_base,
                 invite_code=code,
                 device_id=self._device_identity_store.device_id(),
                 device_name=self._device_identity_store.device_name(),
@@ -488,34 +589,36 @@ class MainWindow:
             self._reload_profiles(profile_keys[0])
             self._runtime_note = ""
             self._sync_preview_config()
-            name = result.profile_name or (self._current_profile_option().name if self._current_profile_option() else "профиль")
-            self._idle_status_title = "Готово"
+            name = result.profile_name or (self._current_profile_option().name if self._current_profile_option() else "profile")
+            self._idle_status_title = "Ready"
             profile_count = len(profile_keys)
             if profile_count > 1:
-                self._idle_status_detail = f"Код активирован: {name}. Импортировано профилей: {profile_count}."
+                self._idle_status_detail = f"Code activated: {name}. Imported profiles: {profile_count}."
             else:
-                self._idle_status_detail = f"Код активирован: {name}"
+                self._idle_status_detail = f"Code activated: {name}"
             self._busy = False
+            self._logger.info("code activated name=%s profiles=%s", name, profile_count)
             self._render()
             if profile_count > 1:
-                messagebox.showinfo("NoVPN", f"Код активирован: {name}\nИмпортировано профилей: {profile_count}")
+                messagebox.showinfo("NoVPN", f"Code activated: {name}\nImported profiles: {profile_count}")
             else:
-                messagebox.showinfo("NoVPN", f"Код активирован: {name}")
+                messagebox.showinfo("NoVPN", f"Code activated: {name}")
             self._start_runtime()
             return
 
         bonus = self._format_bytes(result.bonus_bytes)
-        self._idle_status_title = "Готово"
-        self._idle_status_detail = f"Промокод активирован: +{bonus}"
+        self._idle_status_title = "Ready"
+        self._idle_status_detail = f"Promo code activated: +{bonus}"
         self._busy = False
+        self._logger.info("promo activated bonus=%s", bonus)
         self._render()
-        messagebox.showinfo("NoVPN", f"Промокод активирован: +{bonus}")
+        messagebox.showinfo("NoVPN", f"Promo code activated: +{bonus}")
 
     def _disconnect_device(self) -> None:
         if self._busy:
             return
         if not self._state.selected_profile_key or not self._profile_store.is_imported_profile(self._state.selected_profile_key):
-            messagebox.showinfo("NoVPN", "Текущее устройство не связано с импортированным кодом.")
+            messagebox.showinfo("NoVPN", "The current device is not linked to an imported code.")
             return
         profile = self._current_profile()
         profile_key = self._state.selected_profile_key
@@ -525,6 +628,7 @@ class MainWindow:
         def task() -> str:
             self._invite_redeemer.disconnect(
                 server_address=profile.server.address,
+                api_base=profile.server.api_base,
                 device_id=self._device_identity_store.device_id(),
                 device_name=self._device_identity_store.device_name(),
                 client_uuid=profile.server.uuid,
@@ -540,11 +644,12 @@ class MainWindow:
         self._reload_profiles()
         self._runtime_note = ""
         self._sync_preview_config()
-        self._idle_status_title = "Готово"
-        self._idle_status_detail = "Устройство отвязано от кода."
+        self._idle_status_title = "Ready"
+        self._idle_status_detail = "Device disconnected from the code."
         self._busy = False
+        self._logger.info("device disconnected profile_key=%s", profile_key)
         self._render()
-        messagebox.showinfo("NoVPN", "Устройство отвязано от кода.")
+        messagebox.showinfo("NoVPN", "Device disconnected from the code.")
 
     def _run_diagnostics(self) -> None:
         if self._busy:
@@ -564,13 +669,15 @@ class MainWindow:
     def _on_diagnostics_success(self, summary: str) -> None:
         self._busy = False
         self._diagnostics_summary.set(summary)
+        self._logger.info("diagnostics finished summary=%s", summary)
         self._render()
 
     def _on_async_error(self, exc: Exception) -> None:
         self._busy = False
-        self._idle_status_title = "Ошибка"
+        self._idle_status_title = "Error"
         self._idle_status_detail = str(exc)
         self._diagnostics_summary.set(str(exc) if "Latency" not in self._diagnostics_summary.get() else self._diagnostics_summary.get())
+        self._logger.exception("background task failed", exc_info=(type(exc), exc, exc.__traceback__))
         self._render()
         messagebox.showerror("NoVPN", str(exc))
 
@@ -583,22 +690,24 @@ class MainWindow:
             else:
                 self._root.after(0, lambda result=result: on_success(result))
 
-        threading.Thread(target=worker, daemon=True).start()
+        threading.Thread(target=worker, daemon=True, name="novpn-ui-worker").start()
 
     def _sync_preview_config(self) -> None:
         try:
             self._builder.write(self._current_profile(), self._current_settings())
         except Exception:
+            self._logger.exception("preview config sync failed")
             return
 
     def _select_profile(self, profile_key: str) -> None:
         self._save_state(selected_profile_key=profile_key)
+        self._logger.info("profile selected key=%s", profile_key)
         self._sync_preview_config()
         if self._runtime_manager.status().running:
-            self._runtime_note = "Профиль изменён. Переподключитесь, чтобы он начал использоваться."
+            self._runtime_note = "Profile changed. Reconnect to apply it."
         else:
-            self._idle_status_title = "Готово"
-            self._idle_status_detail = "Профиль выбран."
+            self._idle_status_title = "Ready"
+            self._idle_status_detail = "Profile selected."
         self._render()
 
     def _open_settings(self) -> None:
@@ -820,8 +929,8 @@ class MainWindow:
                 pattern_var,
             ),
         ).pack(side=tk.LEFT, padx=(8, 0))
-        self._action_button(buttons, "Закрыть", window.destroy).pack(side=tk.LEFT, padx=(8, 0))
-        window.protocol("WM_DELETE_WINDOW", window.destroy)
+        self._action_button(buttons, "Закрыть", self._close_settings_window).pack(side=tk.LEFT, padx=(8, 0))
+        window.protocol("WM_DELETE_WINDOW", self._close_settings_window)
 
     def _apply_settings(
         self,
@@ -953,14 +1062,18 @@ class MainWindow:
         self._server_cards.clear()
 
         if not self._profiles:
-            tk.Label(self._server_row, text="Пока нет профилей. Активируйте код или импортируйте YAML/JSON профиль.", bg=self.SURFACE, fg=self.TEXT_MUTED, font=("Segoe UI", 11), justify="left").pack(anchor="w")
+            tk.Label(self._server_row, text="No profiles yet. Activate a code or import a YAML/JSON profile.", bg=self.SURFACE, fg=self.TEXT_MUTED, font=("Segoe UI", 11), justify="left").pack(anchor="w")
             return
 
         for option in self._profiles:
             card = tk.Frame(self._server_row, bg=self.CARD, padx=16, pady=16, highlightthickness=1, highlightbackground=self.STROKE, cursor="hand2")
             title = tk.Label(card, text=option.name, bg=self.CARD, fg=self.TEXT, font=("Segoe UI Semibold", 13))
-            location = tk.Label(card, text=option.location_label or "не указана", bg=self.CARD, fg=self.TEXT_MUTED, font=("Segoe UI", 10))
-            source = tk.Label(card, text="Импортирован", bg=self.CARD, fg="#7ACAA7", font=("Segoe UI", 10))
+            location_text = option.location_label or option.address or "not specified"
+            location = tk.Label(card, text=location_text, bg=self.CARD, fg=self.TEXT_MUTED, font=("Segoe UI", 10))
+            source_text = "Imported" if option.is_imported else "Bundled"
+            if option.server_id:
+                source_text += f" - {option.server_id}"
+            source = tk.Label(card, text=source_text, bg=self.CARD, fg="#7ACAA7", font=("Segoe UI", 10))
             title.pack(anchor="w")
             location.pack(anchor="w", pady=(8, 0))
             source.pack(anchor="w", pady=(8, 0))

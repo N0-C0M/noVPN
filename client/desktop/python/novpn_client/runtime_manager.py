@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import logging
 import os
 import subprocess
 import time
@@ -21,6 +22,7 @@ class DesktopRuntimeManager:
         generated_root: Path | None = None,
         xray_binary: Path | None = None,
         obfuscator_binary: Path | None = None,
+        logger: logging.Logger | None = None,
     ) -> None:
         self._layout = RuntimeLayout.detect(runtime_root, generated_root, xray_binary, obfuscator_binary)
         self._xray_builder = XrayConfigBuilder()
@@ -29,6 +31,7 @@ class DesktopRuntimeManager:
         self._obfuscator_process: subprocess.Popen[str] | None = None
         self._xray_log_handle: TextIOWrapper | None = None
         self._obfuscator_log_handle: TextIOWrapper | None = None
+        self._logger = logger or logging.getLogger("novpn.desktop.runtime")
         atexit.register(self._shutdown_quietly)
 
     @property
@@ -37,9 +40,17 @@ class DesktopRuntimeManager:
 
     def start(self, profile: ClientProfile, settings: DesktopSettings) -> RuntimeStatus:
         if self._is_running():
+            self._logger.info("runtime start skipped because it is already running")
             return self.status("Runtime already running")
 
         self._layout.ensure_directories()
+        self._logger.info(
+            "starting runtime profile=%s address=%s:%s generated_root=%s",
+            profile.name,
+            profile.server.address,
+            profile.server.port,
+            self._layout.generated_root,
+        )
         runtime_settings = DesktopSettings(
             bypass_ru=settings.bypass_ru,
             app_routing_mode=settings.app_routing_mode,
@@ -94,10 +105,17 @@ class DesktopRuntimeManager:
             detail = f"{failed_runtime_name} exited immediately."
             if log_excerpt:
                 detail += f" Last log lines: {log_excerpt}"
+            self._logger.error("runtime start failed: %s", detail)
             raise RuntimeError(detail)
+        self._logger.info(
+            "runtime started xray_log=%s obfuscator_log=%s",
+            self._layout.xray_log,
+            self._layout.obfuscator_log,
+        )
         return self.status("Runtime started")
 
     def stop(self) -> RuntimeStatus:
+        self._logger.info("stopping runtime")
         self._stop_process(self._xray_process)
         self._stop_process(self._obfuscator_process)
         self._xray_process = None
@@ -128,7 +146,9 @@ class DesktopRuntimeManager:
     ) -> subprocess.Popen[str]:
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_file = log_path.open("a", encoding="utf-8")
+        log_file = log_path.open("a", encoding="utf-8", buffering=1)
+        log_file.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} starting {binary.name} ===\n")
+        self._logger.info("spawning runtime process binary=%s args=%s log=%s", binary, args, log_path)
         process = subprocess.Popen(
             [str(binary), *args],
             stdout=log_file,
@@ -172,10 +192,12 @@ class DesktopRuntimeManager:
         if process is None or process.poll() is not None:
             return
 
+        self._logger.info("terminating runtime process pid=%s", process.pid)
         process.terminate()
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
+            self._logger.warning("forcing runtime process shutdown pid=%s", process.pid)
             process.kill()
             process.wait(timeout=2)
 
@@ -188,6 +210,7 @@ class DesktopRuntimeManager:
     def _close_log(self, handle: TextIOWrapper | None) -> None:
         if handle is None or handle.closed:
             return
+        handle.flush()
         handle.close()
 
     def _read_log_excerpt(self, log_path: Path, max_lines: int = 4) -> str:

@@ -19,6 +19,8 @@ from .models import (
 
 
 class ProfileStore:
+    BUNDLED_PROFILE_KEY = "bundled:default"
+
     def __init__(
         self,
         bundled_profile_path: Path,
@@ -46,26 +48,37 @@ class ProfileStore:
             return self._load_bundled_address()
         return str(payload.get("server_address", "")).strip() or self._load_bundled_address()
 
+    def bootstrap_api_base(self) -> str:
+        try:
+            payload = json.loads(self._bootstrap_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return self._load_bundled_api_base()
+
+        api_base = str(payload.get("api_base", "")).strip()
+        if api_base:
+            return api_base
+        return self._load_bundled_api_base()
+
     def default_profile_key(self) -> str:
         profiles = self.available_profiles()
         return profiles[0].key if profiles else ""
 
     def available_profiles(self) -> list[ProfileOption]:
         self._imported_profiles_dir.mkdir(parents=True, exist_ok=True)
-        profile_files = sorted(self._imported_profiles_dir.glob("*.profile.json"))
         options: list[ProfileOption] = []
-        for path in profile_files:
-            profile = self.load(path)
-            options.append(
-                ProfileOption(
-                    key=path.name,
-                    name=profile.name,
-                    address=f"{profile.server.address}:{profile.server.port}",
-                    server_name=profile.server.server_name,
-                    location_label=profile.server.location_label,
-                    is_imported=True,
-                )
-            )
+        try:
+            bundled_profile = self.load(self._bundled_profile_path)
+        except Exception:
+            bundled_profile = None
+        if bundled_profile is not None:
+            options.append(self._build_option(self.BUNDLED_PROFILE_KEY, bundled_profile, is_imported=False))
+
+        for path in self._list_imported_profile_paths():
+            try:
+                profile = self.load(path)
+            except Exception:
+                continue
+            options.append(self._build_option(path.name, profile, is_imported=True))
         return options
 
     def load(self, profile_path: Path | None = None) -> ClientProfile:
@@ -76,6 +89,8 @@ class ProfileStore:
     def load_by_key(self, profile_key: str) -> ClientProfile:
         if not profile_key.strip():
             raise FileNotFoundError("Activate a code or import a profile first.")
+        if profile_key == self.BUNDLED_PROFILE_KEY:
+            return self.load(self._bundled_profile_path)
         return self.load(self._imported_profiles_dir / profile_key)
 
     def import_profile_file(self, source_path: Path) -> ProfileOption:
@@ -85,19 +100,14 @@ class ProfileStore:
     def import_profile_payload(self, payload: str, name_hint: str = "") -> ProfileOption:
         profile = self._parse_imported_payload(payload)
         require_runtime_ready(profile)
+        serialized = self._serialize_profile(profile)
 
-        file_name = self._build_imported_file_name(name_hint, profile)
+        file_name = self._build_imported_file_name(name_hint, profile, serialized)
         output_path = self._imported_profiles_dir / file_name
         self._imported_profiles_dir.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(self._serialize_profile(profile), encoding="utf-8")
-        return ProfileOption(
-            key=file_name,
-            name=profile.name,
-            address=f"{profile.server.address}:{profile.server.port}",
-            server_name=profile.server.server_name,
-            location_label=profile.server.location_label,
-            is_imported=True,
-        )
+        if not output_path.exists():
+            output_path.write_text(serialized, encoding="utf-8")
+        return self._build_option(file_name, profile, is_imported=True)
 
     def delete_profile(self, profile_key: str) -> None:
         target = self._imported_profiles_dir / profile_key
@@ -133,8 +143,10 @@ class ProfileStore:
                 fingerprint=str(server.get("fingerprint", "")).strip() or _DEFAULT_FINGERPRINT,
                 public_key=str(server.get("public_key", "")).strip(),
                 short_id=short_id,
+                server_id=str(server.get("server_id", "")).strip(),
                 location_label=location_label,
                 spider_x=str(server.get("spider_x", "/")).strip() or "/",
+                api_base=str(server.get("api_base", "")).strip(),
             ),
             local=LocalPorts(
                 socks_listen=str(local.get("socks_listen", "127.0.0.1")).strip() or "127.0.0.1",
@@ -201,8 +213,10 @@ class ProfileStore:
                 fingerprint=scalars.get("fingerprint", "").strip() or _DEFAULT_FINGERPRINT,
                 public_key=scalars.get("public_key", "").strip(),
                 short_id=short_id,
+                server_id=scalars.get("server_id", "").strip(),
                 location_label=location_label,
                 spider_x=scalars.get("spider_x", "").strip() or "/",
+                api_base=scalars.get("api_base", "").strip(),
             ),
             local=LocalPorts(),
             obfuscation=ObfuscationProfile(
@@ -225,14 +239,37 @@ class ProfileStore:
         }
         return json.dumps(payload, indent=2) + "\n"
 
-    def _build_imported_file_name(self, name_hint: str, profile: ClientProfile) -> str:
-        candidates = [name_hint, profile.name, profile.server.server_name]
-        for candidate in candidates:
+    def _build_imported_file_name(self, name_hint: str, profile: ClientProfile, serialized: str) -> str:
+        existing_key = self._find_existing_profile_key(serialized)
+        if existing_key:
+            return existing_key
+
+        parts: list[str] = []
+        for candidate in (
+            profile.server.server_id,
+            name_hint,
+            profile.name,
+            profile.server.server_name,
+            profile.server.location_label,
+        ):
             slug = self._slugify(candidate)
-            if slug:
-                return f"{slug}.profile.json"
-        suffix = uuid.uuid4().hex[:8]
-        return f"imported-{suffix}.profile.json"
+            if slug and slug not in parts:
+                parts.append(slug)
+            if len(parts) >= 2:
+                break
+        address_slug = self._slugify(profile.server.address.replace(":", "-"))
+        if address_slug and address_slug not in parts:
+            parts.append(address_slug)
+
+        base_name = "-".join(parts).strip("-")[:72] or f"imported-{uuid.uuid4().hex[:8]}"
+        for suffix in ("", *[f"-{index}" for index in range(2, 1_000)]):
+            candidate = f"{base_name}{suffix}.profile.json"
+            output_path = self._imported_profiles_dir / candidate
+            if not output_path.exists():
+                return candidate
+            if output_path.read_text(encoding="utf-8") == serialized:
+                return candidate
+        return f"imported-{uuid.uuid4().hex[:8]}.profile.json"
 
     def _slugify(self, value: str) -> str:
         normalized = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -271,6 +308,41 @@ class ProfileStore:
             return ""
         server = payload.get("server", payload)
         return str(server.get("address", "")).strip()
+
+    def _load_bundled_api_base(self) -> str:
+        try:
+            payload = json.loads(self._bundled_profile_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return ""
+        server = payload.get("server", payload)
+        return str(server.get("api_base", "")).strip()
+
+    def _list_imported_profile_paths(self) -> list[Path]:
+        seen: dict[str, Path] = {}
+        for pattern in ("*.profile.json", "profile.*.json"):
+            for path in self._imported_profiles_dir.glob(pattern):
+                seen[path.name] = path
+        return [seen[name] for name in sorted(seen, key=str.lower)]
+
+    def _find_existing_profile_key(self, serialized: str) -> str:
+        for path in self._list_imported_profile_paths():
+            try:
+                if path.read_text(encoding="utf-8") == serialized:
+                    return path.name
+            except OSError:
+                continue
+        return ""
+
+    def _build_option(self, key: str, profile: ClientProfile, is_imported: bool) -> ProfileOption:
+        return ProfileOption(
+            key=key,
+            name=profile.name,
+            address=f"{profile.server.address}:{profile.server.port}",
+            server_name=profile.server.server_name,
+            location_label=profile.server.location_label,
+            is_imported=is_imported,
+            server_id=profile.server.server_id,
+        )
 
     def _default_seed(self, short_id: str) -> str:
         base = short_id.strip() or uuid.uuid4().hex
