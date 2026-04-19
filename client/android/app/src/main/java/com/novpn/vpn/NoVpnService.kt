@@ -368,16 +368,13 @@ class NoVpnService : VpnService() {
         appRoutingMode: AppRoutingMode,
         selectedPackages: List<String>
     ): Boolean {
-        val simplifiedPackages = resolveInstalledSimplifiedRoutePackages()
-        if (simplifiedPackages.isEmpty()) {
-            return false
-        }
-
-        val selectedSet = selectedPackages.toSet()
-        return when (appRoutingMode) {
-            AppRoutingMode.EXCLUDE_SELECTED -> simplifiedPackages.any { it !in selectedSet }
-            AppRoutingMode.ONLY_SELECTED -> simplifiedPackages.any { it in selectedSet }
-        }
+        // The simplified bridge is session-wide. Once enabled by a single selected app
+        // (for example YouTube), every routed app bypasses the obfuscator and uses the
+        // direct local Xray path. That is too broad for allow-list mode and can break
+        // unrelated apps such as Telegram. The embedded obfuscator runtime already
+        // supports UDP ASSOCIATE, so keep the stable obfuscator -> Xray chain until a
+        // true per-flow simplified path exists.
+        return false
     }
 
     private fun resolveInstalledSimplifiedRoutePackages(): Set<String> {
