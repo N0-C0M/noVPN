@@ -24,18 +24,27 @@ data class NetworkDiagnosticsResult(
 )
 
 class NetworkDiagnosticsRunner {
-    fun verifyTunnel(profile: ClientProfile, proxy: RuntimeLocalProxyConfig, apiBaseFallback: String = "") {
+    fun verifyTunnel(
+        profile: ClientProfile,
+        proxy: RuntimeLocalProxyConfig,
+        apiBaseFallback: String = "",
+        startupProbe: Boolean = false
+    ) {
         val target = resolveTarget(profile, apiBaseFallback)
         if (target.supportsHttpDiagnostics) {
-            runStage("Control-plane probe") {
-                executeRequest(
-                    proxy = proxy,
-                    host = target.host,
-                    port = target.port,
-                    method = "HEAD",
-                    path = target.diagPath("/ping?startup=1&ts=${System.currentTimeMillis()}"),
-                    body = ByteArray(0)
-                )
+            if (startupProbe) {
+                verifyStartupControlPlane(target, proxy)
+            } else {
+                runStage("Control-plane probe") {
+                    executeRequest(
+                        proxy = proxy,
+                        host = target.host,
+                        port = target.port,
+                        method = "HEAD",
+                        path = target.diagPath("/ping?startup=1&ts=${System.currentTimeMillis()}"),
+                        body = ByteArray(0)
+                    )
+                }
             }
             return
         }
@@ -347,6 +356,45 @@ class NetworkDiagnosticsRunner {
         }
     }
 
+    private fun verifyStartupControlPlane(target: DiagnosticsTarget, proxy: RuntimeLocalProxyConfig) {
+        var lastProbeError: Exception? = null
+        repeat(STARTUP_CONTROL_PLANE_ATTEMPTS) { attempt ->
+            try {
+                runStage("Control-plane probe #${attempt + 1}") {
+                    executeRequest(
+                        proxy = proxy,
+                        host = target.host,
+                        port = target.port,
+                        method = "HEAD",
+                        path = target.diagPath("/ping?startup=1&attempt=${attempt + 1}&ts=${System.currentTimeMillis()}"),
+                        body = ByteArray(0)
+                    )
+                }
+                return
+            } catch (error: Exception) {
+                if (error is InterruptedException) {
+                    throw error
+                }
+                lastProbeError = error
+                if (attempt < STARTUP_CONTROL_PLANE_ATTEMPTS - 1) {
+                    Thread.sleep(STARTUP_CONTROL_PLANE_BACKOFF_MS)
+                }
+            }
+        }
+
+        try {
+            runStage("Proxy handshake fallback") {
+                openSocksSocket(proxy, target.host, target.port).use { }
+            }
+        } catch (fallbackError: Exception) {
+            if (fallbackError is InterruptedException) {
+                throw fallbackError
+            }
+            lastProbeError?.let(fallbackError::addSuppressed)
+            throw fallbackError
+        }
+    }
+
     private fun buildDestinationAddress(host: String): ByteArray {
         val address = runCatching { InetAddress.getByName(host) }.getOrNull()
         return when (address) {
@@ -462,5 +510,7 @@ class NetworkDiagnosticsRunner {
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val HANDSHAKE_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 60_000
+        private const val STARTUP_CONTROL_PLANE_ATTEMPTS = 4
+        private const val STARTUP_CONTROL_PLANE_BACKOFF_MS = 750L
     }
 }

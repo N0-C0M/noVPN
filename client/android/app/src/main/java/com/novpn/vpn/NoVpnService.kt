@@ -250,7 +250,8 @@ class NoVpnService : VpnService() {
                 diagnosticsRunner.verifyTunnel(
                     profile = effectiveProfile,
                     proxy = bridgeProxy,
-                    apiBaseFallback = profileRepository.bootstrapApiBase()
+                    apiBaseFallback = profileRepository.bootstrapApiBase(),
+                    startupProbe = true
                 )
                 runtimeManager.appendAppLog("service", "Tunnel diagnostics check passed")
                 activeBridgeProxy = bridgeProxy
