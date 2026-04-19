@@ -26,6 +26,8 @@ class AndroidXrayConfigWriter(private val context: Context) {
             profile = profile,
             deviceId = DeviceIdentityStore(context).deviceId()
         )
+        val resolvedFingerprint = profile.server.fingerprint.ifBlank { "chrome" }
+        val resolvedSpiderX = profile.server.spiderX.ifBlank { "/" }
         val localCatalog = LocalRuExclusionCatalogLoader.load(context)
         val rules = JSONArray()
             .put(
@@ -170,10 +172,10 @@ class AndroidXrayConfigWriter(private val context: Context) {
                                         "realitySettings",
                                         JSONObject()
                                             .put("serverName", profile.server.serverName)
-                                            .put("fingerprint", effectivePlan.selectedFingerprint)
+                                            .put("fingerprint", resolvedFingerprint)
                                             .put("publicKey", profile.server.publicKey)
                                             .put("shortId", profile.server.shortId)
-                                            .put("spiderX", effectivePlan.selectedSpiderX)
+                                            .put("spiderX", resolvedSpiderX)
                                     )
                         )
                 )
@@ -197,7 +199,8 @@ class AndroidXrayConfigWriter(private val context: Context) {
             "Generated config for profile=${profile.name}, server=${profile.server.address}:${profile.server.port}, " +
                 "bypassRu=$bypassRu, socksPort=${localProxy.socksPort}, udp=${localProxy.udpEnabled}, " +
                 "dns=${XRAY_DNS_SERVERS.joinToString()}, domainMatcher=hybrid, routeOnly=false, " +
-                "fingerprint=${effectivePlan.selectedFingerprint}, spiderX=${effectivePlan.selectedSpiderX}"
+                "fingerprint=$resolvedFingerprint, spiderX=$resolvedSpiderX, " +
+                "sessionFingerprint=${effectivePlan.selectedFingerprint}, sessionSpiderX=${effectivePlan.selectedSpiderX}"
         )
         return outputFile
     }
