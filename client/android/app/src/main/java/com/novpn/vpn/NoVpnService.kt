@@ -31,6 +31,7 @@ import com.novpn.obfs.SessionObfuscationPlanner
 import com.novpn.ui.MainActivity
 import com.novpn.xray.AndroidXrayConfigWriter
 import java.net.InetAddress
+import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -108,8 +109,12 @@ class NoVpnService : VpnService() {
                         "traffic=${trafficStrategy.storageValue} pattern=${patternStrategy.storageValue}"
                 )
                 worker.execute {
+                    if (!isLatestCommand(startId)) {
+                        return@execute
+                    }
                     runCatching {
                         startCore(
+                            commandStartId = startId,
                             profileId = profileId,
                             bypassRu = bypassRu,
                             appRoutingMode = appRoutingMode,
@@ -117,6 +122,9 @@ class NoVpnService : VpnService() {
                             trafficStrategy = trafficStrategy,
                             patternStrategy = patternStrategy
                         )
+                        if (!isLatestCommand(startId)) {
+                            stopCore()
+                        }
                     }.onFailure {
                         if (!isLatestCommand(startId)) {
                             return@onFailure
@@ -209,6 +217,7 @@ class NoVpnService : VpnService() {
     }
 
     private fun startCore(
+        commandStartId: Int,
         profileId: String,
         bypassRu: Boolean,
         appRoutingMode: AppRoutingMode,
@@ -217,7 +226,9 @@ class NoVpnService : VpnService() {
         patternStrategy: PatternMaskingStrategy
     ) {
         synchronized(coreLock) {
+            ensureLatestCommandOrThrow(commandStartId)
             stopCoreLocked()
+            ensureLatestCommandOrThrow(commandStartId)
             preflightChecker.evaluate(profileId).requireReady()
             runtimeManager.appendAppLog("service", "Preflight passed for profileId=$profileId")
 
@@ -256,17 +267,20 @@ class NoVpnService : VpnService() {
                     sessionPlan
                 )
                 runtimeManager.start(xrayConfig, obfuscatorConfig)
+                ensureLatestCommandOrThrow(commandStartId)
                 bridgeProxy = resolveBridgeProxy(
                     useSimplifiedBridgePath = useSimplifiedBridgePath,
                     localProxy = localProxy,
                     xrayInboundProxy = xrayInboundProxy
                 )
+                ensureLatestCommandOrThrow(commandStartId)
                 diagnosticsRunner.verifyTunnel(
                     profile = effectiveProfile,
                     proxy = bridgeProxy,
                     apiBaseFallback = profileRepository.bootstrapApiBase(),
                     startupProbe = true
                 )
+                ensureLatestCommandOrThrow(commandStartId)
                 runtimeManager.appendAppLog("service", "Tunnel diagnostics check passed")
                 activeBridgeProxy = bridgeProxy
                 tunnelInterface = establishTunnel(
@@ -274,12 +288,14 @@ class NoVpnService : VpnService() {
                     packageNames = selectedPackages,
                     upstreamAddress = effectiveProfile.server.address
                 )
+                ensureLatestCommandOrThrow(commandStartId)
                 tunnelInterface?.let {
                     runtimeManager.appendAppLog("service", "Android VPN tunnel established, starting tun2proxy")
                     tun2ProxyBridge.start(it, bridgeProxy, TUN_MTU)
                     tun2ProxyBridge.confirmStarted()
                 }
                     ?: throw IllegalStateException("Failed to establish Android VPN tunnel interface.")
+                ensureLatestCommandOrThrow(commandStartId)
             } catch (error: Exception) {
                 val detail = buildFailureDetail(error)
                 runtimeManager.appendAppLog("service", "Core start failed: $detail")
@@ -529,6 +545,12 @@ class NoVpnService : VpnService() {
 
     private fun isLatestCommand(startId: Int): Boolean {
         return startId == latestStartId.get()
+    }
+
+    private fun ensureLatestCommandOrThrow(startId: Int) {
+        if (!isLatestCommand(startId)) {
+            throw CancellationException("Newer VPN command superseded this startup request.")
+        }
     }
 
     private fun stopServiceForStartId(startId: Int) {
