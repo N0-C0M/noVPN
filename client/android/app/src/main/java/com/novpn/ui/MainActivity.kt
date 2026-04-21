@@ -31,6 +31,7 @@ import com.novpn.data.AvailableProfile
 import com.novpn.data.CodeRedeemKind
 import com.novpn.data.ClientPreferences
 import com.novpn.vpn.NoVpnService
+import com.novpn.vpn.VpnScreenAutomationController
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -39,6 +40,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<TunnelViewModel>()
     private val preferences by lazy { ClientPreferences(this) }
+    private val screenAutomationController by lazy { VpnScreenAutomationController(this) }
 
     private lateinit var headerLabel: TextView
     private lateinit var headerServer: TextView
@@ -106,6 +108,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        screenAutomationController.resumeIfNeeded()
         viewModel.refreshStateFromPreferences()
         renderState(viewModel.state.value)
         lifecycleScope.launch {
@@ -508,6 +511,7 @@ class MainActivity : ComponentActivity() {
     private fun renderState(state: TunnelState) {
         val selected = state.availableProfiles.firstOrNull { it.profileId == state.selectedProfileId }
             ?: state.availableProfiles.firstOrNull()
+        val runtimeTransitionInProgress = isRuntimeTransitionInProgress(state)
 
         headerServer.text = formatHeaderServerName(selected?.name)
         val locationLine = getString(
@@ -552,6 +556,7 @@ class MainActivity : ComponentActivity() {
         updateTextWithFade(statusTitle, statusTitleText)
         updateTextWithFade(statusDetail, statusDetailText)
         animatePowerState(state)
+        powerButton.isEnabled = !runtimeTransitionInProgress
 
         if (::inviteCodeInput.isInitialized) {
             val currentCode = inviteCodeInput.text?.toString().orEmpty()
@@ -729,10 +734,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toggleRuntime() {
-        if (viewModel.state.value.runtimeRunning) {
+        val currentState = viewModel.state.value
+        if (isRuntimeTransitionInProgress(currentState)) {
+            return
+        }
+
+        if (currentState.runtimeRunning) {
             animateDisconnectTransition()
             startService(NoVpnService.stopIntent(this))
-            viewModel.markRuntimeStopped()
+            viewModel.markRuntimeStopping()
             renderState(viewModel.state.value)
             return
         }
@@ -854,7 +864,7 @@ class MainActivity : ComponentActivity() {
             runCatching {
                 if (viewModel.state.value.runtimeRunning) {
                     startService(NoVpnService.stopIntent(this@MainActivity))
-                    viewModel.markRuntimeStopped()
+                    viewModel.markRuntimeStopping()
                 }
                 viewModel.disconnectCurrentDevice()
             }.onSuccess {
@@ -1079,6 +1089,11 @@ class MainActivity : ComponentActivity() {
             return normalized
         }
         return normalized.take(10) + "..."
+    }
+
+    private fun isRuntimeTransitionInProgress(state: TunnelState): Boolean {
+        return state.runtimeStatus == getString(R.string.runtime_starting) ||
+            state.runtimeStatus == getString(R.string.runtime_stopping)
     }
 
     private fun roundedDrawable(

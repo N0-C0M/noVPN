@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novpn.R
 import com.novpn.data.AppRoutingMode
+import com.novpn.data.ClientPreferences
 import com.novpn.data.DeviceIdentityStore
 import com.novpn.data.NetworkDiagnosticsRunner
 import com.novpn.data.PatternMaskingStrategy
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class NoVpnService : VpnService() {
     private val tun2ProxyBridge by lazy { Tun2ProxyBridge(applicationContext) }
+    private val clientPreferences by lazy { ClientPreferences(this) }
     private val profileRepository by lazy { ProfileRepository(this) }
     private val seedStore by lazy { ObfuscationSeedStore(this) }
     private val deviceIdentityStore by lazy { DeviceIdentityStore(this) }
@@ -72,6 +74,7 @@ class NoVpnService : VpnService() {
 
         when (intent?.action) {
             ACTION_START -> {
+                clientPreferences.saveScreenOffVpnResumePending(false)
                 val profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
                     ?.takeIf { it.isNotBlank() }
                     ?: run {
@@ -133,13 +136,20 @@ class NoVpnService : VpnService() {
 
             ACTION_STOP -> {
                 runtimeManager.appendAppLog("service", "Received STOP command startId=$startId")
+                runtimeStatusStore.markStopping(
+                    status = getString(R.string.runtime_stopping),
+                    detail = getString(R.string.runtime_stopping_detail)
+                )
                 worker.execute {
+                    if (!isLatestCommand(startId)) {
+                        return@execute
+                    }
+                    stopCore()
                     if (!isLatestCommand(startId)) {
                         return@execute
                     }
                     runtimeStatusStore.markStopped(getString(R.string.service_stopped))
                     RuntimeLocalProxySession.update(null)
-                    stopCore()
                     mainHandler.post {
                         stopServiceForStartId(startId)
                     }

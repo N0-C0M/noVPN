@@ -47,6 +47,15 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".vpn.VpnScreenStateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_OFF" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".vpn.NoVpnService"
             android:exported="false"

@@ -35,6 +35,10 @@ class VpnRuntimeStatusStore(context: Context) {
         save(running = false, status = status, detail = detail)
     }
 
+    fun markStopping(status: String, detail: String = "") {
+        save(running = false, status = status, detail = detail)
+    }
+
     fun markStopped(status: String, detail: String = "") {
         save(running = false, status = status, detail = detail)
     }

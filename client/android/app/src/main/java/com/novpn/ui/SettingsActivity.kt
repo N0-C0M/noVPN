@@ -57,6 +57,7 @@ class SettingsActivity : ComponentActivity() {
     private lateinit var bypassRuCheckBox: CheckBox
     private lateinit var defaultWhitelistCheckBox: CheckBox
     private lateinit var forceServerIpCheckBox: CheckBox
+    private lateinit var screenOffVpnCheckBox: CheckBox
     private lateinit var modeExcludeButton: Button
     private lateinit var modeOnlySelectedButton: Button
     private lateinit var trafficBalancedButton: Button
@@ -217,6 +218,24 @@ class SettingsActivity : ComponentActivity() {
                 }
             }
             addView(forceServerIpCheckBox)
+
+            screenOffVpnCheckBox = CheckBox(this@SettingsActivity).apply {
+                text = getString(R.string.screen_off_vpn_mode_title)
+                isChecked = preferences.isScreenOffVpnModeEnabled()
+                setTextColor(Color.parseColor("#F3F6FB"))
+                textSize = 14f
+                buttonTintList = ColorStateList.valueOf(Color.parseColor("#5FD4A6"))
+                setPadding(0, dp(10), 0, 0)
+                setOnCheckedChangeListener { _, _ ->
+                    persistSettings()
+                }
+            }
+            addView(screenOffVpnCheckBox)
+            addView(
+                label(getString(R.string.screen_off_vpn_mode_subtitle), 12f, "#8091A7", false).apply {
+                    setPadding(0, dp(6), 0, 0)
+                }
+            )
 
             addView(
                 label(getString(R.string.apps_mode_title), 14f, "#F3F6FB", true).apply {
@@ -825,6 +844,7 @@ class SettingsActivity : ComponentActivity() {
 
     private fun refreshSelectionViews() {
         defaultWhitelistCheckBox.isChecked = defaultWhitelistEnabled
+        screenOffVpnCheckBox.isChecked = preferences.isScreenOffVpnModeEnabled()
         applyChoiceButtonStyle(modeExcludeButton, appRoutingMode == AppRoutingMode.EXCLUDE_SELECTED)
         applyChoiceButtonStyle(modeOnlySelectedButton, appRoutingMode == AppRoutingMode.ONLY_SELECTED)
         modeExcludeButton.isEnabled = !defaultWhitelistEnabled
@@ -867,6 +887,7 @@ class SettingsActivity : ComponentActivity() {
         preferences.saveBypassRu(bypassRuCheckBox.isChecked)
         preferences.saveDefaultWhitelistEnabled(defaultWhitelistEnabled)
         preferences.saveForceServerIpMode(forceServerIpCheckBox.isChecked)
+        preferences.saveScreenOffVpnMode(screenOffVpnCheckBox.isChecked)
         preferences.saveAppRoutingMode(appRoutingMode)
         preferences.saveExcludedPackages(selectedPackages.toList())
         preferences.saveTrafficObfuscationStrategy(trafficStrategy)

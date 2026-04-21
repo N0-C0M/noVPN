@@ -146,4 +146,10 @@
     <string name="startup_stage_new_apps_detail">Ищем новые установленные приложения и сверяем их с локальным списком исключений.</string>
     <string name="startup_stage_ru_audit_progress">Проверено %1$d из %2$d: %3$s</string>
     <string name="startup_ru_audit_mandatory">Первый вход ждёт обязательную проверку приложений и только потом открывает клиент.</string>
+    <string name="runtime_stopping">Disconnecting VPN</string>
+    <string name="runtime_stopping_detail">Waiting for the bridge and background processes to fully stop before the next start.</string>
+    <string name="runtime_screen_off_pausing_detail">The screen is off, so VPN is being paused automatically.</string>
+    <string name="runtime_screen_off_resuming_detail">The device was unlocked, so VPN is resuming automatically.</string>
+    <string name="screen_off_vpn_mode_title">Turn VPN off when the screen turns off</string>
+    <string name="screen_off_vpn_mode_subtitle">When the screen turns off, the tunnel stops. After unlock, the client starts VPN again automatically.</string>
 </resources>

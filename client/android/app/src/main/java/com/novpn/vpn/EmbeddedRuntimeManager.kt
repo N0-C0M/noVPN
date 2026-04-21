@@ -3,6 +3,7 @@ package com.novpn.vpn
 import android.content.Context
 import android.os.Build
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class EmbeddedRuntimeManager(private val context: Context) {
     private val runtimeRoot = File(context.filesDir, "runtime")
@@ -79,10 +80,12 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
     fun stop() {
         appendAppLog("runtime", "Stopping embedded runtime processes")
-        xrayProcess?.destroy()
-        obfuscatorProcess?.destroy()
+        val activeXray = xrayProcess
+        val activeObfuscator = obfuscatorProcess
         xrayProcess = null
         obfuscatorProcess = null
+        stopProcess("xray", activeXray)
+        stopProcess("obfuscator", activeObfuscator)
     }
 
     fun isRunning(): Boolean {
@@ -211,11 +214,29 @@ class EmbeddedRuntimeManager(private val context: Context) {
         }
     }
 
+    private fun stopProcess(label: String, process: Process?) {
+        process ?: return
+        process.destroy()
+        if (runCatching { process.waitFor(PROCESS_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS) }.getOrDefault(false)) {
+            appendAppLog("runtime", "Process $label stopped cleanly")
+            return
+        }
+
+        appendAppLog("runtime", "Process $label did not stop in time, forcing termination")
+        runCatching { process.destroyForcibly() }
+        runCatching { process.waitFor(PROCESS_FORCE_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS) }
+    }
+
     private fun readLogTail(logFile: File, lineCount: Int = 12): String {
         return logStore.readTail(logFile, lineCount)
     }
 
     private fun processHandle(process: Process?): String {
         return process?.javaClass?.simpleName + "@" + Integer.toHexString(System.identityHashCode(process))
+    }
+
+    companion object {
+        private const val PROCESS_STOP_TIMEOUT_MS = 1_500L
+        private const val PROCESS_FORCE_STOP_TIMEOUT_MS = 750L
     }
 }

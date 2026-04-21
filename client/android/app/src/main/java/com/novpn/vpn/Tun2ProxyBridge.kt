@@ -95,6 +95,18 @@ class Tun2ProxyBridge(context: Context) {
             activeSessionId += 1
         }
 
+        if (pendingTask != null || tunFdToClose != INVALID_TUN_FD) {
+            runCatching {
+                val stopResult = nativeStop()
+                logStore.append("tun2proxy", "Requested native bridge stop result=$stopResult")
+            }.onFailure { error ->
+                logStore.append(
+                    "tun2proxy",
+                    "Native bridge stop request failed: ${error.message ?: error.javaClass.simpleName}"
+                )
+            }
+        }
+
         closeTunFdQuietly(tunFdToClose)
 
         if (pendingTask == null) {

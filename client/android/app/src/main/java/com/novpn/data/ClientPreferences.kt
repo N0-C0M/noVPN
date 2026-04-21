@@ -50,6 +50,14 @@ class ClientPreferences(context: Context) {
         return preferences.getBoolean(KEY_FORCE_SERVER_IP_MODE, true)
     }
 
+    fun isScreenOffVpnModeEnabled(): Boolean {
+        return preferences.getBoolean(KEY_SCREEN_OFF_VPN_MODE, false)
+    }
+
+    fun isScreenOffVpnResumePending(): Boolean {
+        return preferences.getBoolean(KEY_SCREEN_OFF_VPN_RESUME_PENDING, false)
+    }
+
     fun trafficObfuscationStrategy(): TrafficObfuscationStrategy {
         return TrafficObfuscationStrategy.fromStorage(
             preferences.getString(KEY_TRAFFIC_STRATEGY, TrafficObfuscationStrategy.BALANCED.storageValue)
@@ -128,6 +136,19 @@ class ClientPreferences(context: Context) {
         preferences.edit().putBoolean(KEY_FORCE_SERVER_IP_MODE, enabled).apply()
     }
 
+    fun saveScreenOffVpnMode(enabled: Boolean) {
+        preferences.edit()
+            .putBoolean(KEY_SCREEN_OFF_VPN_MODE, enabled)
+            .apply()
+        if (!enabled) {
+            saveScreenOffVpnResumePending(false)
+        }
+    }
+
+    fun saveScreenOffVpnResumePending(pending: Boolean) {
+        preferences.edit().putBoolean(KEY_SCREEN_OFF_VPN_RESUME_PENDING, pending).apply()
+    }
+
     fun saveTrafficObfuscationStrategy(strategy: TrafficObfuscationStrategy) {
         preferences.edit().putString(KEY_TRAFFIC_STRATEGY, strategy.storageValue).apply()
     }
@@ -175,6 +196,8 @@ class ClientPreferences(context: Context) {
         private const val KEY_APP_ROUTING_MODE = "app_routing_mode"
         private const val KEY_DEFAULT_WHITELIST_ENABLED = "default_whitelist_enabled"
         private const val KEY_FORCE_SERVER_IP_MODE = "force_server_ip_mode"
+        private const val KEY_SCREEN_OFF_VPN_MODE = "screen_off_vpn_mode"
+        private const val KEY_SCREEN_OFF_VPN_RESUME_PENDING = "screen_off_vpn_resume_pending"
         private const val KEY_SELECTED_PACKAGES = "selected_packages"
         private const val KEY_EXCLUDED_PACKAGES = "excluded_packages"
         private const val KEY_TRAFFIC_STRATEGY = "traffic_strategy"

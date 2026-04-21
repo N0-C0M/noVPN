@@ -146,4 +146,10 @@
     <string name="startup_stage_new_apps_detail">Ищем новые установленные приложения и сверяем их с локальным списком исключений.</string>
     <string name="startup_stage_ru_audit_progress">Проверено %1$d из %2$d: %3$s</string>
     <string name="startup_ru_audit_mandatory">Первый вход ждёт обязательную проверку приложений и только потом открывает клиент.</string>
+    <string name="runtime_stopping">Отключаем VPN</string>
+    <string name="runtime_stopping_detail">Дожидаемся полной остановки моста и фоновых процессов перед следующим запуском.</string>
+    <string name="runtime_screen_off_pausing_detail">Экран выключен, поэтому VPN автоматически приостанавливается.</string>
+    <string name="runtime_screen_off_resuming_detail">Экран разблокирован, VPN автоматически возвращается в работу.</string>
+    <string name="screen_off_vpn_mode_title">Выключать VPN при выключении экрана</string>
+    <string name="screen_off_vpn_mode_subtitle">Когда экран гаснет, туннель останавливается. После разблокировки клиент сам поднимает VPN снова.</string>
 </resources>
