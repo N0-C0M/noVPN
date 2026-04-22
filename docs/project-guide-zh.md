@@ -17,7 +17,7 @@
 
 - 网关默认安全模式已加固（`source_ip_allowlist` + `policy`）。
 - Obfuscator 支持 SOCKS5 `CONNECT` 和 `UDP ASSOCIATE`。
-- Android 具备完整 TUN 路径；桌面端当前以本地运行时代理编排为主。
+- Android 具备完整 TUN 路径；桌面端既支持本地运行时代理编排，也支持一个初始版 Windows system-tunnel 路径（Xray TUN + `wintun.dll`）。
 
 ## 2. 总体架构
 
@@ -85,10 +85,24 @@ Obfuscator 不替代加密，而是改变流量时序与分片行为。
 
 `应用流量 -> VpnService(TUN) -> tun2proxy -> 本地 obfuscator SOCKS -> 本地 Xray SOCKS -> VLESS/REALITY -> 服务端`
 
+服务启动时会先对本地 obfuscator bridge 做 `UDP ASSOCIATE` 探测。探测成功则整条 VPN 会话使用
+`obfuscator -> Xray` 链路；探测失败则整条会话回退到
+`TUN -> tun2proxy -> 本地 Xray SOCKS (UDP enabled) -> VLESS/REALITY`。这个回退是会话级的，
+不是针对某个单独站点或 YouTube 的特殊规则。
+
 ### 4.2 Desktop
 
-桌面端主要运行本地代理链并由 UI 编排。  
-当前 Python 版本未实现完整系统级 TUN 后端。
+桌面端支持两种模式：
+
+- 本地运行时模式：运行本地代理链并由 UI 编排；
+- Windows system-tunnel 模式：使用 Xray `tun` inbound 和 `wintun.dll`。
+
+当前 system-tunnel 路径：
+
+- 需要 Administrator 权限；
+- 通过临时 IPv4 路由切换接管当前会话；
+- 仍保留本地 SOCKS/HTTP inbound 供诊断和显式代理使用；
+- 默认安装包中仍未集成 WFP helper。
 
 ### 4.3 服务端
 

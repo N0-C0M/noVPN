@@ -7,10 +7,9 @@ This Android scaffold now includes:
 - obfuscator sidecar config generation;
 - ABI-aware embedded binary installation from `assets/bin/`;
 - runtime preflight diagnostics for profile completeness and embedded assets;
-- hardening for the local Xray SOCKS bridge: per-launch password auth, random loopback port,
-  and UDP disabled;
+- protected local SOCKS bridges with per-launch credentials and random loopback host/port;
 - start/stop controls in `MainActivity`;
-- package exclusions through `addDisallowedApplication(...)`.
+- application routing through `addAllowedApplication(...)` / `addDisallowedApplication(...)`.
 
 Expected asset layout:
 
@@ -80,18 +79,18 @@ Build workflow:
 2. GitHub Actions now builds the debug APK automatically from
    `.github/workflows/android-apk.yml` and uploads it as an artifact.
 
-Current limitation:
+Current runtime behavior:
 
-- the runtime already uses an Android packet path (`TUN -> tun2proxy -> local obfuscator SOCKS ->
-  local Xray SOCKS -> VLESS/REALITY`), so the basic datapath is live.
-- the obfuscator sidecar currently handles SOCKS `CONNECT` (TCP) only. Full end-to-end UDP/QUIC
-  forwarding is not implemented in this Android chain yet; some apps that strongly prefer QUIC
-  (for example YouTube) may degrade or fail until a UDP-capable sidecar path is shipped.
-- when YouTube is routed through VPN, runtime switches to a simplified in-VPN path for that
-  session (`TUN -> tun2proxy -> local Xray SOCKS with UDP -> VLESS/REALITY`) so YouTube traffic
-  stays encrypted/protected while avoiding the TCP-only obfuscator bottleneck.
+- the preferred Android datapath is `TUN -> tun2proxy -> local obfuscator SOCKS -> local Xray
+  SOCKS -> VLESS/REALITY`;
+- the service creates both local SOCKS bridges with UDP enabled and probes `UDP ASSOCIATE`
+  support on the local obfuscator bridge during startup;
+- if that UDP probe passes, the obfuscator bridge is used for the whole VPN session;
+- if the UDP probe fails, the whole VPN session falls back to `TUN -> tun2proxy -> local Xray
+  SOCKS (UDP enabled) -> VLESS/REALITY`;
+- this fallback is session-wide and is not limited to YouTube or any other single package;
 - local loopback SOCKS remains a hardening boundary, not an absolute one. Current defenses are
-  per-launch credentials, random loopback host/port, and UDP disabled on the local Xray inbound.
+  per-launch credentials plus random loopback host/port.
 
 Runtime preflight:
 
@@ -100,5 +99,5 @@ Runtime preflight:
   - ABI-compatible embedded `xray` and `obfuscator` binaries;
   - required `geoip.dat` and `geosite.dat` assets.
 - config generation and service startup both refuse to proceed when preflight is not ready.
-- the preflight panel keeps implementation boundaries explicit (notably current UDP/QUIC limits in
-  the Android sidecar chain).
+- the preflight panel reflects actual runtime prerequisites only; UDP bridge selection happens
+  later at service startup through capability probing.

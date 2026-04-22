@@ -94,7 +94,10 @@ Pattern controls are generated from seed + session context (`session nonce`, rot
 
 `App traffic -> VpnService(TUN) -> tun2proxy -> local obfuscator SOCKS -> local Xray SOCKS -> VLESS/REALITY -> server`
 
-With routing heuristics, specific flows may bypass obfuscator and use direct local Xray path.
+At service startup the client probes `UDP ASSOCIATE` support on the local obfuscator bridge. If the
+probe passes, that bridge is used for the whole VPN session. If it fails, the whole VPN session
+falls back to `TUN -> tun2proxy -> local Xray SOCKS (UDP enabled) -> VLESS/REALITY`. This is a
+session-wide bridge choice, not a per-site or YouTube-specific heuristic.
 
 ### 4.2 Desktop Path
 

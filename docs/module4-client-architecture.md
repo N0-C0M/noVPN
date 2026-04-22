@@ -8,6 +8,8 @@
 - Android foreground-service flow вокруг `VpnService`;
 - генерацию runtime-конфигов для Xray и sidecar-обфускатора.
 
+Важно: этот документ частично описывает целевую архитектуру и возможное дальнейшее разбиение клиента на слои. Он не является точной инвентаризацией текущего дерева файлов один в один. Для фактической реализации в репозитории ориентируйтесь на `docs/project-guide-ru.md`, `client/android/README.md` и `client/desktop/python/README.md`.
+
 ## Directory structure
 
 ```text
@@ -169,7 +171,7 @@ interface SplitTunnelRepository {
 
 Рекомендуемые concrete classes:
 
-- `NoVpnService`: наследник `VpnService`, создаёт TUN и применяет `addDisallowedApplication`.
+- `NoVpnService`: наследник `VpnService`, создаёт TUN и в текущей реализации умеет применять как `addDisallowedApplication`, так и `addAllowedApplication` в зависимости от режима routing.
 - `AndroidRoutingConfigWriter`: пишет локальный Xray JSON в sandbox.
 - `AndroidXrayRunner`: запускает embedded Xray binary через `ProcessBuilder`.
 - `AndroidObfuscatorBridge`: настраивает seed и lifecycle обфускатора.
@@ -202,4 +204,4 @@ interface SplitTunnelRepository {
 
 ## Operational note
 
-Я трактую список приложений как exclusion list: выбранные в UI приложения идут `direct`, остальные по умолчанию идут в `proxy`. Если для Windows backend окажется надёжнее allowed-app model, UI-список исключений просто инвертируется в runtime перед программированием WFP/Wintun.
+На текущем Android runtime поддерживаются оба режима: exclusion list (`EXCLUDE_SELECTED`) и allow-list (`ONLY_SELECTED`). Для Windows backend UI-список приложений по-прежнему может быть инвертирован в runtime, если конкретная реализация tunneling/policy-layer требует allowed-app model.

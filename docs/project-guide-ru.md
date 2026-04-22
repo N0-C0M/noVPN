@@ -17,7 +17,7 @@
 
 - `gateway` по умолчанию использует `source_ip_allowlist` для auth и `policy` для ACL (см. `internal/config/config.go`, `internal/auth/source_ip_allowlist.go`, `internal/acl/policy.go`).
 - obfuscator поддерживает SOCKS5 `CONNECT` (TCP) и `UDP ASSOCIATE` path.
-- Android содержит полноценный TUN-путь (`VpnService + tun2proxy`), desktop-клиент в этом репозитории работает как локальный runtime с SOCKS/HTTP и UI-оркестрацией, без системного TUN.
+- Android содержит полноценный TUN-путь (`VpnService + tun2proxy`), а desktop-клиент поддерживает и локальный runtime-режим с SOCKS/HTTP, и начальный Windows system-tunnel режим на базе Xray TUN + `wintun.dll`.
 
 ---
 
@@ -115,15 +115,15 @@ Invite/promo/disconnect в клиентских кодах вызываются 
 
 ## 4.1 Android datapath
 
-Базовый путь:
+Предпочтительный путь:
 
 `App traffic -> VpnService(TUN) -> tun2proxy -> local obfuscator SOCKS -> local Xray SOCKS -> VLESS/REALITY -> server`.
 
-Упрощённый YouTube путь (при эвристике YouTube):
+Session-wide fallback path:
 
 `TUN -> tun2proxy -> local Xray SOCKS (UDP enabled) -> VLESS/REALITY`.
 
-Причина: текущий obfuscator не проксирует UDP end-to-end.
+Причина: при старте сервиса выполняется `UDP ASSOCIATE` probe к локальному obfuscator bridge. Если probe проходит, используется цепочка `obfuscator -> Xray`; если нет, вся VPN-сессия переводится на direct local Xray bridge. Это больше не YouTube-specific эвристика.
 
 См.:
 
@@ -135,12 +135,19 @@ Invite/promo/disconnect в клиентских кодах вызываются 
 
 Desktop runtime:
 
-- запускает локальный Xray (SOCKS+HTTP inbound);
+- поддерживает два режима: local runtime и Windows system-tunnel;
+- в local runtime запускает локальный Xray (SOCKS+HTTP inbound);
 - запускает локальный obfuscator;
 - пишет конфиги и логи;
 - даёт управление режимами маршрутизации и маскировки.
 
-Системного TUN в текущем Python scaffold нет; фактическое использование зависит от приложений/сценария, где трафик идёт через локальные прокси.
+Windows system-tunnel path в текущем Python scaffold:
+
+- использует Xray `tun` inbound и `wintun.dll`;
+- требует запуск клиента с правами Administrator;
+- делает временное IPv4 route switching для текущей сессии;
+- сохраняет локальные SOCKS/HTTP inbounds для диагностики и явного proxy-use;
+- пока не включает упакованный WFP helper по умолчанию.
 
 См.:
 
@@ -345,6 +352,7 @@ Registry хранит:
 - всё остальное идёт в `proxy`, затем в VLESS/REALITY и на сервер.
 
 Здесь `direct` означает локальный выход с телефона через обычную сеть Android, без отправки этого конкретного соединения в удалённый VPN-сервер.
+Выбор между `local obfuscator SOCKS` и `local Xray SOCKS` делается один раз на старте VPN-сессии через `UDP ASSOCIATE` probe и затем действует для всех приложений внутри этой сессии.
 
 ### 7.2.4 Путь трафика для приложения не из белого списка
 
