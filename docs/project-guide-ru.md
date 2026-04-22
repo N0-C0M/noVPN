@@ -316,17 +316,82 @@ Registry хранит:
 
 - upstream bypass route (Android 13+) через `excludeRoute(...)` для адреса сервера.
 
+### 7.2.1 Где именно принимается решение
+
+В Android-клиенте решение принимается в два этапа:
+
+1. `VpnService.Builder` решает, попадёт ли трафик процесса в TUN вообще.
+2. Если поток попал в TUN, `tun2proxy` передаёт его в локальный bridge (`obfuscator SOCKS`, либо fallback напрямую в локальный Xray SOCKS), после чего Xray выбирает `direct` или `proxy`.
+
+Это ключевая граница: доменные и IP-правила Xray не видят трафик приложений, которые были отфильтрованы на этапе `addAllowedApplication` / `addDisallowedApplication`.
+
+### 7.2.2 Что означает белый список по умолчанию
+
+Опция default whitelist mode в Android-настройках фактически переводит routing в `ONLY_SELECTED`. Effective список пакетов при этом собирается как сохранённые пользователем пакеты плюс `defaultWhitelistPackages()` из `ClientPreferences.kt` (YouTube family, браузеры, Telegram, Instagram, X, Roblox, Discord, часть игр Supercell, MEGA, ChatGPT, Gemini).
+
+То есть белый список отвечает только на первый вопрос: "должно ли приложение вообще зайти в VPN".
+
+### 7.2.3 Путь трафика для приложения из белого списка
+
+Если приложение входит в белый список (`ONLY_SELECTED`), его трафик идёт так:
+
+`App -> VpnService(TUN) -> tun2proxy -> local obfuscator SOCKS (или fallback local Xray SOCKS) -> Xray routing -> direct|proxy`
+
+Дальше уже Xray принимает решение для каждого отдельного соединения:
+
+- если домен относится к Google/YouTube family, соединение принудительно остаётся в `proxy`;
+- если включён `bypassRu` и домен совпал с `.ru`, `.su`, `.xn--p1ai` или с локальным каталогом доменов из `ru site list.txt`, соединение уходит в `direct`;
+- если домен не распознан по sniffing, включается `domainStrategy: "IPIfNonMatch"` и Xray повторно проверяет соединение по IP; RU-IP тоже идут в `direct`;
+- всё остальное идёт в `proxy`, затем в VLESS/REALITY и на сервер.
+
+Здесь `direct` означает локальный выход с телефона через обычную сеть Android, без отправки этого конкретного соединения в удалённый VPN-сервер.
+
+### 7.2.4 Путь трафика для приложения не из белого списка
+
+Если приложение не входит в белый список и активен режим `ONLY_SELECTED`, его трафик:
+
+- вообще не попадает в TUN;
+- не проходит через `tun2proxy`, obfuscator и Xray;
+- открывает любые сайты напрямую через системную сеть Android;
+- не использует `ru site list.txt`, `geoip:ru` и другие Xray routing rules.
+
+Это важный момент: сайты не могут "переопределить" отсутствие приложения в белом списке. Сначала приложение должно попасть в VPN, и только потом начинают работать доменные правила.
+
+### 7.2.5 Что происходит с сайтами внутри браузера или приложения
+
+Сайтовая маршрутизация работает только для приложений, уже попавших в VPN.
+
+Практически это означает:
+
+- браузер из белого списка может отправлять разные вкладки разными путями;
+- `youtube.com`, `googlevideo.com`, `ytimg.com`, `gstatic.com` и связанные домены остаются в `proxy`;
+- `gosuslugi.ru`, `ya.ru` или любой домен из локального RU-каталога уйдут в `direct`, если `bypassRu=true`;
+- если браузер не входит в белый список, вообще любой сайт из него откроется напрямую и Xray не будет участвовать.
+
+### 7.2.6 Инвертированный режим `EXCLUDE_SELECTED`
+
+Режим `EXCLUDE_SELECTED` работает зеркально:
+
+- выбранные приложения полностью обходят VPN;
+- все остальные приложения попадают в TUN;
+- для этих остальных приложений сайты дальше маршрутизируются теми же Xray правилами (`google -> proxy`, `RU domains/IP -> direct`, всё остальное -> `proxy`).
+
 ## 7.3 Конфиг Xray на Android
 
 Особенности:
 
 - socks inbound с опциональной auth/password;
-- `sniffing.destOverride`: `http`, `tls`, `quic`;
+- `sniffing.destOverride`: `http`, `tls`, `quic`, поэтому Xray может распознавать `Host`, TLS SNI и QUIC destination для доменных правил;
 - routing:
   - `geoip:private -> direct`;
-  - google-related домены форсируются в `proxy`;
-  - при `bypassRu` добавляются RU domain rules и локальный ru-catalog domains;
+  - `bittorrent -> direct`;
+  - google-related домены форсируются в `proxy` раньше RU bypass правил;
+  - при `bypassRu` добавляются `.ru`, `.su`, `.xn--p1ai` suffix rules в `direct`;
+  - при `bypassRu` добавляются домены из локального ru-catalog (`ru site list.txt`) в `direct`;
+  - при `bypassRu` добавляется `geoip:ru -> direct`;
   - default `tcp,udp -> proxy`.
+
+Важно: app-level routing для Android не живёт в Xray JSON. Он применяется отдельно в `NoVpnService.applyApplicationRouting()`, а Xray получает только тот трафик, который уже был допущен в TUN.
 
 См. `AndroidXrayConfigWriter.kt`.
 
