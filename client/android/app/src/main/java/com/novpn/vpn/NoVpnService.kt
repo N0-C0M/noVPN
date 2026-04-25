@@ -183,7 +183,7 @@ class NoVpnService : VpnService() {
         val builder = Builder()
             .setSession(getString(R.string.tunnel_session_name))
             .setMtu(mtu)
-            .setBlocking(true)
+            .setBlocking(false)
             .addAddress(TUN_IPV4_ADDRESS, TUN_IPV4_PREFIX_LENGTH)
             .addAddress(TUN_IPV6_ADDRESS, TUN_IPV6_PREFIX_LENGTH)
             .addRoute("0.0.0.0", 0)
@@ -338,10 +338,14 @@ class NoVpnService : VpnService() {
         }
         runtimeManager.appendAppLog("service", "Stopping core runtime")
         coreSessionActive = false
+        val tunnelToClose = tunnelInterface
+        tunnelInterface = null
+        if (tunnelToClose != null) {
+            runtimeManager.appendAppLog("service", "Closing Android VPN tunnel interface before tun2proxy stop")
+        }
+        runCatching { tunnelToClose?.close() }
         tun2ProxyBridge.stop()
         runtimeManager.stop()
-        runCatching { tunnelInterface?.close() }
-        tunnelInterface = null
         activeBridgeProxy = null
         RuntimeLocalProxySession.update(null)
     }
