@@ -95,6 +95,7 @@ class Tun2ProxyBridge(context: Context) {
             activeSessionId += 1
         }
 
+        requestNativeStop("stop")
         closeTunFdQuietly(tunFdToClose)
 
         if (pendingTask == null) {
@@ -106,6 +107,8 @@ class Tun2ProxyBridge(context: Context) {
         } catch (_: TimeoutException) {
             Log.w(TAG, "tun2proxy did not stop within timeout after closing TUN fd")
             logStore.append("tun2proxy", "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s")
+            requestNativeStop("timeout")
+            pendingTask.cancel(true)
         } catch (_: Exception) {
             // The bridge thread is already terminating; no extra action needed here.
         }
@@ -146,6 +149,19 @@ class Tun2ProxyBridge(context: Context) {
     ): Int
 
     private external fun nativeStop(): Int
+
+    private fun requestNativeStop(reason: String) {
+        runCatching {
+            nativeStop()
+        }.onSuccess { code ->
+            logStore.append("tun2proxy", "nativeStop requested ($reason), result=$code")
+        }.onFailure { error ->
+            logStore.append(
+                "tun2proxy",
+                "nativeStop failed during $reason: ${error.message ?: error.javaClass.simpleName}"
+            )
+        }
+    }
 
     private fun closeTunFdQuietly(fd: Int) {
         if (fd == INVALID_TUN_FD) {
