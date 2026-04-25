@@ -52,6 +52,7 @@ class Tun2ProxyBridge(context: Context) {
                 logStore.append("tun2proxy", "Bridge session=$sessionId finished")
                 synchronized(stateLock) {
                     if (activeSessionId == sessionId && activeTunFd == detachedFd) {
+                        closeTunFdQuietly(detachedFd)
                         activeTunFd = INVALID_TUN_FD
                     }
                 }
@@ -85,25 +86,26 @@ class Tun2ProxyBridge(context: Context) {
 
     fun stop() {
         val pendingTask: Future<*>?
+        val tunFdToClose: Int
         synchronized(stateLock) {
             pendingTask = task
             task = null
+            tunFdToClose = activeTunFd
             activeTunFd = INVALID_TUN_FD
             activeSessionId += 1
         }
+
+        closeTunFdQuietly(tunFdToClose)
 
         if (pendingTask == null) {
             return
         }
 
-        requestNativeStop("stop")
-
         try {
             pendingTask.get(STOP_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         } catch (_: TimeoutException) {
-            Log.w(TAG, "tun2proxy did not stop within timeout after stop signal")
+            Log.w(TAG, "tun2proxy did not stop within timeout after closing TUN fd")
             logStore.append("tun2proxy", "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s")
-            pendingTask.cancel(true)
         } catch (_: Exception) {
             // The bridge thread is already terminating; no extra action needed here.
         }
@@ -145,17 +147,11 @@ class Tun2ProxyBridge(context: Context) {
 
     private external fun nativeStop(): Int
 
-    private fun requestNativeStop(reason: String) {
-        runCatching {
-            nativeStop()
-        }.onSuccess { code ->
-            logStore.append("tun2proxy", "nativeStop requested ($reason), result=$code")
-        }.onFailure { error ->
-            logStore.append(
-                "tun2proxy",
-                "nativeStop failed during $reason: ${error.message ?: error.javaClass.simpleName}"
-            )
+    private fun closeTunFdQuietly(fd: Int) {
+        if (fd == INVALID_TUN_FD) {
+            return
         }
+        runCatching { ParcelFileDescriptor.adoptFd(fd).close() }
     }
 
     private enum class DnsStrategy(val value: Int) {
