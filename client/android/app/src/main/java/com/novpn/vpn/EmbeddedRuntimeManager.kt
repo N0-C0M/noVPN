@@ -3,6 +3,7 @@ package com.novpn.vpn
 import android.content.Context
 import android.os.Build
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class EmbeddedRuntimeManager(private val context: Context) {
     private val runtimeRoot = File(context.filesDir, "runtime")
@@ -79,8 +80,8 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
     fun stop() {
         appendAppLog("runtime", "Stopping embedded runtime processes")
-        xrayProcess?.destroy()
-        obfuscatorProcess?.destroy()
+        stopProcess("xray", xrayProcess)
+        stopProcess("obfuscator", obfuscatorProcess)
         xrayProcess = null
         obfuscatorProcess = null
     }
@@ -217,5 +218,36 @@ class EmbeddedRuntimeManager(private val context: Context) {
 
     private fun processHandle(process: Process?): String {
         return process?.javaClass?.simpleName + "@" + Integer.toHexString(System.identityHashCode(process))
+    }
+
+    private fun stopProcess(label: String, process: Process?) {
+        process ?: return
+
+        appendAppLog("runtime", "Stopping process $label handle=${processHandle(process)}")
+        runCatching { process.destroy() }
+        if (waitForExit(process, PROCESS_STOP_TIMEOUT_MS)) {
+            appendAppLog("runtime", "Process $label exited after destroy()")
+            return
+        }
+
+        appendAppLog("runtime", "Process $label did not exit after destroy(); forcing termination")
+        runCatching { process.destroyForcibly() }
+        if (waitForExit(process, PROCESS_FORCE_STOP_TIMEOUT_MS)) {
+            appendAppLog("runtime", "Process $label exited after destroyForcibly()")
+            return
+        }
+
+        appendAppLog("runtime", "Process $label is still alive after forced termination attempt")
+    }
+
+    private fun waitForExit(process: Process, timeoutMs: Long): Boolean {
+        return runCatching {
+            process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+        }.getOrDefault(false)
+    }
+
+    companion object {
+        private const val PROCESS_STOP_TIMEOUT_MS = 1_500L
+        private const val PROCESS_FORCE_STOP_TIMEOUT_MS = 1_000L
     }
 }

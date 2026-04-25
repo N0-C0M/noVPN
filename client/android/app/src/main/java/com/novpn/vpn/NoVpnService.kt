@@ -137,9 +137,9 @@ class NoVpnService : VpnService() {
                     if (!isLatestCommand(startId)) {
                         return@execute
                     }
+                    stopCore()
                     runtimeStatusStore.markStopped(getString(R.string.service_stopped))
                     RuntimeLocalProxySession.update(null)
-                    stopCore()
                     mainHandler.post {
                         stopServiceForStartId(startId)
                     }

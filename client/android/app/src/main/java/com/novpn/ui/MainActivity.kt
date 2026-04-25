@@ -732,8 +732,6 @@ class MainActivity : ComponentActivity() {
         if (viewModel.state.value.runtimeRunning) {
             animateDisconnectTransition()
             startService(NoVpnService.stopIntent(this))
-            viewModel.markRuntimeStopped()
-            renderState(viewModel.state.value)
             return
         }
 
@@ -854,7 +852,6 @@ class MainActivity : ComponentActivity() {
             runCatching {
                 if (viewModel.state.value.runtimeRunning) {
                     startService(NoVpnService.stopIntent(this@MainActivity))
-                    viewModel.markRuntimeStopped()
                 }
                 viewModel.disconnectCurrentDevice()
             }.onSuccess {

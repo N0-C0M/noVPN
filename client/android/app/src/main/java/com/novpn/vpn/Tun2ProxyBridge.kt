@@ -103,6 +103,7 @@ class Tun2ProxyBridge(context: Context) {
 
         try {
             pendingTask.get(STOP_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            logStore.append("tun2proxy", "Bridge stop completed within timeout")
         } catch (_: TimeoutException) {
             Log.w(TAG, "tun2proxy did not stop within timeout after closing TUN fd")
             logStore.append("tun2proxy", "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s")
@@ -172,7 +173,7 @@ class Tun2ProxyBridge(context: Context) {
     companion object {
         private const val TAG = "NoVPNTun2Proxy"
         private const val INVALID_TUN_FD = -1
-        private const val STOP_WAIT_TIMEOUT_SECONDS = 2L
+        private const val STOP_WAIT_TIMEOUT_SECONDS = 5L
         private val nativeLoadError: Throwable? by lazy {
             runCatching {
                 ensureNativeLoaded()
