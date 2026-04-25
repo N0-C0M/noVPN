@@ -101,15 +101,15 @@ class Tun2ProxyBridge(context: Context) {
             return
         }
 
-        requestNativeStop("stop")
-
         try {
             pendingTask.get(STOP_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         } catch (_: TimeoutException) {
             Log.w(TAG, "tun2proxy did not stop within timeout after closing TUN fd")
             logStore.append("tun2proxy", "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s")
-            requestNativeStop("timeout")
-            pendingTask.cancel(true)
+            if (!pendingTask.isDone) {
+                requestNativeStop("timeout")
+                pendingTask.cancel(true)
+            }
         } catch (_: Exception) {
             // The bridge thread is already terminating; no extra action needed here.
         }
