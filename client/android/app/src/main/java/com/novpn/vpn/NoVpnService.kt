@@ -133,6 +133,7 @@ class NoVpnService : VpnService() {
 
             ACTION_STOP -> {
                 runtimeManager.appendAppLog("service", "Received STOP command startId=$startId")
+                runtimeStatusStore.markStopping()
                 worker.execute {
                     if (!isLatestCommand(startId)) {
                         return@execute

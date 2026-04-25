@@ -443,6 +443,16 @@ class TunnelViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun markRuntimeStopping() {
+        _state.update {
+            it.copy(
+                runtimeRunning = false,
+                runtimeStatus = VpnRuntimeStatusStore.STATUS_STOPPING,
+                runtimeDetail = VpnRuntimeStatusStore.DETAIL_STOPPING
+            )
+        }
+    }
+
     fun markDiagnosticsStarted() {
         _state.update {
             it.copy(

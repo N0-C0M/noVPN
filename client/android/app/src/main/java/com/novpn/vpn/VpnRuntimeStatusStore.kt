@@ -27,6 +27,10 @@ class VpnRuntimeStatusStore(context: Context) {
         save(running = false, status = status, detail = detail)
     }
 
+    fun markStopping(status: String = STATUS_STOPPING, detail: String = DETAIL_STOPPING) {
+        save(running = false, status = status, detail = detail)
+    }
+
     fun markRunning(status: String, detail: String = "") {
         save(running = true, status = status, detail = detail)
     }
@@ -77,5 +81,8 @@ class VpnRuntimeStatusStore(context: Context) {
         private const val KEY_PROXY_PORT = "proxy_port"
         private const val KEY_PROXY_USERNAME = "proxy_username"
         private const val KEY_PROXY_PASSWORD = "proxy_password"
+
+        const val STATUS_STOPPING = "Отключаем VPN"
+        const val DETAIL_STOPPING = "Завершаем текущий туннель перед повторным запуском."
     }
 }
