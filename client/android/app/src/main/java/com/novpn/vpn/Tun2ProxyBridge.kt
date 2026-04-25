@@ -95,12 +95,13 @@ class Tun2ProxyBridge(context: Context) {
             activeSessionId += 1
         }
 
-        requestNativeStop("stop")
         closeTunFdQuietly(tunFdToClose)
 
         if (pendingTask == null) {
             return
         }
+
+        requestNativeStop("stop")
 
         try {
             pendingTask.get(STOP_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
