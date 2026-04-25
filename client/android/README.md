@@ -79,6 +79,15 @@ Build workflow:
 2. GitHub Actions now builds the debug APK automatically from
    `.github/workflows/android-apk.yml` and uploads it as an artifact.
 
+Manifest security flags:
+
+- `android:allowBackup` is disabled (`false`) in `AndroidManifest.xml`.
+- `android:usesCleartextTraffic` remains enabled for now because bootstrap and admin-facing client
+  flows still accept `http://.../admin` (`bootstrap.json`, `InviteRedeemer`,
+  `GatewayPolicyService`, `NetworkDiagnosticsRunner`).
+- When bootstrap and client control-plane calls move to HTTPS-only, flip
+  `android:usesCleartextTraffic` to `false` and update the bootstrap/profile examples accordingly.
+
 Current runtime behavior:
 
 - the preferred Android datapath is `TUN -> tun2proxy -> local obfuscator SOCKS -> local Xray

@@ -109,6 +109,10 @@ Invite/promo/disconnect в клиентских кодах вызываются 
 
 Рекомендация для production: ограничение доступа (VPN/SSH tunnel/reverse proxy + HTTPS), иначе API-трафик управления не защищён как публичный HTTPS.
 
+Из-за этого Android manifest пока вынужден держать `android:usesCleartextTraffic="true"`.
+После перевода bootstrap/admin API на HTTPS-only этот флаг нужно переключить в `false`.
+`android:allowBackup` в Android-клиенте должен оставаться выключенным (`false`).
+
 ---
 
 ## 4. Передача данных: цепочки трафика
@@ -759,13 +763,22 @@ Server side endpoints:
 1. Включить реальную auth и ACL политику для gateway.
 2. Защитить admin endpoint:
 - закрытая сеть / SSH tunnel / reverse proxy + TLS.
-3. Регулярно обновлять:
+3. Держать публичный VPN edge отдельно от control-plane сервисов.
+4. На публичных redeem/handshake поверхностях делать silent fail для заведомо невалидных probing-попыток и включать rate-limit по повторяющимся ошибочным handshake.
+5. Для IP reputation держать пул чистых IP и быстрый failover/rotation; это не решается одной криптографией.
+6. На Android держать `android:allowBackup="false"` и выключить `android:usesCleartextTraffic`, как только bootstrap/admin client flow уйдёт с HTTP.
+7. Регулярно обновлять:
 - `geoip.dat`;
 - `geosite.dat`;
 - локальный RU каталог.
-4. Синхронизировать planner-логику Android/desktop.
-5. Автоматизировать regression-tests obfuscator runtime (TCP+UDP correctness + perf budgets).
-6. Для desktop production рассмотреть системный tunnel backend (Wintun/WFP) вместо только локального proxy orchestration.
+8. Развивать уже существующую поведенческую маскировку: per-session seed, `traffic_strategy`,
+   `pattern_strategy`, padding/jitter и relay shaping, а также синхронизировать planner-логику Android/desktop.
+9. Автоматизировать regression-tests obfuscator runtime (TCP+UDP correctness + perf budgets).
+10. Для desktop production рассмотреть системный tunnel backend (Wintun/WFP) вместо только локального proxy orchestration.
+
+Текущая база для этого уже есть в Android `client/android/app/src/main/java/com/novpn/obfs/SessionObfuscationPlanner.kt`,
+`client/android/app/src/main/java/com/novpn/vpn/ObfuscatorConfigWriter.kt`, desktop
+`client/desktop/python/novpn_client/session_obfuscation.py` и runtime `cmd/obfuscator/runtime.go`.
 
 ---
 

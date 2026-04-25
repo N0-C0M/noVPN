@@ -87,6 +87,9 @@ Obfuscator runtime (`cmd/obfuscator/runtime.go`):
 - forwards through upstream SOCKS
 
 Pattern controls are generated from seed + session context (`session nonce`, rotation bucket, destination).
+Current implementation already exists in Android `SessionObfuscationPlanner.kt` +
+`ObfuscatorConfigWriter.kt`, desktop `session_obfuscation.py`, and relay shaping in
+`cmd/obfuscator/runtime.go`.
 
 ## 4. Data Flow
 
@@ -227,6 +230,14 @@ Production recommendations:
 3. Treat public redeem/disconnect endpoints as sensitive and guard with perimeter controls/rate-limits.
 4. Rotate admin token and avoid exposing admin listener to public internet.
 5. Keep geo data and app/domain catalogs up to date.
+6. Keep the public VPN edge separated from the control-plane surface.
+7. Silent-fail obviously invalid probing attempts and rate-limit repeated bad handshakes on public-facing endpoints.
+8. Treat IP reputation as an operational problem: keep a clean IP pool and support fast failover/rotation.
+9. Keep evolving the existing per-session traffic masking stack (`seed`, `traffic_strategy`,
+   `pattern_strategy`, padding/jitter, relay shaping) instead of expecting transport cryptography to
+   solve traffic analysis by itself.
+10. On Android keep `android:allowBackup="false"`; keep `android:usesCleartextTraffic="true"` only
+    until bootstrap/admin client flows stop using HTTP.
 
 ## 11. Code Pointers
 

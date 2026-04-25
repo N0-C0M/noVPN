@@ -115,6 +115,10 @@ Deployment presets for the split layout live in:
 - `deploy/vpn-service/`
 - `deploy/README.md`
 
+For production, keep the public VPN edge listener separate from control-plane services. Public
+redeem/handshake surfaces should silent-fail invalid probing attempts, rate-limit repeated bad
+handshakes, and rely on clean IP pools with fast failover/rotation rather than cryptography alone.
+
 The admin panel supports:
 
 - creating invite codes with both expiry and max-use limits;
