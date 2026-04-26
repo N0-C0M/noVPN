@@ -10,9 +10,11 @@ namespace {
 constexpr const char *kTag = "NoVPNTun2Proxy";
 
 std::mutex gJvmMutex;
+std::mutex gRunStateMutex;
 JavaVM *gJvm = nullptr;
 void *gTun2ProxyHandle = nullptr;
 std::string gLoadError;
+bool gRunActive = false;
 
 using SetLogCallbackFn = void (*)(void (*)(enum Tun2proxyVerbosity, const char *, void *), void *);
 using RunWithFdFn = int (*)(const char *,
@@ -105,6 +107,10 @@ Java_com_novpn_vpn_Tun2ProxyBridge_nativeRunWithFd(JNIEnv *env,
     }
 
     const char *proxy_url = env->GetStringUTFChars(proxyUrl, nullptr);
+    {
+        std::lock_guard<std::mutex> lock(gRunStateMutex);
+        gRunActive = true;
+    }
     const int result = gRunWithFd(
         proxy_url,
         tunFd,
@@ -114,6 +120,10 @@ Java_com_novpn_vpn_Tun2ProxyBridge_nativeRunWithFd(JNIEnv *env,
         static_cast<Tun2proxyDns>(dnsStrategy),
         static_cast<Tun2proxyVerbosity>(verbosity)
     );
+    {
+        std::lock_guard<std::mutex> lock(gRunStateMutex);
+        gRunActive = false;
+    }
     env->ReleaseStringUTFChars(proxyUrl, proxy_url);
     return result;
 }
@@ -123,5 +133,13 @@ Java_com_novpn_vpn_Tun2ProxyBridge_nativeStop(JNIEnv * /* env */, jobject /* thi
     if (!ensure_tun2proxy_loaded()) {
         return -1;
     }
+
+    {
+        std::lock_guard<std::mutex> lock(gRunStateMutex);
+        if (!gRunActive) {
+            return 0;
+        }
+    }
+
     return gStop();
 }

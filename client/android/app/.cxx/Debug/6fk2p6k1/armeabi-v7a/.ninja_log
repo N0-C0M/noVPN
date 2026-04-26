@@ -7,3 +7,5 @@
 789	959	7988499734583318	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/armeabi-v7a/libnovpn_tun2proxy_jni.so	78632d91a8bb1ddf
 2	649	7988921518761508	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	62067a3653078f07
 649	802	7988921520308527	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/armeabi-v7a/libnovpn_tun2proxy_jni.so	78632d91a8bb1ddf
+5	590	7988928976243675	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	62067a3653078f07
+590	690	7988928977264891	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/armeabi-v7a/libnovpn_tun2proxy_jni.so	78632d91a8bb1ddf

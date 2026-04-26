@@ -25,7 +25,9 @@ class Tun2ProxyBridge(context: Context) {
     private var task: Future<Int>? = null
     private var activeTunFd: Int = INVALID_TUN_FD
     private var activeSessionId: Long = 0L
+    private var nativeRunActive = false
 
+    @Synchronized
     fun start(tunnel: ParcelFileDescriptor, proxy: RuntimeLocalProxyConfig, mtu: Int) {
         stop(requireCompletion = true)
 
@@ -41,6 +43,9 @@ class Tun2ProxyBridge(context: Context) {
             "Starting bridge session=$sessionId fd=$detachedFd proxy=${proxy.listenHost}:${proxy.socksPort} mtu=$mtu"
         )
         val newTask = executor.submit<Int> {
+            synchronized(stateLock) {
+                nativeRunActive = true
+            }
             try {
                 nativeRunWithFd(
                     proxyUrl = proxyUrl,
@@ -52,6 +57,7 @@ class Tun2ProxyBridge(context: Context) {
             } finally {
                 logStore.append("tun2proxy", "Bridge session=$sessionId finished")
                 synchronized(stateLock) {
+                    nativeRunActive = false
                     if (activeSessionId == sessionId && activeTunFd == detachedFd) {
                         closeTunFdQuietly(detachedFd)
                         activeTunFd = INVALID_TUN_FD
@@ -92,6 +98,7 @@ class Tun2ProxyBridge(context: Context) {
         stop(requireCompletion = false)
     }
 
+    @Synchronized
     private fun stop(requireCompletion: Boolean) {
         val pendingTask: Future<*>?
         val tunFdToClose: Int
@@ -99,13 +106,22 @@ class Tun2ProxyBridge(context: Context) {
         synchronized(stateLock) {
             pendingTask = task
             tunFdToClose = activeTunFd
-            shouldSignalNativeStop = pendingTask != null && !pendingTask.isDone
+            shouldSignalNativeStop = pendingTask != null && !pendingTask.isDone && nativeRunActive
             activeTunFd = INVALID_TUN_FD
             activeSessionId += 1
         }
 
         if (pendingTask == null && tunFdToClose == INVALID_TUN_FD) {
             return
+        }
+
+        if (!shouldSignalNativeStop && pendingTask != null && !pendingTask.isDone) {
+            if (pendingTask.cancel(true)) {
+                clearTaskReference(pendingTask)
+                closeTunFdQuietly(tunFdToClose)
+                logStore.append("tun2proxy", "Bridge task was cancelled before native run became active")
+                return
+            }
         }
 
         if (shouldSignalNativeStop) {
