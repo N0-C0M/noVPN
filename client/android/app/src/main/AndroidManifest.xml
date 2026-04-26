@@ -50,6 +50,7 @@
         <service
             android:name=".vpn.NoVpnService"
             android:exported="false"
+            android:process=":vpncore"
             android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <property

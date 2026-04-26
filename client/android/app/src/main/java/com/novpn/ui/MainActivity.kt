@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
 import android.os.Bundle
 import android.text.InputType
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -31,6 +32,7 @@ import com.novpn.data.AvailableProfile
 import com.novpn.data.CodeRedeemKind
 import com.novpn.data.ClientPreferences
 import com.novpn.vpn.NoVpnService
+import com.novpn.vpn.VpnRuntimeStatusStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -525,6 +527,12 @@ class MainActivity : ComponentActivity() {
             "Traffic left: ∞"
         }
 
+        val isStarting = state.runtimeStatus == getString(R.string.runtime_starting)
+        val isStopping = state.runtimeStatus == VpnRuntimeStatusStore.STATUS_STOPPING
+        val showRuntimeDetail = !state.runtimeRunning &&
+            state.runtimeDetail.isNotBlank() &&
+            state.runtimeStatus.isNotBlank() &&
+            state.runtimeStatus != getString(R.string.service_stopped)
         val statusTitleText: String
 
         if (state.runtimeRunning) {
@@ -535,6 +543,14 @@ class MainActivity : ComponentActivity() {
             } else {
                 getString(R.string.status_connected)
             }
+        } else if (isStopping) {
+            powerButton.text = STOPPING_BUTTON_TEXT
+            powerButton.background = powerDrawable(true)
+            statusTitleText = state.runtimeStatus
+        } else if (isStarting) {
+            powerButton.text = STARTING_BUTTON_TEXT
+            powerButton.background = powerDrawable(false)
+            statusTitleText = state.runtimeStatus
         } else {
             powerButton.text = getString(R.string.connect)
             powerButton.background = powerDrawable(false)
@@ -548,7 +564,13 @@ class MainActivity : ComponentActivity() {
         val statusDetailText = buildString {
             appendLine(locationLine)
             append(trafficRemainingLine)
+            if (showRuntimeDetail) {
+                appendLine()
+                appendLine()
+                append(state.runtimeDetail.trim())
+            }
         }
+        powerButton.isEnabled = !(isStarting || isStopping)
         updateTextWithFade(statusTitle, statusTitleText)
         updateTextWithFade(statusDetail, statusDetailText)
         animatePowerState(state)
@@ -712,12 +734,16 @@ class MainActivity : ComponentActivity() {
             var previousSnapshot = RuntimeStatusSnapshot.from(viewModel.state.value)
             while (isActive) {
                 delay(RUNTIME_STATUS_SYNC_INTERVAL_MS)
-                viewModel.refreshStateFromPreferences()
-                val currentState = viewModel.state.value
-                val currentSnapshot = RuntimeStatusSnapshot.from(currentState)
-                if (currentSnapshot != previousSnapshot) {
-                    renderState(currentState)
-                    previousSnapshot = currentSnapshot
+                runCatching {
+                    viewModel.refreshStateFromPreferences()
+                    val currentState = viewModel.state.value
+                    val currentSnapshot = RuntimeStatusSnapshot.from(currentState)
+                    if (currentSnapshot != previousSnapshot) {
+                        renderState(currentState)
+                        previousSnapshot = currentSnapshot
+                    }
+                }.onFailure { error ->
+                    Log.w(TAG, "Runtime status sync tick failed", error)
                 }
             }
         }
@@ -729,11 +755,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toggleRuntime() {
+        if (viewModel.state.value.runtimeStatus == getString(R.string.runtime_starting) ||
+            viewModel.state.value.runtimeStatus == VpnRuntimeStatusStore.STATUS_STOPPING
+        ) {
+            return
+        }
         if (viewModel.state.value.runtimeRunning) {
             animateDisconnectTransition()
-            startService(NoVpnService.stopIntent(this))
-            viewModel.markRuntimeStopped()
+            viewModel.markRuntimeStopping()
             renderState(viewModel.state.value)
+            startService(NoVpnService.stopIntent(this))
             return
         }
 
@@ -741,6 +772,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun beginVpnStartFlow() {
+        if (viewModel.state.value.runtimeStatus == VpnRuntimeStatusStore.STATUS_STOPPING) {
+            Toast.makeText(this, VpnRuntimeStatusStore.DETAIL_STOPPING, Toast.LENGTH_SHORT).show()
+            return
+        }
         val prepareIntent = VpnService.prepare(this)
         if (prepareIntent != null) {
             vpnPermissionLauncher.launch(prepareIntent)
@@ -853,8 +888,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             runCatching {
                 if (viewModel.state.value.runtimeRunning) {
+                    viewModel.markRuntimeStopping()
+                    renderState(viewModel.state.value)
                     startService(NoVpnService.stopIntent(this@MainActivity))
-                    viewModel.markRuntimeStopped()
                 }
                 viewModel.disconnectCurrentDevice()
             }.onSuccess {
@@ -941,7 +977,8 @@ class MainActivity : ComponentActivity() {
     private fun animatePowerState(state: TunnelState) {
         val visualState = when {
             state.runtimeRunning -> PowerVisualState.CONNECTED
-            state.runtimeStatus == getString(R.string.runtime_starting) -> PowerVisualState.CONNECTING
+            state.runtimeStatus == getString(R.string.runtime_starting) ||
+                state.runtimeStatus == VpnRuntimeStatusStore.STATUS_STOPPING -> PowerVisualState.CONNECTING
             state.runtimeStatus == getString(R.string.runtime_start_failed) -> PowerVisualState.ERROR
             else -> PowerVisualState.IDLE
         }
@@ -1120,7 +1157,10 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val TAG = "NoVPNMainActivity"
         private const val RUNTIME_STATUS_SYNC_INTERVAL_MS = 350L
+        private const val STARTING_BUTTON_TEXT = "Подключаем..."
+        private const val STOPPING_BUTTON_TEXT = "Отключаем..."
     }
 
     private enum class PowerVisualState {

@@ -1,3 +1,15 @@
 # ninja log v5
-0	1693	7982356387536162	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
-1699	1813	7982356388736422	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+0	2604	7988468767204783	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+2609	2741	7988468768585088	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+10	1400	7988483563979755	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+1400	1728	7988483567297724	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+7	1502	7988499720227333	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+1502	1828	7988499723501595	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+3	1744	7988921506111633	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+1745	2253	7988921511276116	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+5	625	7988928968779011	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+626	718	7988928969719220	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+6	621	7988933366077725	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+621	716	7988933367057950	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
+6	606	7988939646973963	CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o	999e60c5bf3ce077
+606	697	7988939647904172	D:/projekt/noVPN/client/android/app/build/intermediates/cxx/Debug/6fk2p6k1/obj/arm64-v8a/libnovpn_tun2proxy_jni.so	4e60654155a26d75
