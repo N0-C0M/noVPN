@@ -59,7 +59,6 @@ class Tun2ProxyBridge(context: Context) {
                 synchronized(stateLock) {
                     nativeRunActive = false
                     if (activeSessionId == sessionId && activeTunFd == detachedFd) {
-                        closeTunFdQuietly(detachedFd)
                         activeTunFd = INVALID_TUN_FD
                     }
                 }
@@ -127,7 +126,10 @@ class Tun2ProxyBridge(context: Context) {
         if (shouldSignalNativeStop) {
             requestNativeStop("initial")
         }
-        closeTunFdQuietly(tunFdToClose)
+
+        if (!shouldSignalNativeStop) {
+            closeTunFdQuietly(tunFdToClose)
+        }
 
         if (pendingTask == null) {
             return
@@ -139,33 +141,19 @@ class Tun2ProxyBridge(context: Context) {
             return
         }
 
-        Log.w(TAG, "tun2proxy did not stop within timeout after initial stop attempt")
-        logStore.append(
-            "tun2proxy",
-            "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s; sending second stop signal"
-        )
-
-        if (shouldSignalNativeStop) {
-            requestNativeStop("retry")
-        }
-        if (waitForTaskStop(pendingTask, STOP_FORCE_WAIT_TIMEOUT_SECONDS)) {
-            clearTaskReference(pendingTask)
-            logStore.append("tun2proxy", "Bridge stop completed after second stop signal")
-            return
-        }
+        Log.w(TAG, "tun2proxy did not stop within timeout after stop request")
+        logStore.append("tun2proxy", "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s")
 
         if (requireCompletion) {
             throw IllegalStateException(
-                "Previous tun2proxy instance did not stop within " +
-                    "${STOP_WAIT_TIMEOUT_SECONDS + STOP_FORCE_WAIT_TIMEOUT_SECONDS}s."
+                "Previous tun2proxy instance did not stop within ${STOP_WAIT_TIMEOUT_SECONDS}s."
             )
         }
 
-        Log.w(TAG, "tun2proxy is still running after repeated stop attempts")
+        Log.w(TAG, "tun2proxy is still running after stop request")
         logStore.append(
             "tun2proxy",
-            "Bridge is still running after repeated stop attempts " +
-                "(${STOP_WAIT_TIMEOUT_SECONDS + STOP_FORCE_WAIT_TIMEOUT_SECONDS}s total)"
+            "Bridge is still running after stop request (${STOP_WAIT_TIMEOUT_SECONDS}s)"
         )
     }
 
@@ -266,7 +254,6 @@ class Tun2ProxyBridge(context: Context) {
         private const val TAG = "NoVPNTun2Proxy"
         private const val INVALID_TUN_FD = -1
         private const val STOP_WAIT_TIMEOUT_SECONDS = 5L
-        private const val STOP_FORCE_WAIT_TIMEOUT_SECONDS = 3L
         private val nativeLoadError: Throwable? by lazy {
             runCatching {
                 ensureNativeLoaded()
