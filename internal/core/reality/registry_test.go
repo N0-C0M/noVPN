@@ -209,6 +209,86 @@ func TestRedeemPromoKeepsBonusFlowForBoundClient(t *testing.T) {
 	}
 }
 
+func TestObserveSubscriptionDeviceStoresAndUpdatesObservedHappDevices(t *testing.T) {
+	store := newTestRegistryStore(t)
+
+	invite, err := store.CreateInvite(InviteCreateRequest{
+		Name:    "base",
+		MaxUses: 1,
+	})
+	if err != nil {
+		t.Fatalf("create invite: %v", err)
+	}
+	redeemResult, err := store.RedeemInvite(invite.Code, "desktop-device", "Windows desktop")
+	if err != nil {
+		t.Fatalf("redeem invite: %v", err)
+	}
+
+	firstSeen := time.Date(2026, time.April, 26, 12, 30, 0, 0, time.UTC)
+	client, changed, err := store.ObserveSubscriptionDevice(redeemResult.Client.UUID, "", SubscriptionDeviceObservation{
+		DeviceID:        "ios-hwid-1",
+		DeviceName:      "iPhone 15 (iOS 18.3)",
+		DeviceOS:        "iOS",
+		DeviceOSVersion: "18.3",
+		UserAgent:       "Happ/3.13.0",
+		SeenAt:          firstSeen,
+	})
+	if err != nil {
+		t.Fatalf("observe first happ device: %v", err)
+	}
+	if !changed {
+		t.Fatalf("expected first observation to change the client record")
+	}
+	if len(client.ObservedDevices) != 1 {
+		t.Fatalf("expected one observed device, got %d", len(client.ObservedDevices))
+	}
+	if client.ObservedDevices[0].DeviceID != "ios-hwid-1" {
+		t.Fatalf("unexpected observed device id %q", client.ObservedDevices[0].DeviceID)
+	}
+	if client.ObservedDevices[0].FirstSeenAt != firstSeen {
+		t.Fatalf("unexpected first seen timestamp: %s", client.ObservedDevices[0].FirstSeenAt)
+	}
+
+	secondSeen := firstSeen.Add(10 * time.Minute)
+	client, changed, err = store.ObserveSubscriptionDevice(redeemResult.Client.UUID, "", SubscriptionDeviceObservation{
+		DeviceID:        "ios-hwid-1",
+		DeviceName:      "iPhone 15 Pro (iOS 18.4)",
+		DeviceOS:        "iOS",
+		DeviceOSVersion: "18.4",
+		UserAgent:       "Happ/3.14.0",
+		SeenAt:          secondSeen,
+	})
+	if err != nil {
+		t.Fatalf("observe existing happ device: %v", err)
+	}
+	if !changed {
+		t.Fatalf("expected updated observation to be marked as changed")
+	}
+	if len(client.ObservedDevices) != 1 {
+		t.Fatalf("expected one observed device after update, got %d", len(client.ObservedDevices))
+	}
+	if client.ObservedDevices[0].DeviceName != "iPhone 15 Pro (iOS 18.4)" {
+		t.Fatalf("unexpected updated device name %q", client.ObservedDevices[0].DeviceName)
+	}
+	if client.ObservedDevices[0].LastSeenAt != secondSeen {
+		t.Fatalf("unexpected last seen timestamp: %s", client.ObservedDevices[0].LastSeenAt)
+	}
+
+	client, changed, err = store.ObserveSubscriptionDevice(redeemResult.Client.UUID, "", SubscriptionDeviceObservation{
+		DeviceID: "desktop-device",
+		SeenAt:   secondSeen.Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("observe base device: %v", err)
+	}
+	if changed {
+		t.Fatalf("expected no change when happ observation matches the primary device")
+	}
+	if len(client.ObservedDevices) != 1 {
+		t.Fatalf("expected observed device list to stay unchanged, got %d", len(client.ObservedDevices))
+	}
+}
+
 func TestBuildClientProfilesForAdditionalServerUsesPrimaryPublicKeyFallback(t *testing.T) {
 	cfg := config.RealityConfig{
 		PublicHost: "2.26.85.47",

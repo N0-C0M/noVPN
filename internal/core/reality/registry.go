@@ -93,28 +93,48 @@ const (
 )
 
 type ClientRecord struct {
-	ID                   string     `json:"id"`
-	Name                 string     `json:"name"`
-	DeviceID             string     `json:"device_id"`
-	DeviceName           string     `json:"device_name"`
-	UUID                 string     `json:"uuid"`
-	Email                string     `json:"email"`
-	InviteCode           string     `json:"invite_code,omitempty"`
-	PlanID               string     `json:"plan_id,omitempty"`
-	PlanName             string     `json:"plan_name,omitempty"`
-	AllowedServerIDs     []string   `json:"allowed_server_ids,omitempty"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
-	RevokedAt            *time.Time `json:"revoked_at,omitempty"`
-	LastSeenAt           *time.Time `json:"last_seen_at,omitempty"`
-	AccessExpiresAt      *time.Time `json:"access_expires_at,omitempty"`
-	TrafficLimitBytes    int64      `json:"traffic_limit_bytes,omitempty"`
-	TrafficBonusBytes    int64      `json:"traffic_bonus_bytes,omitempty"`
-	TrafficUsedBytes     int64      `json:"traffic_used_bytes,omitempty"`
-	TrafficObservedBytes int64      `json:"traffic_observed_bytes,omitempty"`
-	LastTrafficSyncAt    *time.Time `json:"last_traffic_sync_at,omitempty"`
-	TrafficBlockedAt     *time.Time `json:"traffic_blocked_at,omitempty"`
-	Active               bool       `json:"active"`
+	ID                   string                 `json:"id"`
+	Name                 string                 `json:"name"`
+	DeviceID             string                 `json:"device_id"`
+	DeviceName           string                 `json:"device_name"`
+	ObservedDevices      []ObservedDeviceRecord `json:"observed_devices,omitempty"`
+	UUID                 string                 `json:"uuid"`
+	Email                string                 `json:"email"`
+	InviteCode           string                 `json:"invite_code,omitempty"`
+	PlanID               string                 `json:"plan_id,omitempty"`
+	PlanName             string                 `json:"plan_name,omitempty"`
+	AllowedServerIDs     []string               `json:"allowed_server_ids,omitempty"`
+	CreatedAt            time.Time              `json:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at"`
+	RevokedAt            *time.Time             `json:"revoked_at,omitempty"`
+	LastSeenAt           *time.Time             `json:"last_seen_at,omitempty"`
+	AccessExpiresAt      *time.Time             `json:"access_expires_at,omitempty"`
+	TrafficLimitBytes    int64                  `json:"traffic_limit_bytes,omitempty"`
+	TrafficBonusBytes    int64                  `json:"traffic_bonus_bytes,omitempty"`
+	TrafficUsedBytes     int64                  `json:"traffic_used_bytes,omitempty"`
+	TrafficObservedBytes int64                  `json:"traffic_observed_bytes,omitempty"`
+	LastTrafficSyncAt    *time.Time             `json:"last_traffic_sync_at,omitempty"`
+	TrafficBlockedAt     *time.Time             `json:"traffic_blocked_at,omitempty"`
+	Active               bool                   `json:"active"`
+}
+
+type ObservedDeviceRecord struct {
+	DeviceID        string    `json:"device_id"`
+	DeviceName      string    `json:"device_name,omitempty"`
+	DeviceOS        string    `json:"device_os,omitempty"`
+	DeviceOSVersion string    `json:"device_os_version,omitempty"`
+	UserAgent       string    `json:"user_agent,omitempty"`
+	FirstSeenAt     time.Time `json:"first_seen_at"`
+	LastSeenAt      time.Time `json:"last_seen_at"`
+}
+
+type SubscriptionDeviceObservation struct {
+	DeviceID        string
+	DeviceName      string
+	DeviceOS        string
+	DeviceOSVersion string
+	UserAgent       string
+	SeenAt          time.Time
 }
 
 type RegistrySummary struct {
@@ -365,6 +385,93 @@ func (s *RegistryStore) ListClients() ([]ClientRecord, error) {
 		return clients[i].CreatedAt.Before(clients[j].CreatedAt)
 	})
 	return clients, nil
+}
+
+func (s *RegistryStore) ObserveSubscriptionDevice(clientUUID string, deviceID string, observation SubscriptionDeviceObservation) (ClientRecord, bool, error) {
+	normalizedUUID := strings.TrimSpace(clientUUID)
+	normalizedLookupDeviceID := strings.TrimSpace(deviceID)
+	normalizedObservedDeviceID := strings.TrimSpace(observation.DeviceID)
+	if normalizedObservedDeviceID == "" {
+		return ClientRecord{}, false, errors.New("device_id is required")
+	}
+	if normalizedUUID == "" && normalizedLookupDeviceID == "" {
+		return ClientRecord{}, false, errors.New("client_uuid or device_id is required")
+	}
+
+	var (
+		updated ClientRecord
+		changed bool
+	)
+	_, err := s.Update(func(registry *Registry) error {
+		var client *ClientRecord
+		if normalizedUUID != "" {
+			client = registry.findBoundClientByUUID(normalizedUUID)
+		} else {
+			client = registry.findBoundClientByDeviceID(normalizedLookupDeviceID)
+		}
+		if client == nil {
+			return errors.New("client not found")
+		}
+		if client.DeviceID == normalizedObservedDeviceID {
+			updated = *client
+			return nil
+		}
+
+		seenAt := observation.SeenAt
+		if seenAt.IsZero() {
+			seenAt = time.Now().UTC()
+		}
+		deviceName := strings.TrimSpace(observation.DeviceName)
+		deviceOS := strings.TrimSpace(observation.DeviceOS)
+		deviceOSVersion := strings.TrimSpace(observation.DeviceOSVersion)
+		userAgent := strings.TrimSpace(observation.UserAgent)
+
+		for index := range client.ObservedDevices {
+			record := &client.ObservedDevices[index]
+			if record.DeviceID != normalizedObservedDeviceID {
+				continue
+			}
+			if deviceName != "" && record.DeviceName != deviceName {
+				record.DeviceName = deviceName
+				changed = true
+			}
+			if deviceOS != "" && record.DeviceOS != deviceOS {
+				record.DeviceOS = deviceOS
+				changed = true
+			}
+			if deviceOSVersion != "" && record.DeviceOSVersion != deviceOSVersion {
+				record.DeviceOSVersion = deviceOSVersion
+				changed = true
+			}
+			if userAgent != "" && record.UserAgent != userAgent {
+				record.UserAgent = userAgent
+				changed = true
+			}
+			if record.LastSeenAt.Before(seenAt) {
+				record.LastSeenAt = seenAt
+				changed = true
+			}
+			updated = *client
+			return nil
+		}
+
+		client.ObservedDevices = append(client.ObservedDevices, ObservedDeviceRecord{
+			DeviceID:        normalizedObservedDeviceID,
+			DeviceName:      deviceName,
+			DeviceOS:        deviceOS,
+			DeviceOSVersion: deviceOSVersion,
+			UserAgent:       userAgent,
+			FirstSeenAt:     seenAt,
+			LastSeenAt:      seenAt,
+		})
+		sort.SliceStable(client.ObservedDevices, func(i, j int) bool {
+			return client.ObservedDevices[i].FirstSeenAt.Before(client.ObservedDevices[j].FirstSeenAt)
+		})
+		changed = true
+		updated = *client
+		return nil
+	})
+	return updated, changed, err
 }
 
 func (s *RegistryStore) ListInvites() ([]InviteRecord, error) {
@@ -915,6 +1022,16 @@ func (r *Registry) findBoundClientByDeviceID(deviceID string) *ClientRecord {
 	return nil
 }
 
+func (r *Registry) findBoundClientByUUID(clientUUID string) *ClientRecord {
+	for index := range r.Clients {
+		client := &r.Clients[index]
+		if client.UUID == clientUUID && client.Bound() {
+			return client
+		}
+	}
+	return nil
+}
+
 func (r *Registry) findBoundClientByDeviceAndUUID(deviceID string, clientUUID string) *ClientRecord {
 	for i := range r.Clients {
 		client := &r.Clients[i]
@@ -1325,6 +1442,7 @@ func mergeRegistrySnapshots(local Registry, remote Registry) Registry {
 		if remoteClient.AccessExpiresAt == nil {
 			remoteClient.AccessExpiresAt = localClient.AccessExpiresAt
 		}
+		remoteClient.ObservedDevices = mergeObservedDevices(localClient.ObservedDevices, remoteClient.ObservedDevices)
 	}
 
 	if merged.BootstrapClientID == "" {
@@ -1343,6 +1461,7 @@ func preserveBootstrapClient(target *ClientRecord, source ClientRecord) {
 	target.Name = source.Name
 	target.DeviceID = source.DeviceID
 	target.DeviceName = source.DeviceName
+	target.ObservedDevices = append([]ObservedDeviceRecord(nil), source.ObservedDevices...)
 	target.UUID = source.UUID
 	target.Email = source.Email
 	target.InviteCode = source.InviteCode
@@ -1361,6 +1480,64 @@ func preserveBootstrapClient(target *ClientRecord, source ClientRecord) {
 	target.LastTrafficSyncAt = source.LastTrafficSyncAt
 	target.TrafficBlockedAt = source.TrafficBlockedAt
 	target.Active = source.Active
+}
+
+func mergeObservedDevices(local []ObservedDeviceRecord, remote []ObservedDeviceRecord) []ObservedDeviceRecord {
+	if len(local) == 0 && len(remote) == 0 {
+		return nil
+	}
+
+	merged := make(map[string]ObservedDeviceRecord, len(local)+len(remote))
+	for _, record := range remote {
+		key := strings.TrimSpace(record.DeviceID)
+		if key == "" {
+			continue
+		}
+		merged[key] = record
+	}
+	for _, record := range local {
+		key := strings.TrimSpace(record.DeviceID)
+		if key == "" {
+			continue
+		}
+		existing, ok := merged[key]
+		if !ok {
+			merged[key] = record
+			continue
+		}
+		merged[key] = mergeObservedDeviceRecord(existing, record)
+	}
+
+	result := make([]ObservedDeviceRecord, 0, len(merged))
+	for _, record := range merged {
+		result = append(result, record)
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].FirstSeenAt.Before(result[j].FirstSeenAt)
+	})
+	return result
+}
+
+func mergeObservedDeviceRecord(base ObservedDeviceRecord, candidate ObservedDeviceRecord) ObservedDeviceRecord {
+	if base.DeviceName == "" {
+		base.DeviceName = candidate.DeviceName
+	}
+	if base.DeviceOS == "" {
+		base.DeviceOS = candidate.DeviceOS
+	}
+	if base.DeviceOSVersion == "" {
+		base.DeviceOSVersion = candidate.DeviceOSVersion
+	}
+	if base.UserAgent == "" {
+		base.UserAgent = candidate.UserAgent
+	}
+	if base.FirstSeenAt.IsZero() || (!candidate.FirstSeenAt.IsZero() && candidate.FirstSeenAt.Before(base.FirstSeenAt)) {
+		base.FirstSeenAt = candidate.FirstSeenAt
+	}
+	if candidate.LastSeenAt.After(base.LastSeenAt) {
+		base.LastSeenAt = candidate.LastSeenAt
+	}
+	return base
 }
 
 type runtimeComparableRegistrySnapshot struct {

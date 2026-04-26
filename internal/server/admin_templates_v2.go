@@ -135,7 +135,7 @@ const adminDashboardTemplateV2 = `<!doctype html>
       {{range .Clients}}
         <tr>
           <td>{{.Name}}</td>
-          <td>{{.DeviceName}}<div class="muted small">{{.DeviceID}}</div></td>
+          <td>{{.DeviceName}}<div class="muted small">{{.DeviceID}}</div>{{if .ObservedDevices}}<div class="muted small">Happ: {{formatObservedDevices .ObservedDevices}}</div>{{end}}</td>
           <td class="small">{{.UUID}}</td>
           <td class="small">{{if .InviteCode}}{{.InviteCode}}{{else}}bootstrap{{end}}</td>
           <td>{{formatBytes .TrafficUsedBytes}}<div class="muted small">limit {{formatTrafficLimit .TrafficLimitBytes}}</div></td>

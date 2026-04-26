@@ -102,11 +102,12 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 		app.logger.Warn("catalog default sync failed", "error", err)
 	}
 	funcs := template.FuncMap{
-		"formatBytes":         formatTrafficBytes,
-		"formatTrafficLimit":  formatTrafficLimit,
-		"formatTrafficRemain": formatTrafficRemain,
-		"formatPromoUses":     formatPromoUses,
-		"joinLines":           strings.Join,
+		"formatBytes":           formatTrafficBytes,
+		"formatTrafficLimit":    formatTrafficLimit,
+		"formatTrafficRemain":   formatTrafficRemain,
+		"formatObservedDevices": formatObservedDevices,
+		"formatPromoUses":       formatPromoUses,
+		"joinLines":             strings.Join,
 	}
 	app.dashboardTpl = template.Must(template.New("dashboard").Funcs(funcs).Parse(adminDashboardTemplateV2))
 	app.plansTpl = template.Must(template.New("plans").Funcs(funcs).Parse(adminPlansTemplateV2))
@@ -1025,6 +1026,18 @@ func (a *adminApp) handlePublicClientSubscription(w http.ResponseWriter, r *http
 		return
 	}
 
+	if observation, ok := happSubscriptionObservationFromRequest(r); ok {
+		observedTarget, changed, observeErr := a.reality.ObserveSubscriptionDeviceNoRefresh(target.UUID, target.DeviceID, observation)
+		if observeErr != nil {
+			a.logger.Warn("observe happ subscription device failed", "error", observeErr, "client_uuid", target.UUID, "device_id", observation.DeviceID)
+		} else {
+			target = observedTarget
+			if changed {
+				a.logger.Info("observed happ subscription device", "client_id", target.ID, "device_id", observation.DeviceID, "device_name", observation.DeviceName)
+			}
+		}
+	}
+
 	subscriptionText, err := marshalClientProfileSubscriptionText(clientProfiles)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1033,6 +1046,7 @@ func (a *adminApp) handlePublicClientSubscription(w http.ResponseWriter, r *http
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Subscription-Always-HWID-Enable", "1")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s-subscription.txt"`, target.ID))
 	_, _ = io.WriteString(w, subscriptionText)
 }
@@ -1914,7 +1928,7 @@ const adminDashboardTemplate = `
       {{range .Clients}}
         <tr>
           <td>{{.Name}}</td>
-          <td>{{.DeviceName}}<div class="muted small">{{.DeviceID}}</div></td>
+          <td>{{.DeviceName}}<div class="muted small">{{.DeviceID}}</div>{{if .ObservedDevices}}<div class="muted small">Happ: {{formatObservedDevices .ObservedDevices}}</div>{{end}}</td>
           <td class="small">{{.UUID}}</td>
           <td class="small">{{if .InviteCode}}{{.InviteCode}}{{else}}bootstrap{{end}}</td>
           <td>{{formatBytes .TrafficUsedBytes}}<div class="muted small">limit {{formatTrafficLimit .TrafficLimitBytes}}</div></td>

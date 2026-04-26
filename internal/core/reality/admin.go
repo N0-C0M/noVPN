@@ -100,6 +100,10 @@ func (p *Provisioner) DisconnectDeviceNoRefresh(deviceID string, clientUUID stri
 	return p.registryStore.DisconnectDevice(deviceID, clientUUID)
 }
 
+func (p *Provisioner) ObserveSubscriptionDeviceNoRefresh(clientUUID string, deviceID string, observation SubscriptionDeviceObservation) (ClientRecord, bool, error) {
+	return p.registryStore.ObserveSubscriptionDevice(clientUUID, deviceID, observation)
+}
+
 func (p *Provisioner) ApplyTrafficUsages(usages map[string]TrafficUsage) (TrafficSyncResult, error) {
 	return p.registryStore.ApplyTrafficStats(usages)
 }
