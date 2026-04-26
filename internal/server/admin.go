@@ -180,6 +180,10 @@ func (a *adminApp) routeBySuffix(w http.ResponseWriter, r *http.Request) {
 		a.handlePublicClientPolicy(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, a.basePath+"/client/subscription") {
+		a.handlePublicClientSubscription(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, a.basePath+"/client/notices") {
 		a.handlePublicMandatoryNotices(w, r)
 		return
@@ -672,6 +676,9 @@ func (a *adminApp) handlePublicClientQuota(w http.ResponseWriter, r *http.Reques
 			} else {
 				a.logger.Warn("marshal client profile yaml list for quota failed", "error", yamlErr)
 			}
+			if exportErr := a.addClientProfileLinkExports(responsePayload, target, clientProfiles); exportErr != nil {
+				a.logger.Warn("build client profile exports for quota failed", "error", exportErr)
+			}
 		}
 	} else {
 		a.logger.Warn("load reality state for client quota failed", "error", stateErr)
@@ -797,7 +804,7 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		a.writeJSONPayload(w, http.StatusCreated, map[string]any{
+		responsePayload := map[string]any{
 			"invite":               redeemResult.Invite,
 			"client":               redeemResult.Client,
 			"traffic_used_bytes":   redeemResult.Client.TrafficUsedBytes,
@@ -808,7 +815,11 @@ func (a *adminApp) handleInviteAction(w http.ResponseWriter, r *http.Request) {
 			"client_profiles_yaml": yamlPayloadList,
 			"config_path":          refreshResult.ConfigPath,
 			"client_profile_path":  refreshResult.ClientProfilePath,
-		})
+		}
+		if exportErr := a.addClientProfileLinkExports(responsePayload, redeemResult.Client, clientProfiles); exportErr != nil {
+			a.logger.Warn("build client profile exports for invite redeem failed", "error", exportErr)
+		}
+		a.writeJSONPayload(w, http.StatusCreated, responsePayload)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -857,7 +868,7 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		a.writeJSONPayload(w, http.StatusCreated, map[string]any{
+		responsePayload := map[string]any{
 			"kind":                 "invite",
 			"invite":               redeemResult.Invite,
 			"client":               redeemResult.Client,
@@ -869,7 +880,11 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 			"client_profiles_yaml": yamlPayloadList,
 			"config_path":          refreshResult.ConfigPath,
 			"client_profile_path":  refreshResult.ClientProfilePath,
-		})
+		}
+		if exportErr := a.addClientProfileLinkExports(responsePayload, redeemResult.Client, clientProfiles); exportErr != nil {
+			a.logger.Warn("build client profile exports for public invite redeem failed", "error", exportErr)
+		}
+		a.writeJSONPayload(w, http.StatusCreated, responsePayload)
 		return
 	}
 
@@ -919,6 +934,9 @@ func (a *adminApp) handlePublicRedeem(w http.ResponseWriter, r *http.Request) {
 		responsePayload["client_profile_yaml"] = string(yamlPayload)
 		responsePayload["client_profiles"] = clientProfiles
 		responsePayload["client_profiles_yaml"] = yamlPayloadList
+		if exportErr := a.addClientProfileLinkExports(responsePayload, promoResult.Client, clientProfiles); exportErr != nil {
+			a.logger.Warn("build client profile exports for promo redeem failed", "error", exportErr)
+		}
 	}
 
 	a.writeJSONPayload(w, http.StatusCreated, responsePayload)
@@ -984,6 +1002,41 @@ type redeemInviteRequest struct {
 	DeviceName string `json:"device_name"`
 }
 
+func (a *adminApp) handlePublicClientSubscription(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	clientUUID := strings.TrimSpace(r.URL.Query().Get("client_uuid"))
+	deviceID := strings.TrimSpace(r.URL.Query().Get("device_id"))
+	if clientUUID == "" && deviceID == "" {
+		http.Error(w, "client_uuid or device_id is required", http.StatusBadRequest)
+		return
+	}
+
+	target, clientProfiles, err := a.resolveClientProfilesBySelectors(clientUUID, deviceID)
+	if err != nil {
+		if errors.Is(err, errClientNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	subscriptionText, err := marshalClientProfileSubscriptionText(clientProfiles)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s-subscription.txt"`, target.ID))
+	_, _ = io.WriteString(w, subscriptionText)
+}
+
 func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, a.basePath+"/api/clients/"), "/")
 	if len(parts) < 2 {
@@ -1017,33 +1070,13 @@ func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		state, err := a.reality.LoadState()
+		target, clientProfiles, err := a.resolveClientProfilesByID(clientID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		clients, err := a.reality.ListClients()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		var target reality.ClientRecord
-		found := false
-		for _, client := range clients {
-			if client.ID == clientID {
-				target = client
-				found = true
-				break
+			if errors.Is(err, errClientNotFound) {
+				http.NotFound(w, r)
+				return
 			}
-		}
-		if !found {
-			http.NotFound(w, r)
-			return
-		}
-
-		clientProfiles := a.buildClientProfiles(state, target)
-		if len(clientProfiles) == 0 {
-			http.Error(w, "server did not build client profiles", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		clientProfile := clientProfiles[0]
@@ -1056,6 +1089,50 @@ func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.yaml"`, target.ID))
 		_, _ = w.Write(yamlPayload)
+	case "vless.txt":
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		target, clientProfiles, err := a.resolveClientProfilesByID(clientID)
+		if err != nil {
+			if errors.Is(err, errClientNotFound) {
+				http.NotFound(w, r)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		link, err := marshalClientProfileVLESSURL(clientProfiles[0])
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-vless.txt"`, target.ID))
+		_, _ = io.WriteString(w, link+"\n")
+	case "subscription.txt":
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		target, clientProfiles, err := a.resolveClientProfilesByID(clientID)
+		if err != nil {
+			if errors.Is(err, errClientNotFound) {
+				http.NotFound(w, r)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		subscriptionText, err := marshalClientProfileSubscriptionText(clientProfiles)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-subscription.txt"`, target.ID))
+		_, _ = io.WriteString(w, subscriptionText)
 	default:
 		http.NotFound(w, r)
 	}
@@ -1843,7 +1920,7 @@ const adminDashboardTemplate = `
           <td>{{formatBytes .TrafficUsedBytes}}<div class="muted small">limit {{formatTrafficLimit .TrafficLimitBytes}}</div></td>
           <td>{{formatTrafficRemain .}}</td>
           <td>{{if .RevokedAt}}<span class="chip">revoked</span>{{else if .TrafficBlockedAt}}<span class="chip">limit reached</span>{{else if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}</td>
-          <td><a href="{{$.BasePath}}/api/clients/{{.ID}}/profile.yaml">download</a></td>
+          <td><a href="{{$.BasePath}}/api/clients/{{.ID}}/profile.yaml">yaml</a> · <a href="{{$.BasePath}}/api/clients/{{.ID}}/vless.txt">vless</a> · <a href="{{$.BasePath}}/api/clients/{{.ID}}/subscription.txt">sub</a></td>
           <td>
             {{if .Bound}}
             <form method="post" action="{{$.BasePath}}/api/clients/{{.ID}}/revoke">

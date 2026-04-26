@@ -126,6 +126,7 @@ The admin panel supports:
 - managing VPN node catalog entries independently from plans;
 - redeeming invites into per-device client records;
 - downloading per-client profile YAML files;
+- exporting Happ-compatible `vless://` links and text subscriptions for iOS/Windows clients;
 - revoking clients;
 - viewing service metrics and quota state on the dashboard.
 
@@ -161,6 +162,12 @@ The panel supports:
 - viewing gateway Prometheus counters on the dashboard.
 
 API auth works with the configured token via login form, `Authorization: Bearer ...`, or `X-Admin-Token`.
+
+Happ-compatible exports:
+
+- admin downloads: `/admin/api/clients/<client-id>/vless.txt` and `/admin/api/clients/<client-id>/subscription.txt`
+- public subscription URL for Happ: `/admin/client/subscription?client_uuid=<uuid>`
+- invite and redeem JSON responses now include `client_profile_vless_url`, `client_profiles_vless_urls`, and `subscription_url`
 
 ## Full Project Docs (RU)
 

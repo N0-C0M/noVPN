@@ -141,7 +141,7 @@ const adminDashboardTemplateV2 = `<!doctype html>
           <td>{{formatBytes .TrafficUsedBytes}}<div class="muted small">limit {{formatTrafficLimit .TrafficLimitBytes}}</div></td>
           <td>{{formatTrafficRemain .}}</td>
           <td>{{if .RevokedAt}}<span class="chip">revoked</span>{{else if .TrafficBlockedAt}}<span class="chip">limit reached</span>{{else if .Active}}<span class="badge">active</span>{{else}}<span class="chip">inactive</span>{{end}}</td>
-          <td><a href="{{$.BasePath}}/api/clients/{{.ID}}/profile.yaml">download</a></td>
+          <td><a href="{{$.BasePath}}/api/clients/{{.ID}}/profile.yaml">yaml</a> · <a href="{{$.BasePath}}/api/clients/{{.ID}}/vless.txt">vless</a> · <a href="{{$.BasePath}}/api/clients/{{.ID}}/subscription.txt">sub</a></td>
           <td>
             {{if .Bound}}
             <form method="post" action="{{$.BasePath}}/api/clients/{{.ID}}/revoke">
