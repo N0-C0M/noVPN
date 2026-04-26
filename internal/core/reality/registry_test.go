@@ -289,6 +289,57 @@ func TestObserveSubscriptionDeviceStoresAndUpdatesObservedHappDevices(t *testing
 	}
 }
 
+func TestBlacklistClientDevicesRevokesAccessAndBlocksObservedDevices(t *testing.T) {
+	store := newTestRegistryStore(t)
+
+	invite, err := store.CreateInvite(InviteCreateRequest{
+		Name:    "base",
+		MaxUses: 1,
+	})
+	if err != nil {
+		t.Fatalf("create invite: %v", err)
+	}
+	redeemResult, err := store.RedeemInvite(invite.Code, "desktop-device", "Windows desktop")
+	if err != nil {
+		t.Fatalf("redeem invite: %v", err)
+	}
+	if _, changed, err := store.ObserveSubscriptionDevice(redeemResult.Client.UUID, "", SubscriptionDeviceObservation{
+		DeviceID:   "ios-hwid-1",
+		DeviceName: "iPhone 15",
+		SeenAt:     time.Now().UTC(),
+	}); err != nil || !changed {
+		t.Fatalf("observe subscription device: changed=%v err=%v", changed, err)
+	}
+
+	result, err := store.BlacklistClientDevices(redeemResult.Client.ID, "fake payment", "pay-service")
+	if err != nil {
+		t.Fatalf("blacklist client devices: %v", err)
+	}
+	if result.Client.Active {
+		t.Fatalf("expected blacklisted client to be inactive")
+	}
+	if result.Client.RevokedAt == nil {
+		t.Fatalf("expected blacklisted client to be revoked")
+	}
+	if len(result.BlockedDevices) != 2 {
+		t.Fatalf("expected 2 blocked devices, got %d", len(result.BlockedDevices))
+	}
+
+	secondInvite, err := store.CreateInvite(InviteCreateRequest{
+		Name:    "retry",
+		MaxUses: 1,
+	})
+	if err != nil {
+		t.Fatalf("create second invite: %v", err)
+	}
+	if _, err := store.RedeemInvite(secondInvite.Code, "ios-hwid-1", "iPhone 15"); err == nil || !strings.Contains(err.Error(), "blacklisted") {
+		t.Fatalf("expected blacklisted observed device rejection, got %v", err)
+	}
+	if _, err := store.RedeemInvite(invite.Code, "another-device", "Another"); err == nil || !strings.Contains(err.Error(), "inactive") {
+		t.Fatalf("expected original invite to be inactive after blacklist, got %v", err)
+	}
+}
+
 func TestBuildClientProfilesForAdditionalServerUsesPrimaryPublicKeyFallback(t *testing.T) {
 	cfg := config.RealityConfig{
 		PublicHost: "2.26.85.47",

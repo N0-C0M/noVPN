@@ -31,6 +31,7 @@ type Registry struct {
 	Invites           []InviteRecord `json:"invites,omitempty"`
 	Promos            []PromoRecord  `json:"promos,omitempty"`
 	Clients           []ClientRecord `json:"clients,omitempty"`
+	BlockedDevices    []BlockedDeviceRecord `json:"blocked_devices,omitempty"`
 }
 
 type RegistryServer struct {
@@ -135,6 +136,21 @@ type SubscriptionDeviceObservation struct {
 	DeviceOSVersion string
 	UserAgent       string
 	SeenAt          time.Time
+}
+
+type BlockedDeviceRecord struct {
+	DeviceID   string    `json:"device_id"`
+	DeviceName string    `json:"device_name,omitempty"`
+	ClientID   string    `json:"client_id,omitempty"`
+	ClientUUID string    `json:"client_uuid,omitempty"`
+	Reason     string    `json:"reason,omitempty"`
+	Source     string    `json:"source,omitempty"`
+	BlockedAt  time.Time `json:"blocked_at"`
+}
+
+type BlacklistResult struct {
+	Client         ClientRecord         `json:"client"`
+	BlockedDevices []BlockedDeviceRecord `json:"blocked_devices"`
 }
 
 type RegistrySummary struct {
@@ -474,6 +490,116 @@ func (s *RegistryStore) ObserveSubscriptionDevice(clientUUID string, deviceID st
 	return updated, changed, err
 }
 
+func (s *RegistryStore) BlacklistClientDevices(clientID string, reason string, source string) (BlacklistResult, error) {
+	normalizedClientID := strings.TrimSpace(clientID)
+	if normalizedClientID == "" {
+		return BlacklistResult{}, errors.New("client_id is required")
+	}
+
+	var result BlacklistResult
+	_, err := s.Update(func(registry *Registry) error {
+		client := registry.findClient(normalizedClientID)
+		if client == nil {
+			return errors.New("client not found")
+		}
+
+		now := time.Now().UTC()
+		normalizedReason := strings.TrimSpace(reason)
+		normalizedSource := strings.TrimSpace(source)
+		blocked := make([]BlockedDeviceRecord, 0, 1+len(client.ObservedDevices))
+		seen := make(map[string]struct{}, 1+len(client.ObservedDevices))
+
+		addBlocked := func(deviceID string, deviceName string) {
+			deviceID = strings.TrimSpace(deviceID)
+			if deviceID == "" {
+				return
+			}
+			if _, ok := seen[deviceID]; ok {
+				return
+			}
+			seen[deviceID] = struct{}{}
+
+			existing := registry.findBlockedDevice(deviceID)
+			if existing == nil {
+				registry.BlockedDevices = append(registry.BlockedDevices, BlockedDeviceRecord{
+					DeviceID:   deviceID,
+					DeviceName: strings.TrimSpace(deviceName),
+					ClientID:   client.ID,
+					ClientUUID: client.UUID,
+					Reason:     normalizedReason,
+					Source:     normalizedSource,
+					BlockedAt:  now,
+				})
+				existing = &registry.BlockedDevices[len(registry.BlockedDevices)-1]
+			} else {
+				if existing.DeviceName == "" {
+					existing.DeviceName = strings.TrimSpace(deviceName)
+				}
+				if existing.ClientID == "" {
+					existing.ClientID = client.ID
+				}
+				if existing.ClientUUID == "" {
+					existing.ClientUUID = client.UUID
+				}
+				if normalizedReason != "" {
+					existing.Reason = normalizedReason
+				}
+				if normalizedSource != "" {
+					existing.Source = normalizedSource
+				}
+				if existing.BlockedAt.IsZero() {
+					existing.BlockedAt = now
+				}
+			}
+			blocked = append(blocked, *existing)
+		}
+
+		addBlocked(client.DeviceID, client.DeviceName)
+		for _, observed := range client.ObservedDevices {
+			addBlocked(observed.DeviceID, observed.DeviceName)
+		}
+
+		if invite := registry.findInvite(client.InviteCode); invite != nil {
+			invite.Active = false
+			expiredAt := now
+			invite.ExpiresAt = &expiredAt
+		}
+
+		client.Active = false
+		client.RevokedAt = &now
+		client.TrafficBlockedAt = nil
+		client.UpdatedAt = now
+
+		result = BlacklistResult{
+			Client:         *client,
+			BlockedDevices: blocked,
+		}
+		return nil
+	})
+	return result, err
+}
+
+func (s *RegistryStore) DeactivateInvite(code string) (InviteRecord, error) {
+	normalizedCode := strings.TrimSpace(code)
+	if normalizedCode == "" {
+		return InviteRecord{}, errors.New("invite_code is required")
+	}
+
+	var updated InviteRecord
+	_, err := s.Update(func(registry *Registry) error {
+		invite := registry.findInvite(normalizedCode)
+		if invite == nil {
+			return errors.New("invite not found")
+		}
+		now := time.Now().UTC()
+		invite.Active = false
+		invite.ExpiresAt = &now
+		updated = *invite
+		return nil
+	})
+	return updated, err
+}
+
 func (s *RegistryStore) ListInvites() ([]InviteRecord, error) {
 	registry, err := s.Load()
 	if err != nil {
@@ -581,6 +707,9 @@ func (s *RegistryStore) RedeemInvite(code string, deviceID string, deviceName st
 		if normalizedDeviceID == "" {
 			normalizedDeviceID = generateRegistryToken("device")
 		}
+		if blocked := registry.findBlockedDevice(normalizedDeviceID); blocked != nil {
+			return fmt.Errorf("device %q is blacklisted", normalizedDeviceID)
+		}
 		normalizedDeviceName := firstNonEmpty(strings.TrimSpace(deviceName), "Imported device")
 
 		if existing := registry.findBoundClientByDeviceID(normalizedDeviceID); existing != nil {
@@ -660,6 +789,9 @@ func (s *RegistryStore) RedeemPromo(code string, deviceID string, deviceName str
 		normalizedDeviceID := strings.TrimSpace(deviceID)
 		if normalizedDeviceID == "" {
 			return errors.New("device_id is required for promo activation")
+		}
+		if blocked := registry.findBlockedDevice(normalizedDeviceID); blocked != nil {
+			return fmt.Errorf("device %q is blacklisted", normalizedDeviceID)
 		}
 		if promo.hasDevice(normalizedDeviceID) {
 			return errors.New("promo code was already activated on this device")
@@ -952,6 +1084,17 @@ func (r *Registry) normalize() {
 			return r.Promos[i].Redemptions[a].RedeemedAt.Before(r.Promos[i].Redemptions[b].RedeemedAt)
 		})
 	}
+	for i := range r.BlockedDevices {
+		r.BlockedDevices[i].DeviceID = strings.TrimSpace(r.BlockedDevices[i].DeviceID)
+		r.BlockedDevices[i].DeviceName = strings.TrimSpace(r.BlockedDevices[i].DeviceName)
+		r.BlockedDevices[i].ClientID = strings.TrimSpace(r.BlockedDevices[i].ClientID)
+		r.BlockedDevices[i].ClientUUID = strings.TrimSpace(r.BlockedDevices[i].ClientUUID)
+		r.BlockedDevices[i].Reason = strings.TrimSpace(r.BlockedDevices[i].Reason)
+		r.BlockedDevices[i].Source = strings.TrimSpace(r.BlockedDevices[i].Source)
+		if r.BlockedDevices[i].BlockedAt.IsZero() {
+			r.BlockedDevices[i].BlockedAt = now
+		}
+	}
 	sort.SliceStable(r.Invites, func(i, j int) bool {
 		return r.Invites[i].CreatedAt.Before(r.Invites[j].CreatedAt)
 	})
@@ -960,6 +1103,12 @@ func (r *Registry) normalize() {
 	})
 	sort.SliceStable(r.Clients, func(i, j int) bool {
 		return r.Clients[i].CreatedAt.Before(r.Clients[j].CreatedAt)
+	})
+	sort.SliceStable(r.BlockedDevices, func(i, j int) bool {
+		if r.BlockedDevices[i].BlockedAt.Equal(r.BlockedDevices[j].BlockedAt) {
+			return r.BlockedDevices[i].DeviceID < r.BlockedDevices[j].DeviceID
+		}
+		return r.BlockedDevices[i].BlockedAt.Before(r.BlockedDevices[j].BlockedAt)
 	})
 }
 
@@ -1027,6 +1176,16 @@ func (r *Registry) findBoundClientByUUID(clientUUID string) *ClientRecord {
 		client := &r.Clients[index]
 		if client.UUID == clientUUID && client.Bound() {
 			return client
+		}
+	}
+	return nil
+}
+
+func (r *Registry) findBlockedDevice(deviceID string) *BlockedDeviceRecord {
+	for index := range r.BlockedDevices {
+		blocked := &r.BlockedDevices[index]
+		if blocked.DeviceID == deviceID {
+			return blocked
 		}
 	}
 	return nil
@@ -1234,6 +1393,9 @@ func (i InviteRecord) remainingUses() int {
 }
 
 func (i InviteRecord) isRedeemable(now time.Time) bool {
+	if !i.Active {
+		return false
+	}
 	if i.ExpiresAt != nil && now.After(*i.ExpiresAt) {
 		return false
 	}
@@ -1242,6 +1404,8 @@ func (i InviteRecord) isRedeemable(now time.Time) bool {
 
 func (i InviteRecord) redeemError(now time.Time) error {
 	switch {
+	case !i.Active:
+		return errors.New("invite is inactive")
 	case i.ExpiresAt != nil && now.After(*i.ExpiresAt):
 		return errors.New("invite expired")
 	case i.remainingUses() == 0:
@@ -1252,6 +1416,9 @@ func (i InviteRecord) redeemError(now time.Time) error {
 }
 
 func (p PromoRecord) isRedeemable(now time.Time) bool {
+	if !p.Active {
+		return false
+	}
 	if p.ExpiresAt != nil && now.After(*p.ExpiresAt) {
 		return false
 	}
@@ -1445,6 +1612,8 @@ func mergeRegistrySnapshots(local Registry, remote Registry) Registry {
 		remoteClient.ObservedDevices = mergeObservedDevices(localClient.ObservedDevices, remoteClient.ObservedDevices)
 	}
 
+	merged.BlockedDevices = mergeBlockedDevices(local.BlockedDevices, merged.BlockedDevices)
+
 	if merged.BootstrapClientID == "" {
 		merged.BootstrapClientID = local.BootstrapClientID
 	}
@@ -1540,9 +1709,68 @@ func mergeObservedDeviceRecord(base ObservedDeviceRecord, candidate ObservedDevi
 	return base
 }
 
+func mergeBlockedDevices(local []BlockedDeviceRecord, remote []BlockedDeviceRecord) []BlockedDeviceRecord {
+	if len(local) == 0 && len(remote) == 0 {
+		return nil
+	}
+
+	merged := make(map[string]BlockedDeviceRecord, len(local)+len(remote))
+	for _, record := range remote {
+		key := strings.TrimSpace(record.DeviceID)
+		if key == "" {
+			continue
+		}
+		merged[key] = record
+	}
+	for _, record := range local {
+		key := strings.TrimSpace(record.DeviceID)
+		if key == "" {
+			continue
+		}
+		existing, ok := merged[key]
+		if !ok {
+			merged[key] = record
+			continue
+		}
+		merged[key] = mergeBlockedDeviceRecord(existing, record)
+	}
+
+	result := make([]BlockedDeviceRecord, 0, len(merged))
+	for _, record := range merged {
+		result = append(result, record)
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].BlockedAt.Before(result[j].BlockedAt)
+	})
+	return result
+}
+
+func mergeBlockedDeviceRecord(base BlockedDeviceRecord, candidate BlockedDeviceRecord) BlockedDeviceRecord {
+	if base.DeviceName == "" {
+		base.DeviceName = candidate.DeviceName
+	}
+	if base.ClientID == "" {
+		base.ClientID = candidate.ClientID
+	}
+	if base.ClientUUID == "" {
+		base.ClientUUID = candidate.ClientUUID
+	}
+	if base.Reason == "" {
+		base.Reason = candidate.Reason
+	}
+	if base.Source == "" {
+		base.Source = candidate.Source
+	}
+	if base.BlockedAt.IsZero() || (!candidate.BlockedAt.IsZero() && candidate.BlockedAt.Before(base.BlockedAt)) {
+		base.BlockedAt = candidate.BlockedAt
+	}
+	return base
+}
+
 type runtimeComparableRegistrySnapshot struct {
 	BootstrapClientID string                            `json:"bootstrap_client_id,omitempty"`
 	Clients           []runtimeComparableClientSnapshot `json:"clients,omitempty"`
+	BlockedDevices    []BlockedDeviceRecord             `json:"blocked_devices,omitempty"`
 }
 
 type runtimeComparableClientSnapshot struct {
@@ -1560,6 +1788,7 @@ func runtimeComparableRegistry(registry Registry) runtimeComparableRegistrySnaps
 	comparable := runtimeComparableRegistrySnapshot{
 		BootstrapClientID: strings.TrimSpace(registry.BootstrapClientID),
 		Clients:           make([]runtimeComparableClientSnapshot, 0, len(registry.Clients)),
+		BlockedDevices:    append([]BlockedDeviceRecord(nil), registry.BlockedDevices...),
 	}
 	for _, client := range registry.Clients {
 		comparable.Clients = append(comparable.Clients, runtimeComparableClientSnapshot{

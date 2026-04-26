@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -260,6 +261,83 @@ func (a *adminApp) handleControlPlaneAPI(w http.ResponseWriter, r *http.Request)
 			"api_redeem_url": a.basePath + "/api/invites/" + invite.Code + "/redeem",
 			"public_api":     a.publicBaseURL(),
 		})
+	case "payments/reject":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		request, err := decodePaymentRejectRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(request.ClientID) != "" {
+			result, refreshResult, err := a.blacklistClientWithSnapshot(r.Context(), request.ClientID, request.Reason, request.Source)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			a.writeJSONPayload(w, http.StatusOK, map[string]any{
+				"status":               "rejected",
+				"action":               "client_blacklisted",
+				"client":               result.Client,
+				"blocked_devices":      result.BlockedDevices,
+				"config_path":          refreshResult.ConfigPath,
+				"client_profile_path":  refreshResult.ClientProfilePath,
+				"registry_path":        refreshResult.RegistryPath,
+			})
+			return
+		}
+
+		inviteCode := strings.TrimSpace(request.InviteCode)
+		invites, err := a.reality.ListInvites()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		var targetInvite *reality.InviteRecord
+		for index := range invites {
+			if invites[index].Code == inviteCode {
+				targetInvite = &invites[index]
+				break
+			}
+		}
+		if targetInvite == nil {
+			http.Error(w, "invite not found", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(targetInvite.RedeemedClientID) != "" {
+			result, refreshResult, err := a.blacklistClientWithSnapshot(r.Context(), targetInvite.RedeemedClientID, request.Reason, request.Source)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			a.writeJSONPayload(w, http.StatusOK, map[string]any{
+				"status":               "rejected",
+				"action":               "client_blacklisted",
+				"invite":               targetInvite,
+				"client":               result.Client,
+				"blocked_devices":      result.BlockedDevices,
+				"config_path":          refreshResult.ConfigPath,
+				"client_profile_path":  refreshResult.ClientProfilePath,
+				"registry_path":        refreshResult.RegistryPath,
+			})
+			return
+		}
+
+		invite, refreshResult, err := a.deactivateInviteWithSnapshot(r.Context(), inviteCode)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		a.writeJSONPayload(w, http.StatusOK, map[string]any{
+			"status":               "rejected",
+			"action":               "invite_deactivated",
+			"invite":               invite,
+			"config_path":          refreshResult.ConfigPath,
+			"client_profile_path":  refreshResult.ClientProfilePath,
+			"registry_path":        refreshResult.RegistryPath,
+		})
 	default:
 		http.NotFound(w, r)
 	}
@@ -429,6 +507,44 @@ func (a *adminApp) disconnectClientWithSnapshot(ctx context.Context, deviceID st
 	return client, snapshot, nil
 }
 
+func (a *adminApp) blacklistClientWithSnapshot(ctx context.Context, clientID string, reason string, source string) (reality.BlacklistResult, runtimeMutationSnapshot, error) {
+	if a.runtimeManaged() {
+		result, refreshResult, err := a.reality.BlacklistClientDevices(ctx, clientID, reason, source)
+		if err != nil {
+			return reality.BlacklistResult{}, runtimeMutationSnapshot{}, err
+		}
+		return result, mutationSnapshotFromResult(refreshResult), nil
+	}
+	result, err := a.reality.BlacklistClientDevicesNoRefresh(clientID, reason, source)
+	if err != nil {
+		return reality.BlacklistResult{}, runtimeMutationSnapshot{}, err
+	}
+	snapshot, err := a.currentMutationSnapshot()
+	if err != nil {
+		return reality.BlacklistResult{}, runtimeMutationSnapshot{}, err
+	}
+	return result, snapshot, nil
+}
+
+func (a *adminApp) deactivateInviteWithSnapshot(ctx context.Context, code string) (reality.InviteRecord, runtimeMutationSnapshot, error) {
+	if a.runtimeManaged() {
+		invite, refreshResult, err := a.reality.DeactivateInvite(ctx, code)
+		if err != nil {
+			return reality.InviteRecord{}, runtimeMutationSnapshot{}, err
+		}
+		return invite, mutationSnapshotFromResult(refreshResult), nil
+	}
+	invite, err := a.reality.DeactivateInviteNoRefresh(code)
+	if err != nil {
+		return reality.InviteRecord{}, runtimeMutationSnapshot{}, err
+	}
+	snapshot, err := a.currentMutationSnapshot()
+	if err != nil {
+		return reality.InviteRecord{}, runtimeMutationSnapshot{}, err
+	}
+	return invite, snapshot, nil
+}
+
 type controlPlaneTrafficRequest struct {
 	Usages map[string]int64 `json:"usages"`
 }
@@ -438,6 +554,13 @@ type paymentActivationRequest struct {
 	Name    string `json:"name"`
 	Note    string `json:"note"`
 	MaxUses int    `json:"max_uses"`
+}
+
+type paymentRejectRequest struct {
+	ClientID   string `json:"client_id"`
+	InviteCode string `json:"invite_code"`
+	Reason     string `json:"reason"`
+	Source     string `json:"source"`
 }
 
 func decodePlanCreateRequest(r *http.Request) (controlplane.PlanCreateRequest, error) {
@@ -584,6 +707,32 @@ func decodePaymentActivationRequest(r *http.Request) (paymentActivationRequest, 
 		Note:    r.FormValue("note"),
 		MaxUses: maxUses,
 	}, nil
+}
+
+func decodePaymentRejectRequest(r *http.Request) (paymentRejectRequest, error) {
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var payload paymentRejectRequest
+		if err := decodeJSON(r, &payload); err != nil {
+			return paymentRejectRequest{}, err
+		}
+		if strings.TrimSpace(payload.ClientID) == "" && strings.TrimSpace(payload.InviteCode) == "" {
+			return paymentRejectRequest{}, errors.New("client_id or invite_code is required")
+		}
+		return payload, nil
+	}
+	if err := r.ParseForm(); err != nil {
+		return paymentRejectRequest{}, err
+	}
+	payload := paymentRejectRequest{
+		ClientID:   r.FormValue("client_id"),
+		InviteCode: r.FormValue("invite_code"),
+		Reason:     r.FormValue("reason"),
+		Source:     r.FormValue("source"),
+	}
+	if strings.TrimSpace(payload.ClientID) == "" && strings.TrimSpace(payload.InviteCode) == "" {
+		return paymentRejectRequest{}, errors.New("client_id or invite_code is required")
+	}
+	return payload, nil
 }
 
 const adminPlansTemplate = `<!doctype html>

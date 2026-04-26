@@ -104,6 +104,14 @@ func (p *Provisioner) ObserveSubscriptionDeviceNoRefresh(clientUUID string, devi
 	return p.registryStore.ObserveSubscriptionDevice(clientUUID, deviceID, observation)
 }
 
+func (p *Provisioner) BlacklistClientDevicesNoRefresh(clientID string, reason string, source string) (BlacklistResult, error) {
+	return p.registryStore.BlacklistClientDevices(clientID, reason, source)
+}
+
+func (p *Provisioner) DeactivateInviteNoRefresh(code string) (InviteRecord, error) {
+	return p.registryStore.DeactivateInvite(code)
+}
+
 func (p *Provisioner) ApplyTrafficUsages(usages map[string]TrafficUsage) (TrafficSyncResult, error) {
 	return p.registryStore.ApplyTrafficStats(usages)
 }
@@ -120,6 +128,33 @@ func (p *Provisioner) DisconnectDevice(ctx context.Context, deviceID string, cli
 	}
 
 	return client, refreshResult, nil
+}
+
+func (p *Provisioner) BlacklistClientDevices(ctx context.Context, clientID string, reason string, source string) (BlacklistResult, Result, error) {
+	result, err := p.registryStore.BlacklistClientDevices(clientID, reason, source)
+	if err != nil {
+		return BlacklistResult{}, Result{}, err
+	}
+
+	refreshResult, err := p.refreshRuntime(ctx)
+	if err != nil {
+		return BlacklistResult{}, Result{}, err
+	}
+
+	return result, refreshResult, nil
+}
+
+func (p *Provisioner) DeactivateInvite(ctx context.Context, code string) (InviteRecord, Result, error) {
+	invite, err := p.registryStore.DeactivateInvite(code)
+	if err != nil {
+		return InviteRecord{}, Result{}, err
+	}
+
+	refreshResult, err := p.refreshRuntime(ctx)
+	if err != nil {
+		return InviteRecord{}, Result{}, err
+	}
+	return invite, refreshResult, nil
 }
 
 func (p *Provisioner) BuildClientProfileFor(state State, client ClientRecord) ClientProfile {
