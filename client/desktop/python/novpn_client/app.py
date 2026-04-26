@@ -23,6 +23,7 @@ from .network_diagnostics import NetworkDiagnosticsRunner
 from .profile_store import ProfileStore
 from .runtime_manager import DesktopRuntimeManager
 from .runtime_preflight import RuntimePreflightChecker
+from .runtime_startup import prepare_runtime_start
 from .state_store import ClientStateStore
 from .ui.main_window import MainWindow
 
@@ -94,13 +95,37 @@ def main() -> int:
             print(output_path)
 
             if args.start_runtime:
-                status = runtime_manager.start(profile, settings)
+                prepared = prepare_runtime_start(
+                    preflight_checker,
+                    settings,
+                    profile=profile,
+                    persist_connection_mode=lambda mode: state_store.update(
+                        state_store.load(default_profile_key=store.default_profile_key()),
+                        connection_mode=mode,
+                    ),
+                )
+                status = runtime_manager.start(profile, prepared.settings)
                 logger.info(
-                    "headless runtime started xray_log=%s obfuscator_log=%s",
+                    (
+                        "headless runtime started mode=%s socks=%s:%s http=%s:%s "
+                        "xray_log=%s obfuscator_log=%s"
+                    ),
+                    status.effective_connection_mode.value,
+                    status.socks_listen,
+                    status.socks_port,
+                    status.http_listen,
+                    status.http_port,
                     status.xray_log,
                     status.obfuscator_log,
                 )
+                if prepared.fallback_warning:
+                    print(prepared.fallback_warning)
+                for warning in status.warnings:
+                    print(warning)
                 print(status.detail)
+                print(f"runtime_mode={status.effective_connection_mode.value}")
+                print(f"socks={status.socks_listen}:{status.socks_port}")
+                print(f"http={status.http_listen}:{status.http_port}")
                 print(f"app_log={app_log_path}")
                 print(f"xray_log={status.xray_log}")
                 print(f"obfuscator_log={status.obfuscator_log}")

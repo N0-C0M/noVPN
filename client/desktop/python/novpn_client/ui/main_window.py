@@ -26,6 +26,7 @@ from ..network_diagnostics import NetworkDiagnosticsRunner
 from ..profile_store import ProfileStore
 from ..runtime_manager import DesktopRuntimeManager
 from ..runtime_preflight import RuntimePreflightChecker
+from ..runtime_startup import prepare_runtime_start
 from ..state_store import ClientStateStore
 
 TRAFFIC_LABELS = {
@@ -410,6 +411,11 @@ class MainWindow:
     def _render(self) -> None:
         option = self._current_profile_option()
         runtime_status = self._runtime_manager.status()
+        active_connection_mode = (
+            runtime_status.effective_connection_mode
+            if runtime_status.running
+            else self._state.connection_mode
+        )
 
         self._header_server.set(option.name if option is not None else "No active profile")
         location = option.location_label if option is not None and option.location_label else "not specified"
@@ -417,7 +423,7 @@ class MainWindow:
 
         connection_line = (
             "Connection: system-wide Windows tunnel"
-            if self._state.connection_mode == ConnectionMode.SYSTEM_TUNNEL
+            if active_connection_mode == ConnectionMode.SYSTEM_TUNNEL
             else "Connection: local SOCKS/HTTP runtime"
         )
         mode_line = "Mode: RU bypass enabled" if self._state.bypass_ru else "Mode: full tunnel"
@@ -450,9 +456,15 @@ class MainWindow:
 
         if runtime_status.running:
             self._status.set("Connected")
-            runtime_detail = self._runtime_note or (
-                f"Logs: {self._app_log_path.name}, {runtime_status.xray_log.name}, {runtime_status.obfuscator_log.name}"
-            )
+            runtime_lines = [
+                self._runtime_note.strip(),
+                f"Runtime mode: {runtime_status.effective_connection_mode.value}",
+                f"SOCKS endpoint: {runtime_status.socks_listen}:{runtime_status.socks_port}",
+                f"HTTP endpoint: {runtime_status.http_listen}:{runtime_status.http_port}",
+                f"Logs: {self._app_log_path.name}, {runtime_status.xray_log.name}, {runtime_status.obfuscator_log.name}",
+            ]
+            runtime_lines.extend(runtime_status.warnings)
+            runtime_detail = "\n".join(line for line in runtime_lines if line)
             self._detail.set(runtime_detail + "\n\n" + baseline)
         else:
             self._status.set(self._idle_status_title)
@@ -509,24 +521,31 @@ class MainWindow:
 
     def _start_runtime(self) -> None:
         try:
-            self._preflight_checker.evaluate(
-                self._state.selected_profile_key,
-                self._state.connection_mode,
-            ).require_ready()
+            requested_mode = self._state.connection_mode
+            prepared = prepare_runtime_start(
+                self._preflight_checker,
+                self._current_settings(),
+                profile_key=self._state.selected_profile_key,
+                persist_connection_mode=lambda mode: self._save_state(connection_mode=mode),
+            )
             profile = self._current_profile()
             self._logger.info(
-                "starting runtime for profile=%s address=%s mode=%s",
+                "starting runtime for profile=%s address=%s requested_mode=%s effective_mode=%s",
                 profile.name,
                 profile.server.address,
-                self._state.connection_mode.value,
+                requested_mode.value,
+                prepared.settings.connection_mode.value,
             )
-            status = self._runtime_manager.start(profile, self._current_settings())
-            self._runtime_note = (
-                f"Logs: {self._app_log_path.name}, {status.xray_log.name}, {status.obfuscator_log.name}"
-            )
+            status = self._runtime_manager.start(profile, prepared.settings)
+            note_lines = []
+            if prepared.fallback_warning:
+                note_lines.append(prepared.fallback_warning)
+            self._runtime_note = "\n".join(note_lines)
             self._idle_status_title = "Ready"
             self._idle_status_detail = "Connection is active."
             self._render()
+            if prepared.fallback_warning:
+                messagebox.showwarning("NoVPN", prepared.fallback_warning)
         except Exception as exc:
             self._logger.exception("runtime start failed")
             self._idle_status_title = "Environment needs attention"
@@ -670,15 +689,25 @@ class MainWindow:
     def _run_diagnostics(self) -> None:
         if self._busy:
             return
-        if not self._runtime_manager.status().running:
+        runtime_status = self._runtime_manager.status()
+        if not runtime_status.running:
+            messagebox.showerror("NoVPN", "Start the runtime before running diagnostics.")
+            return
             messagebox.showerror("NoVPN", "Сначала запустите подключение.")
             return
         self._busy = True
         self._diagnostics_summary.set("Диагностика выполняется...")
         self._render()
 
+        self._diagnostics_summary.set("Diagnostics are running...")
+        self._render()
+
         def task() -> str:
-            return self._diagnostics_runner.run(self._current_profile()).summary
+            return self._diagnostics_runner.run(
+                self._current_profile(),
+                runtime_status.socks_listen,
+                runtime_status.socks_port,
+            ).summary
 
         self._run_async(task, self._on_diagnostics_success, self._on_async_error)
 

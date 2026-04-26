@@ -18,63 +18,75 @@ class NetworkDiagnosticsResult:
 
 
 class NetworkDiagnosticsRunner:
-    def run(self, profile: ClientProfile) -> NetworkDiagnosticsResult:
+    def run(
+        self,
+        profile: ClientProfile,
+        socks_listen: str,
+        socks_port: int,
+    ) -> NetworkDiagnosticsResult:
         host = profile.server.address
-        proxy_host = profile.local.socks_listen
-        proxy_port = profile.local.socks_port
+        proxy_host = socks_listen.strip() or "127.0.0.1"
+        proxy_port = int(socks_port)
+        if proxy_port <= 0:
+            raise RuntimeError("Diagnostics need an active local SOCKS endpoint. Restart the runtime and try again.")
 
-        latency_samples = []
-        for index in range(1, 4):
-            started_at = time.perf_counter()
-            self._run_stage(
-                f"Latency probe #{index}",
-                lambda index=index: self._execute_request(
+        try:
+            latency_samples = []
+            for index in range(1, 4):
+                started_at = time.perf_counter()
+                self._run_stage(
+                    f"Latency probe #{index}",
+                    lambda index=index: self._execute_request(
+                        proxy_host=proxy_host,
+                        proxy_port=proxy_port,
+                        host=host,
+                        port=self._DIAGNOSTICS_PORT,
+                        method="HEAD",
+                        path=f"/admin/diag/ping?seq={index}&ts={int(time.time() * 1000)}",
+                        body=b"",
+                    ),
+                )
+                latency_samples.append(int((time.perf_counter() - started_at) * 1000))
+
+            latency_average = round(sum(latency_samples) / len(latency_samples))
+            jitter = max(latency_samples) - min(latency_samples)
+
+            download_started_at = time.perf_counter()
+            downloaded_bytes = self._run_stage(
+                "Download test",
+                lambda: self._execute_request(
                     proxy_host=proxy_host,
                     proxy_port=proxy_port,
                     host=host,
                     port=self._DIAGNOSTICS_PORT,
-                    method="HEAD",
-                    path=f"/admin/diag/ping?seq={index}&ts={int(time.time() * 1000)}",
+                    method="GET",
+                    path=f"/admin/diag/download?bytes={self._DOWNLOAD_BYTES}",
                     body=b"",
+                ).body_bytes,
+            )
+            download_seconds = time.perf_counter() - download_started_at
+            download_mbps = self._to_mbps(downloaded_bytes, download_seconds)
+
+            upload_payload = bytes(index % 251 for index in range(self._UPLOAD_BYTES))
+            upload_started_at = time.perf_counter()
+            self._run_stage(
+                "Upload test",
+                lambda: self._execute_request(
+                    proxy_host=proxy_host,
+                    proxy_port=proxy_port,
+                    host=host,
+                    port=self._DIAGNOSTICS_PORT,
+                    method="POST",
+                    path="/admin/diag/upload",
+                    body=upload_payload,
                 ),
             )
-            latency_samples.append(int((time.perf_counter() - started_at) * 1000))
-
-        latency_average = round(sum(latency_samples) / len(latency_samples))
-        jitter = max(latency_samples) - min(latency_samples)
-
-        download_started_at = time.perf_counter()
-        downloaded_bytes = self._run_stage(
-            "Download test",
-            lambda: self._execute_request(
-                proxy_host=proxy_host,
-                proxy_port=proxy_port,
-                host=host,
-                port=self._DIAGNOSTICS_PORT,
-                method="GET",
-                path=f"/admin/diag/download?bytes={self._DOWNLOAD_BYTES}",
-                body=b"",
-            ).body_bytes,
-        )
-        download_seconds = time.perf_counter() - download_started_at
-        download_mbps = self._to_mbps(downloaded_bytes, download_seconds)
-
-        upload_payload = bytes(index % 251 for index in range(self._UPLOAD_BYTES))
-        upload_started_at = time.perf_counter()
-        self._run_stage(
-            "Upload test",
-            lambda: self._execute_request(
-                proxy_host=proxy_host,
-                proxy_port=proxy_port,
-                host=host,
-                port=self._DIAGNOSTICS_PORT,
-                method="POST",
-                path="/admin/diag/upload",
-                body=upload_payload,
-            ),
-        )
-        upload_seconds = time.perf_counter() - upload_started_at
-        upload_mbps = self._to_mbps(len(upload_payload), upload_seconds)
+            upload_seconds = time.perf_counter() - upload_started_at
+            upload_mbps = self._to_mbps(len(upload_payload), upload_seconds)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"Diagnostics failed via local SOCKS {proxy_host}:{proxy_port}. {exc}"
+            ) from exc
 
         summary = (
             f"Latency {latency_average} ms | Jitter {jitter} ms\n"
@@ -117,12 +129,10 @@ class NetworkDiagnosticsRunner:
             stream = active_socket.makefile("rb")
             status_line = self._read_ascii_line(stream)
             if not status_line:
-                raise RuntimeError(
-                    "Сервер диагностики не вернул строку HTTP-статуса. Похоже, туннель не довёл запрос до /admin/diag/ping."
-                )
+                raise RuntimeError("The diagnostics endpoint returned no HTTP status line.")
             parts = status_line.split(" ")
             if len(parts) < 2 or not parts[1].isdigit():
-                raise RuntimeError(f"Сервер диагностики вернул некорректный HTTP-ответ: {status_line}")
+                raise RuntimeError(f"The diagnostics endpoint returned an invalid HTTP response: {status_line}")
             status_code = int(parts[1])
 
             content_length = -1
@@ -140,7 +150,7 @@ class NetworkDiagnosticsRunner:
                 body_bytes = self._discard_to_end(stream)
 
             if status_code < 200 or status_code >= 300:
-                raise RuntimeError(f"Сервер диагностики вернул HTTP {status_code}.")
+                raise RuntimeError(f"The diagnostics endpoint returned HTTP {status_code}.")
             return _HttpProbeResponse(status_code=status_code, body_bytes=body_bytes)
 
     def _open_socks_socket(self, proxy_host: str, proxy_port: int, host: str, port: int) -> socket.socket:
@@ -150,14 +160,14 @@ class NetworkDiagnosticsRunner:
         active_socket.sendall(bytes((0x05, 0x01, 0x00)))
         selected_method = self._recv_exact(active_socket, 2)
         if selected_method[0] != 0x05 or selected_method[1] != 0x00:
-            raise RuntimeError("Локальный SOCKS-мост вернул некорректный ответ на handshake.")
+            raise RuntimeError("The local SOCKS endpoint rejected the initial handshake.")
 
         destination = self._build_destination_address(host) + port.to_bytes(2, byteorder="big")
         active_socket.sendall(bytes((0x05, 0x01, 0x00)) + destination)
 
         response_head = self._recv_exact(active_socket, 4)
         if response_head[0] != 0x05 or response_head[1] != 0x00:
-            raise RuntimeError(f"Локальный SOCKS отклонил CONNECT с кодом {response_head[1]}.")
+            raise RuntimeError(f"The local SOCKS endpoint rejected CONNECT with code {response_head[1]}.")
 
         atyp = response_head[3]
         if atyp == 0x01:
@@ -185,7 +195,7 @@ class NetworkDiagnosticsRunner:
         while len(chunks) < count:
             chunk = active_socket.recv(count - len(chunks))
             if not chunk:
-                raise RuntimeError("Диагностический поток завершился раньше ожидаемого.")
+                raise RuntimeError("The diagnostics connection closed before the response was complete.")
             chunks.extend(chunk)
         return bytes(chunks)
 
@@ -224,11 +234,12 @@ class NetworkDiagnosticsRunner:
         try:
             return operation()
         except TimeoutError as exc:
-            raise RuntimeError(f"{name}: время ожидания истекло.") from exc
+            raise RuntimeError(f"{name} timed out.") from exc
         except socket.timeout as exc:
-            raise RuntimeError(f"{name}: время ожидания истекло.") from exc
+            raise RuntimeError(f"{name} timed out.") from exc
         except OSError as exc:
-            raise RuntimeError(f"{name}: {exc}.") from exc
+            message = str(exc).strip() or exc.__class__.__name__
+            raise RuntimeError(f"{name} failed: {message}") from exc
 
     def _to_mbps(self, byte_count: int, seconds: float) -> float:
         if seconds <= 0:

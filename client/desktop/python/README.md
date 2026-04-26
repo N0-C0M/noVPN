@@ -31,9 +31,18 @@ python client/desktop/python/app.py --headless --system-tunnel --start-runtime
 
 Notes:
 
-- system-tunnel mode currently requires launching the desktop client as Administrator;
+- if the configured local ports are busy, the runtime keeps the profile unchanged and picks a free loopback SOCKS/HTTP pair for the current session only;
+- if `system_tunnel` is unavailable because the session is not elevated or Windows tunnel prerequisites are missing, the client falls back to `local_proxy`, saves that mode to state, and continues startup;
+- `system_tunnel` mode currently requires launching the desktop client as Administrator when fallback is not acceptable;
 - the runtime still keeps local SOCKS/HTTP inbounds, so diagnostics and local proxy usage continue to work;
 - route switching is currently IPv4-only.
+
+When `--headless --start-runtime` succeeds, it prints the effective runtime status, including:
+
+- `runtime_mode=<effective_connection_mode>`
+- `socks=<listen>:<port>`
+- `http=<listen>:<port>`
+- warning lines for session-only port reallocation or `system_tunnel -> local_proxy` fallback
 
 ## Logs And State
 
@@ -49,6 +58,7 @@ Important paths:
 - imported profiles: `client/desktop/python/generated/profiles/`
 - desktop app log: `client/desktop/python/generated/logs/desktop-client.log`
 - runtime logs: `client/desktop/python/generated/runtime/logs/xray.log` and `client/desktop/python/generated/runtime/logs/obfuscator.log`
+- runtime configs and logs stay under the same `generated/runtime/` tree in both repo-run and packaged Windows builds
 
 Packaged Windows builds write the same data under:
 
@@ -117,6 +127,13 @@ client/desktop/runtime/bin/geosite.dat
 
 The desktop client manages local runtime processes and local proxy endpoints.
 It now has an initial Windows system-tunnel path, but it is still not at Android parity yet.
+
+`RuntimeStatus` now reports the effective connection mode plus the active local endpoints:
+
+- `effective_connection_mode`
+- `socks_listen` and `socks_port`
+- `http_listen` and `http_port`
+- `warnings`
 
 Current limits:
 

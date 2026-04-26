@@ -9,8 +9,16 @@ from io import TextIOWrapper
 from pathlib import Path
 
 from .config_builder import XrayConfigBuilder
-from .models import ClientProfile, ConnectionMode, DesktopSettings, RuntimeStatus
+from .models import (
+    ClientProfile,
+    ConnectionMode,
+    DesktopSettings,
+    LocalPorts,
+    RuntimeStatus,
+    with_runtime_local_ports,
+)
 from .obfuscator_config_builder import ObfuscatorConfigBuilder
+from .runtime_local_ports import RuntimeLocalPortResolver
 from .runtime_layout import RuntimeLayout
 from .session_obfuscation import SessionObfuscationPlanner
 from .windows_tunnel import WindowsSystemTunnelManager
@@ -23,6 +31,7 @@ class DesktopRuntimeManager:
         generated_root: Path | None = None,
         xray_binary: Path | None = None,
         obfuscator_binary: Path | None = None,
+        port_resolver: RuntimeLocalPortResolver | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self._layout = RuntimeLayout.detect(runtime_root, generated_root, xray_binary, obfuscator_binary)
@@ -34,7 +43,10 @@ class DesktopRuntimeManager:
         self._obfuscator_log_handle: TextIOWrapper | None = None
         self._logger = logger or logging.getLogger("novpn.desktop.runtime")
         self._windows_tunnel = WindowsSystemTunnelManager(self._logger.getChild("system_tunnel"))
+        self._port_resolver = port_resolver or RuntimeLocalPortResolver()
         self._active_connection_mode = ConnectionMode.LOCAL_PROXY
+        self._active_local_ports = LocalPorts(socks_port=0, http_port=0)
+        self._status_warnings: list[str] = []
         atexit.register(self._shutdown_quietly)
 
     @property
@@ -44,24 +56,35 @@ class DesktopRuntimeManager:
     def start(self, profile: ClientProfile, settings: DesktopSettings) -> RuntimeStatus:
         if self._is_running():
             self._logger.info("runtime start skipped because it is already running")
-            return self.status("Runtime already running")
+            return self.status("Runtime already running.")
 
         self._layout.ensure_directories()
+        resolved_ports = self._port_resolver.resolve(profile.local)
+        effective_profile = with_runtime_local_ports(profile, resolved_ports.local_ports)
         upstream_interface_name = ""
         if settings.connection_mode == ConnectionMode.SYSTEM_TUNNEL:
             self._windows_tunnel.ensure_supported(self._layout)
-            tunnel_plan = self._windows_tunnel.build_plan(profile)
+            tunnel_plan = self._windows_tunnel.build_plan(effective_profile)
             upstream_interface_name = tunnel_plan.upstream.interface_alias
         else:
             tunnel_plan = None
         self._logger.info(
-            "starting runtime profile=%s address=%s:%s generated_root=%s connection_mode=%s",
-            profile.name,
-            profile.server.address,
-            profile.server.port,
+            (
+                "starting runtime profile=%s address=%s:%s generated_root=%s "
+                "requested_mode=%s effective_socks=%s:%s effective_http=%s:%s"
+            ),
+            effective_profile.name,
+            effective_profile.server.address,
+            effective_profile.server.port,
             self._layout.generated_root,
             settings.connection_mode.value,
+            effective_profile.local.socks_listen,
+            effective_profile.local.socks_port,
+            effective_profile.local.http_listen,
+            effective_profile.local.http_port,
         )
+        for warning in resolved_ports.warnings:
+            self._logger.warning("runtime port resolver: %s", warning)
         runtime_settings = DesktopSettings(
             bypass_ru=settings.bypass_ru,
             app_routing_mode=settings.app_routing_mode,
@@ -75,12 +98,12 @@ class DesktopRuntimeManager:
             network_interface_ipv4=settings.network_interface_ipv4,
         )
         session_plan = SessionObfuscationPlanner.build(
-            profile=profile,
+            profile=effective_profile,
             device_id=settings.device_id or "desktop-runtime",
         )
-        self._xray_builder.write(profile, runtime_settings, session_plan)
+        self._xray_builder.write(effective_profile, runtime_settings, session_plan)
         self._obfuscator_builder.write(
-            profile,
+            effective_profile,
             self._layout.obfuscator_config,
             self._layout.xray_config,
             settings.device_id,
@@ -114,15 +137,16 @@ class DesktopRuntimeManager:
         failed_runtime = self._failed_runtime_process()
         if failed_runtime is not None:
             failed_runtime_name, log_path = failed_runtime
-            self.stop()
             log_excerpt = self._read_log_excerpt(log_path)
-            detail = f"{failed_runtime_name} exited immediately."
+            self.stop()
             if log_excerpt:
-                detail += f" Last log lines: {log_excerpt}"
-            self._logger.error("runtime start failed: %s", detail)
+                self._logger.error("runtime start failed %s: %s", failed_runtime_name, log_excerpt)
+            detail = f"{failed_runtime_name} exited during startup. Check {log_path}."
             raise RuntimeError(detail)
 
         self._active_connection_mode = settings.connection_mode
+        self._active_local_ports = effective_profile.local
+        self._status_warnings = list(resolved_ports.warnings)
         if tunnel_plan is not None:
             try:
                 self._windows_tunnel.activate(tunnel_plan)
@@ -135,7 +159,7 @@ class DesktopRuntimeManager:
             self._layout.xray_log,
             self._layout.obfuscator_log,
         )
-        return self.status("Runtime started")
+        return self.status(self._build_running_detail())
 
     def stop(self) -> RuntimeStatus:
         self._logger.info("stopping runtime")
@@ -149,21 +173,23 @@ class DesktopRuntimeManager:
         self._xray_process = None
         self._obfuscator_process = None
         self._active_connection_mode = ConnectionMode.LOCAL_PROXY
+        self._active_local_ports = LocalPorts(socks_port=0, http_port=0)
+        self._status_warnings = []
         self._close_log(self._xray_log_handle)
         self._close_log(self._obfuscator_log_handle)
         self._xray_log_handle = None
         self._obfuscator_log_handle = None
-        return self.status("Runtime stopped")
+        return self.status("Runtime stopped.")
 
     def status(self, detail: str | None = None) -> RuntimeStatus:
         if detail is not None:
             detail_text = detail
         elif self._is_running() and self._active_connection_mode == ConnectionMode.SYSTEM_TUNNEL:
-            detail_text = "System tunnel running"
+            detail_text = self._build_running_detail()
         elif self._is_running():
-            detail_text = "Runtime running"
+            detail_text = self._build_running_detail()
         else:
-            detail_text = "Runtime stopped"
+            detail_text = "Runtime stopped."
         return RuntimeStatus(
             running=self._is_running(),
             xray_binary=self._layout.xray_binary,
@@ -171,6 +197,24 @@ class DesktopRuntimeManager:
             xray_log=self._layout.xray_log,
             obfuscator_log=self._layout.obfuscator_log,
             detail=detail_text,
+            effective_connection_mode=self._active_connection_mode,
+            socks_listen=self._active_local_ports.socks_listen,
+            socks_port=self._active_local_ports.socks_port,
+            http_listen=self._active_local_ports.http_listen,
+            http_port=self._active_local_ports.http_port,
+            warnings=list(self._status_warnings),
+        )
+
+    def _build_running_detail(self) -> str:
+        mode = (
+            "system_tunnel"
+            if self._active_connection_mode == ConnectionMode.SYSTEM_TUNNEL
+            else "local_proxy"
+        )
+        return (
+            f"Runtime running in {mode} mode. "
+            f"SOCKS {self._active_local_ports.socks_listen}:{self._active_local_ports.socks_port}. "
+            f"HTTP {self._active_local_ports.http_listen}:{self._active_local_ports.http_port}."
         )
 
     def _spawn(

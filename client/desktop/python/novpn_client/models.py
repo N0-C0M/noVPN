@@ -181,6 +181,12 @@ class RuntimeStatus:
     xray_log: Path
     obfuscator_log: Path
     detail: str
+    effective_connection_mode: ConnectionMode = ConnectionMode.LOCAL_PROXY
+    socks_listen: str = "127.0.0.1"
+    socks_port: int = 0
+    http_listen: str = "127.0.0.1"
+    http_port: int = 0
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -211,6 +217,18 @@ def with_runtime_strategies(
             traffic_strategy=traffic_strategy,
             pattern_strategy=pattern_strategy,
         ),
+    )
+
+
+def with_runtime_local_ports(
+    profile: ClientProfile,
+    local_ports: LocalPorts,
+) -> ClientProfile:
+    return ClientProfile(
+        name=profile.name,
+        server=profile.server,
+        local=local_ports,
+        obfuscation=profile.obfuscation,
     )
 
 
