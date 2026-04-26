@@ -1,8 +1,8 @@
 listen_addr: 0.0.0.0:9120
 storage_path: /var/lib/novpn/payments/orders.json
 admin_token: change-me-pay-admin-token
-public_base_url: http://2.26.85.47
-control_plane_base_url: http://2.26.85.47:9112/admin
+public_base_url: https://xowery.ru
+control_plane_base_url: https://xowery.ru/admin
 control_plane_token: change-me-control-plane-token
 shutdown_timeout: 15s
 brand_name: NoVPN
@@ -10,8 +10,8 @@ support_link: ""
 payment_card_number: ""
 payment_card_holder: ""
 payment_card_bank: ""
-android_launcher_url: http://2.26.85.47/downloads/NoVPN-Android.apk
-windows_launcher_url: http://2.26.85.47/downloads/NoVPN-Desktop-Setup-0.1.0.exe
+android_launcher_url: https://xowery.ru/downloads/NoVPN-Android.apk
+windows_launcher_url: https://xowery.ru/downloads/NoVPN-Desktop-Setup-0.1.0.exe
 happ_download_url: https://apps.apple.com/us/app/happ-proxy-utility/id6504287215
 plans:
   - id: android-month
