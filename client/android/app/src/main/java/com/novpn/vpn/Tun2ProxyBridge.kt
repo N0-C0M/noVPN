@@ -1,9 +1,8 @@
 package com.novpn.vpn
 
 import android.content.Context
-import android.os.ParcelFileDescriptor
 import android.util.Log
-import java.io.File
+import android.os.ParcelFileDescriptor
 import java.util.concurrent.ExecutionException
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -15,12 +14,9 @@ import java.util.concurrent.TimeoutException
 class Tun2ProxyBridge(context: Context) {
     init {
         ensureNativeLoaded()
-        cleanupStaleIsolatedLibraries()
     }
 
     private val logStore = RuntimeLogStore(context)
-    private val sourceNativeLibrary = File(context.applicationInfo.nativeLibraryDir, TUN2PROXY_LIBRARY_NAME)
-    private val isolatedNativeDir = File(context.codeCacheDir, ISOLATED_LIBRARY_DIR_NAME)
     private val stateLock = Any()
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "novpn-tun2proxy").apply { isDaemon = true }
@@ -36,25 +32,16 @@ class Tun2ProxyBridge(context: Context) {
         val detachedFd = ParcelFileDescriptor.dup(tunnel.fileDescriptor).detachFd()
         val sessionId = synchronized(stateLock) {
             activeSessionId += 1
-            activeSessionId
-        }
-        val isolatedLibraryPath = try {
-            prepareIsolatedLibraryCopy(sessionId)
-        } catch (error: Throwable) {
-            closeTunFdQuietly(detachedFd)
-            throw error
-        }
-        synchronized(stateLock) {
             activeTunFd = detachedFd
+            activeSessionId
         }
         logStore.append(
             "tun2proxy",
-            "Starting bridge session=$sessionId fd=$detachedFd proxy=${proxy.listenHost}:${proxy.socksPort} mtu=$mtu lib=${File(isolatedLibraryPath).name}"
+            "Starting bridge session=$sessionId fd=$detachedFd proxy=${proxy.listenHost}:${proxy.socksPort} mtu=$mtu"
         )
         task = executor.submit<Int> {
             try {
                 nativeRunWithFd(
-                    libraryPath = isolatedLibraryPath,
                     proxyUrl = proxyUrl,
                     tunFd = detachedFd,
                     mtu = mtu,
@@ -152,7 +139,6 @@ class Tun2ProxyBridge(context: Context) {
     }
 
     private external fun nativeRunWithFd(
-        libraryPath: String,
         proxyUrl: String,
         tunFd: Int,
         mtu: Int,
@@ -167,32 +153,6 @@ class Tun2ProxyBridge(context: Context) {
             return
         }
         runCatching { ParcelFileDescriptor.adoptFd(fd).close() }
-    }
-
-    private fun prepareIsolatedLibraryCopy(sessionId: Long): String {
-        check(sourceNativeLibrary.isFile) {
-            "Bundled tun2proxy library not found: ${sourceNativeLibrary.absolutePath}"
-        }
-        if (!isolatedNativeDir.exists() && !isolatedNativeDir.mkdirs()) {
-            throw IllegalStateException("Failed to prepare isolated tun2proxy directory.")
-        }
-
-        val isolatedLibrary = File(isolatedNativeDir, "$ISOLATED_LIBRARY_PREFIX$sessionId.so")
-        sourceNativeLibrary.copyTo(isolatedLibrary, overwrite = true)
-        isolatedLibrary.setReadable(true, false)
-        isolatedLibrary.setExecutable(true, false)
-        return isolatedLibrary.absolutePath
-    }
-
-    private fun cleanupStaleIsolatedLibraries() {
-        if (!isolatedNativeDir.exists()) {
-            return
-        }
-        isolatedNativeDir.listFiles()?.forEach { file ->
-            if (file.isFile && file.name.startsWith(ISOLATED_LIBRARY_PREFIX)) {
-                runCatching { file.delete() }
-            }
-        }
     }
 
     private enum class DnsStrategy(val value: Int) {
@@ -214,9 +174,6 @@ class Tun2ProxyBridge(context: Context) {
         private const val TAG = "NoVPNTun2Proxy"
         private const val INVALID_TUN_FD = -1
         private const val STOP_WAIT_TIMEOUT_SECONDS = 5L
-        private const val TUN2PROXY_LIBRARY_NAME = "libtun2proxy.so"
-        private const val ISOLATED_LIBRARY_DIR_NAME = "tun2proxy"
-        private const val ISOLATED_LIBRARY_PREFIX = "libtun2proxy-session-"
         private val nativeLoadError: Throwable? by lazy {
             runCatching {
                 ensureNativeLoaded()
@@ -228,6 +185,7 @@ class Tun2ProxyBridge(context: Context) {
         fun nativeLoadFailureMessage(): String? = nativeLoadError?.message
 
         private fun ensureNativeLoaded() {
+            System.loadLibrary("tun2proxy")
             System.loadLibrary("novpn_tun2proxy_jni")
         }
     }
