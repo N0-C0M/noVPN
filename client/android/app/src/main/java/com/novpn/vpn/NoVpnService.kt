@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.app.Application
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novpn.R
@@ -115,6 +116,7 @@ class NoVpnService : VpnService() {
                             patternStrategy = patternStrategy
                         )
                     }.onFailure {
+                        stopCore()
                         if (!isLatestCommand(startId)) {
                             return@onFailure
                         }
@@ -122,7 +124,6 @@ class NoVpnService : VpnService() {
                             status = getString(R.string.runtime_start_failed),
                             detail = buildFailureDetail(it)
                         )
-                        stopCore()
                         mainHandler.post {
                             stopServiceForStartId(startId)
                         }
@@ -135,9 +136,6 @@ class NoVpnService : VpnService() {
                 runtimeManager.appendAppLog("service", "Received STOP command startId=$startId")
                 runtimeStatusStore.markStopping()
                 worker.execute {
-                    if (!isLatestCommand(startId)) {
-                        return@execute
-                    }
                     stopCore()
                     runtimeStatusStore.markStopped(getString(R.string.service_stopped))
                     RuntimeLocalProxySession.update(null)
@@ -159,6 +157,7 @@ class NoVpnService : VpnService() {
         RuntimeLocalProxySession.update(null)
         worker.shutdownNow()
         super.onDestroy()
+        maybeTerminateDedicatedProcess()
     }
 
     override fun onRevoke() {
@@ -535,6 +534,19 @@ class NoVpnService : VpnService() {
         }
     }
 
+    private fun maybeTerminateDedicatedProcess() {
+        val processName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Application.getProcessName()
+        } else {
+            return
+        }
+        if (!processName.endsWith(DEDICATED_PROCESS_SUFFIX)) {
+            return
+        }
+        runtimeManager.appendAppLog("service", "Terminating dedicated VPN process $processName")
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
+
     companion object {
         private const val ACTION_START = "com.novpn.vpn.START"
         private const val ACTION_STOP = "com.novpn.vpn.STOP"
@@ -554,6 +566,7 @@ class NoVpnService : VpnService() {
         private const val TUN_DNS_PRIMARY = "1.1.1.1"
         private const val TUN_DNS_SECONDARY = "8.8.8.8"
         private const val RUNTIME_HEALTH_CHECK_INTERVAL_MS = 2_500L
+        private const val DEDICATED_PROCESS_SUFFIX = ":vpncore"
         private val SIMPLIFIED_ROUTE_EXACT_PACKAGES = setOf(
             "com.google.android.youtube",
             "com.google.android.apps.youtube.music",

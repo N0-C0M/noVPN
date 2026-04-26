@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
 import android.os.Bundle
 import android.text.InputType
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -733,12 +734,16 @@ class MainActivity : ComponentActivity() {
             var previousSnapshot = RuntimeStatusSnapshot.from(viewModel.state.value)
             while (isActive) {
                 delay(RUNTIME_STATUS_SYNC_INTERVAL_MS)
-                viewModel.refreshStateFromPreferences()
-                val currentState = viewModel.state.value
-                val currentSnapshot = RuntimeStatusSnapshot.from(currentState)
-                if (currentSnapshot != previousSnapshot) {
-                    renderState(currentState)
-                    previousSnapshot = currentSnapshot
+                runCatching {
+                    viewModel.refreshStateFromPreferences()
+                    val currentState = viewModel.state.value
+                    val currentSnapshot = RuntimeStatusSnapshot.from(currentState)
+                    if (currentSnapshot != previousSnapshot) {
+                        renderState(currentState)
+                        previousSnapshot = currentSnapshot
+                    }
+                }.onFailure { error ->
+                    Log.w(TAG, "Runtime status sync tick failed", error)
                 }
             }
         }
@@ -1152,6 +1157,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val TAG = "NoVPNMainActivity"
         private const val RUNTIME_STATUS_SYNC_INTERVAL_MS = 350L
         private const val STARTING_BUTTON_TEXT = "Подключаем..."
         private const val STOPPING_BUTTON_TEXT = "Отключаем..."
