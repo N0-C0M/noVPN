@@ -10,6 +10,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.CancellationException
 
 class Tun2ProxyBridge(context: Context) {
     init {
@@ -26,7 +27,7 @@ class Tun2ProxyBridge(context: Context) {
     private var activeSessionId: Long = 0L
 
     fun start(tunnel: ParcelFileDescriptor, proxy: RuntimeLocalProxyConfig, mtu: Int) {
-        stop()
+        stop(requireCompletion = true)
 
         val proxyUrl = proxy.socksUrl()
         val detachedFd = ParcelFileDescriptor.dup(tunnel.fileDescriptor).detachFd()
@@ -39,7 +40,7 @@ class Tun2ProxyBridge(context: Context) {
             "tun2proxy",
             "Starting bridge session=$sessionId fd=$detachedFd proxy=${proxy.listenHost}:${proxy.socksPort} mtu=$mtu"
         )
-        task = executor.submit<Int> {
+        val newTask = executor.submit<Int> {
             try {
                 nativeRunWithFd(
                     proxyUrl = proxyUrl,
@@ -57,6 +58,9 @@ class Tun2ProxyBridge(context: Context) {
                     }
                 }
             }
+        }
+        synchronized(stateLock) {
+            task = newTask
         }
     }
 
@@ -85,31 +89,68 @@ class Tun2ProxyBridge(context: Context) {
     }
 
     fun stop() {
+        stop(requireCompletion = false)
+    }
+
+    private fun stop(requireCompletion: Boolean) {
         val pendingTask: Future<*>?
         val tunFdToClose: Int
+        val shouldSignalNativeStop: Boolean
         synchronized(stateLock) {
             pendingTask = task
-            task = null
             tunFdToClose = activeTunFd
+            shouldSignalNativeStop = pendingTask != null && !pendingTask.isDone
             activeTunFd = INVALID_TUN_FD
             activeSessionId += 1
         }
 
+        if (pendingTask == null && tunFdToClose == INVALID_TUN_FD) {
+            return
+        }
+
+        if (shouldSignalNativeStop) {
+            requestNativeStop("initial")
+        }
         closeTunFdQuietly(tunFdToClose)
 
         if (pendingTask == null) {
             return
         }
 
-        try {
-            pendingTask.get(STOP_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        if (waitForTaskStop(pendingTask, STOP_WAIT_TIMEOUT_SECONDS)) {
+            clearTaskReference(pendingTask)
             logStore.append("tun2proxy", "Bridge stop completed within timeout")
-        } catch (_: TimeoutException) {
-            Log.w(TAG, "tun2proxy did not stop within timeout after closing TUN fd")
-            logStore.append("tun2proxy", "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s")
-        } catch (_: Exception) {
-            // The bridge thread is already terminating; no extra action needed here.
+            return
         }
+
+        Log.w(TAG, "tun2proxy did not stop within timeout after initial stop attempt")
+        logStore.append(
+            "tun2proxy",
+            "Bridge stop timed out after ${STOP_WAIT_TIMEOUT_SECONDS}s; sending second stop signal"
+        )
+
+        if (shouldSignalNativeStop) {
+            requestNativeStop("retry")
+        }
+        if (waitForTaskStop(pendingTask, STOP_FORCE_WAIT_TIMEOUT_SECONDS)) {
+            clearTaskReference(pendingTask)
+            logStore.append("tun2proxy", "Bridge stop completed after second stop signal")
+            return
+        }
+
+        if (requireCompletion) {
+            throw IllegalStateException(
+                "Previous tun2proxy instance did not stop within " +
+                    "${STOP_WAIT_TIMEOUT_SECONDS + STOP_FORCE_WAIT_TIMEOUT_SECONDS}s."
+            )
+        }
+
+        Log.w(TAG, "tun2proxy is still running after repeated stop attempts")
+        logStore.append(
+            "tun2proxy",
+            "Bridge is still running after repeated stop attempts " +
+                "(${STOP_WAIT_TIMEOUT_SECONDS + STOP_FORCE_WAIT_TIMEOUT_SECONDS}s total)"
+        )
     }
 
     fun waitForLocalProxy(proxy: RuntimeLocalProxyConfig, timeoutSeconds: Long = 10) {
@@ -148,6 +189,41 @@ class Tun2ProxyBridge(context: Context) {
 
     private external fun nativeStop(): Int
 
+    private fun requestNativeStop(stage: String) {
+        val stopResult = runCatching { nativeStop() }
+        stopResult.onFailure { error ->
+            Log.w(TAG, "nativeStop failed on $stage stage", error)
+            logStore.append(
+                "tun2proxy",
+                "nativeStop failed on $stage stage: ${error.message ?: error.javaClass.simpleName}"
+            )
+        }
+    }
+
+    private fun waitForTaskStop(pendingTask: Future<*>, timeoutSeconds: Long): Boolean {
+        return try {
+            pendingTask.get(timeoutSeconds, TimeUnit.SECONDS)
+            true
+        } catch (_: TimeoutException) {
+            false
+        } catch (_: ExecutionException) {
+            true
+        } catch (_: CancellationException) {
+            true
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
+        }
+    }
+
+    private fun clearTaskReference(completedTask: Future<*>) {
+        synchronized(stateLock) {
+            if (task === completedTask) {
+                task = null
+            }
+        }
+    }
+
     private fun closeTunFdQuietly(fd: Int) {
         if (fd == INVALID_TUN_FD) {
             return
@@ -174,6 +250,7 @@ class Tun2ProxyBridge(context: Context) {
         private const val TAG = "NoVPNTun2Proxy"
         private const val INVALID_TUN_FD = -1
         private const val STOP_WAIT_TIMEOUT_SECONDS = 5L
+        private const val STOP_FORCE_WAIT_TIMEOUT_SECONDS = 3L
         private val nativeLoadError: Throwable? by lazy {
             runCatching {
                 ensureNativeLoaded()
