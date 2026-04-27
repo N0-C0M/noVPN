@@ -340,6 +340,59 @@ func TestBlacklistClientDevicesRevokesAccessAndBlocksObservedDevices(t *testing.
 	}
 }
 
+func TestDisconnectObservedDeviceBlacklistsAndRemovesIt(t *testing.T) {
+	store := newTestRegistryStore(t)
+
+	invite, err := store.CreateInvite(InviteCreateRequest{
+		Name:    "base",
+		MaxUses: 1,
+	})
+	if err != nil {
+		t.Fatalf("create invite: %v", err)
+	}
+	redeemResult, err := store.RedeemInvite(invite.Code, "desktop-device", "Windows desktop")
+	if err != nil {
+		t.Fatalf("redeem invite: %v", err)
+	}
+	if _, changed, err := store.ObserveSubscriptionDevice(redeemResult.Client.UUID, "", SubscriptionDeviceObservation{
+		DeviceID:   "desktop-laptop",
+		DeviceName: "Windows laptop",
+		SeenAt:     time.Now().UTC(),
+	}); err != nil || !changed {
+		t.Fatalf("observe launcher device: changed=%v err=%v", changed, err)
+	}
+
+	client, err := store.DisconnectDevice("desktop-laptop", redeemResult.Client.UUID)
+	if err != nil {
+		t.Fatalf("disconnect observed device: %v", err)
+	}
+	if !client.Active {
+		t.Fatalf("expected primary client to remain active after observed device disconnect")
+	}
+	if len(client.ObservedDevices) != 0 {
+		t.Fatalf("expected observed device list to be empty after disconnect, got %d", len(client.ObservedDevices))
+	}
+
+	registry, err := store.Load()
+	if err != nil {
+		t.Fatalf("load registry: %v", err)
+	}
+	blocked := registry.findBlockedDevice("desktop-laptop")
+	if blocked == nil {
+		t.Fatalf("expected disconnected observed device to be blacklisted")
+	}
+	if blocked.ClientUUID != redeemResult.Client.UUID {
+		t.Fatalf("unexpected blocked client uuid %q", blocked.ClientUUID)
+	}
+
+	if _, _, err := store.ObserveSubscriptionDevice(redeemResult.Client.UUID, "", SubscriptionDeviceObservation{
+		DeviceID: "desktop-laptop",
+		SeenAt:   time.Now().UTC(),
+	}); err == nil || !strings.Contains(err.Error(), "blacklisted") {
+		t.Fatalf("expected blacklisted observed device rejection, got %v", err)
+	}
+}
+
 func TestBuildClientProfilesForAdditionalServerUsesPrimaryPublicKeyFallback(t *testing.T) {
 	cfg := config.RealityConfig{
 		PublicHost: "2.26.85.47",

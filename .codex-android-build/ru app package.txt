@@ -1,0 +1,692 @@
+Основной пакет: com.vkontakte.android
+VK Lite: com.vk.lite
+VK Me (Мессенджер): com.vk.im
+VK Видео: com.vk.video
+VK Музыка: com.vkontakte.music
+Пакет для Smart TV: com.vk.video.tv
+Яндекс — с Алисой (Основное): ru.yandex.searchplugin
+Яндекс Старт (Браузер): ru.yandex.yandexlauncher
+Яндекс Карты и Навигатор: ru.yandex.yandexmaps
+Яндекс Go (Такси/Доставка): ru.yandex.taxi
+Яндекс Музыка: ru.yandex.music
+Основной пакет: com.wildberries.ru
+WB Drive (для водителей): ru.wildberries.drive
+WB Job (для сотрудников): ru.wildberries.wbjob
+WB Партнеры: ru.wildberries.seller
+Основной пакет: ru.gosuslugi.gosuslugi
+Госуслуги Авто: ru.mintrud.pos (или ru.gosuslugi.auto)
+Госуслуги Культура: ru.gosuslugi.culture
+Госключ: ru.gosuslugi.goskey
+RuStore: ru.vk.store (главный российский магазин приложений)
+Ozon: ru.ozon.app.android
+СберБанк Онлайн: ru.sberbankmobile
+2ГИС: ru.dublgis.dgismobile
+
+Основной пакет (классический): ru.sberbankmobile
+СБОЛ (один из вариантов в GP): ru.sbol.app
+СберБизнес: ru.sberbank_sbbol
+СберИнвестиции: ru.sberbank.investments
+Основной пакет: ru.ozon.app.android
+Ozon Seller (для продавцов): ru.ozon.seller
+Вози Ozon (для водителей): ru.ozon.transport
+Ozon Job: ru.ozon.jobs
+Основной пакет: ru.agsoft.avito (или com.avito.android)
+Основной пакет: com.idamob.tinkoff.android
+Т-Инвестиции: ru.tinkoff.investments
+Т-Мобайл: ru.tinkoff.mvno
+Т-Бизнес: ru.tinkoff.business
+
+Основной пакет: ru.dublgis.dgismobile
+2ГИС Beta: ru.dublgis.dgismobile.beta
+2ГИС для Android Auto: обычно интегрирован в основной пакет.
+Почта Mail.ru run.prospect.mail com.cloud.mail.ru, com.mail.mailapp.lite
+Одноклассники ru.ok.android ru.ok.live
+Rutube ru.rutube.app ru.rutube.kids, ru.rutube.tv
+Кинопоиск ru.kinopoisk ru.kinopoisk.ott
+Mir Pay ru.nspk.mirpay ru.nspk.sbpay, ru.nspk.privet
+Дзен: com.vizortalk.vlog (ранее пакет принадлежал Яндексу, теперь VK).
+МойОфис Документы: com.ncloudtech.clouddoc (российский аналог MS Office).
+Kaspersky Free: com.kms.free (антивирусная защита).
+
+№ Приложение Основной Package ID Дополнительные / Служебные пакеты
+15 Mir Pay ru.nspk.mirpay ru.nspk.sbpay (СБПэй)
+16 Яндекс Диск ru.yandex.disk —
+17 Пятёрочка ru.pyaterochka.app ru.pyaterochka.app.browser
+18 Магнит ru.tander.magnit ru.tander.magnit.delivery
+19 СберМаркет (Купер) ru.instamart —
+20 Самокат ru.samokat.app —
+21 Яндекс Еда ru.yandex.eda ru.yandex.eda.courier
+22 Маркет (Яндекс) ru.yandex.market ru.yandex.market.seller
+23 ЦИАН mobi.cian.khamsin —
+24 Домклик ru.domclick.client —
+25 М.Видео ru.mvideo.app —
+26 Эльдорадо ru.eldorado.app —
+27 Лента ru.lenta.android —
+28 Whoosh (Самокаты) whoosh.bike —
+29 МТС (Мой МТС) ru.mts.money ru.mts.selfcare
+30 билайн ru.beeline.services —
+31 МегаФон ru.megafon.mlk —
+32 Tele2 (t2) ru.tele2.mytele2 —
+33 Мой налог com.gnivts.selfemployed —
+34 Яндекс Почта ru.yandex.mail —
+35 ЮMoney ru.yoomoney —
+№ Приложение Основной Package ID Дополнительные / Служебные пакеты
+36 ВТБ (ВТБ Онлайн) ru.vtb24.mobileapp.android ru.vtb.invest (Инвестиции)
+37 Газпромбанк ru.gazprombank.android.mobile.pay —
+38 Альфа-Банк ru.alfabank.mobile.android ru.alfadirect.mobile (Инвестиции)
+39 Яндекс Погода ru.yandex.weather —
+40 Яндекс Метро ru.yandex.metro —
+41 Яндекс Навигатор ru.yandex.yandexnavi —
+42 Звук (СберЗвук) com.zvuk —
+43 Okko ru.okko.tv —
+44 Иви (Ivi) ru.ivi.client —
+45 Wink ru.rt.video.app.mobile ru.rt.video.app.tv (Smart TV)
+46 Premier com.premier —
+47 KION (МТС) ru.mts.mtstv —
+48 СберСпасибо ru.sberbank.spasibo —
+49 Мегамаркет com.sbermarket.app —
+50 Авто.ру ru.auto.ara —
+51 Юла com.allgoritm.youla —
+52 СДЭК ru.cdek.app —
+53 Почта России com.octopod.russianpost.client —
+54 Парковки России ru.mos.parking —
+55 Московский транспорт ru.mos.transport —
+56 РЖД Пассажирам ru.rzd.pass —
+57 Urent (Юрент) ru.urent.app —
+58 Ситимобил com.citymobil —
+59 Детский мир ru.detmir.app —
+60 Спортмастер ru.sportmaster.app —
+61 Леруа Мерлен ru.leroymerlin.mobile —
+62 ВкусВилл ru.vkusvill —
+63 Едадил ru.edadil.android —
+64 Штрафы ПДД (офиц.) ru.gibdd.app —
+65 Честный ЗНАК ru.crpt.tnt —
+№ Приложение Основной Package ID Дополнительные / Служебные пакеты
+66 Райффайзен Банк ru.raiffeisen.retail —
+67 Совкомбанк (Халва) ru.sovcombank.halva.mobile —
+68 Почта Банк ru.pochtabank.mobile —
+69 МТС Банк ru.mts.bank —
+70 Сравни (Страховки/Кредиты) ru.sravni.app —
+71 Банки.ру ru.banki.android —
+72 Ингосстрах ru.ingos.mobile —
+73 Росгосстрах ru.rgs.mobile —
+74 ВСК Страхование ru.vsk.mobile —
+75 Столото ru.stoloto.android —
+76 RuStore ru.vk.store Критически важно для обновлений
+77 Ламода (Lamoda) com.lamoda.lite —
+78 Магнит Маркет com.kazanexpress.app (Ранее KazanExpress)
+79 Глория Джинс ru.gloriajeans.app —
+80 Кари (Kari) ru.kari.shop —
+81 Золотое Яблоко ru.goldapple.apple —
+82 Л'Этуаль ru.letoile.app —
+83 Рив Гош ru.rivegauche.app —
+84 ДНС (DNS) ru.dns.shop —
+85 Петрович ru.petrovich.mobile —
+86 Хофф (Hoff) ru.hoff.app —
+87 Ашан ru.auchan —
+88 Перекресток ru.perekrestok.app —
+89 Фикс Прайс ru.fixprice —
+90 Spar Russia ru.spar.app —
+91 Азбука Вкуса ru.av.app —
+92 Додо Пицца ru.dodopizza.app —
+93 Бургер Кинг ru.burgerking.android —
+94 Rostic's (KFC) ru.rostics.app —
+95 Теремок ru.teremok.app —
+96 Аптека.ру ru.aptekaru.app —
+97 Еаптека ru.eapteka.android —
+98 Здравсити ru.zdravcity.app —
+99 Планета Здоровья ru.planetazdorovya.android —
+100 Аптека Апрель ru.apteka_april —
+101 Авиасейлс ru.aviasales —
+102 Туту.ру ru.tuturu.app —
+103 Островок ru.ostrovok.app —
+104 Яндекс Путешествия ru.yandex.travel —
+105 Ситидрайв ru.citidrive.carsharing —
+106 Делимобиль ru.delimobil.android —
+107 Аэроэкспресс ru.aeroexpress —
+108 Аэрофлот ru.aeroflot.app —
+109 S7 Airlines ru.s7.android —
+110 Уральские авиалинии ru.uralairlines.app —
+111 Профи (Profi.ru) ru.profi.app ru.profi.specialist (для профи)
+112 YouDo ru.youdo.android —
+113 HeadHunter (hh.ru) ru.hh.android —
+114 SuperJob ru.superjob.android.client —
+115 Город Тройка ru.mos.troika —
+116 Госуслуги Дом ru.gosuslugi.dom —
+117 START (Кино) ru.start.android —
+118 Амедиатека com.amediateka.android —
+119 ЛитРес ru.litres.android ru.litres.audio (Слушай!)
+120 MyBook ru.mybook.android —
+№ Приложение Основной Package ID Дополнительные / Служебные пакеты
+121 Sokolov (Ювелирные изделия) ru.sokolov.jewelry —
+122 Sunlight ru.sunlight.shop —
+123 Красное & Белое ru.krasnoeibeloe.app —
+124 Vprok (Перекресток) ru.perekrestok.vprok —
+125 Яндекс Аренда ru.yandex.rent —
+126 Ак Барс Онлайн ru.akbars.mobile —
+127 МКБ (Мобильный банк) ru.mkb.mobile —
+128 Банк Уралсиб ru.uralsib.bank.mobile —
+129 Ренессанс Банк ru.rencredit.mobile —
+130 ОТП Банк ru.otpbank.mobile —
+131 Yota ru.yota.android —
+132 Ростелеком (Мой РТ) ru.rt.btl —
+133 Дом.ру (Мой Дом.ру) ru.ertelecom.domru —
+134 Акадо ru.akado.mobile —
+135 Т-Мобайл ru.tinkoff.mvno —
+136 СберЗдоровье ru.sberbank.sberhealth —
+137 Инвитро ru.invitro.android —
+138 Гемотест ru.gemotest.app —
+139 Медси ru.medsi.medsi —
+140 BestDoctor ru.bestdoctor.app —
+141 Авиакомпания Победа ru.pobeda.aero —
+142 Nordwind Airlines ru.nordwindairlines.app —
+143 Smartavia ru.smartavia.app —
+144 BelkaCar ru.belkacar.belkacar —
+145 Яндекс Драйв ru.yandex.drive —
+146 Яндекс Про (Таксометр) ru.yandex.taximeter —
+147 Стрелка (Транспорт) ru.strelka —
+148 Город (Лояльность Тройки) ru.gorodmoskvichi —
+149 Метро Москвы ru.mosmetromobile —
+150 Моя Москва ru.mos.app —
+151 Госуслуги Бизнес ru.gosuslugi.business —
+152 МФЦ (Мои Документы) ru.mfc.mobile —
+153 Налоги ФЛ (ЛК ФНС) ru.fns.lkfl —
+154 ФССП (Приставы) ru.fssp.app —
+155 Социальный навигатор ru.fss.socialnavigator —
+156 Электронный дневник (МЭШ) ru.mos.dnevnik —
+157 Учи.ру ru.uchiru.android —
+158 Stepik org.stepik.android —
+159 Skyeng ru.skyeng.words —
+160 Skillbox ru.skillbox.app —
+161 Технопарк ru.technopark.app —
+162 Holodilnik.ru ru.holodilnik.android —
+163 СберЛогистика ru.sberlogistics.app —
+164 Boxberry ru.boxberry.app —
+165 CDEK Shopping ru.cdek.shopping —
+166 Яндекс Ключ (2FA) ru.yandex.key —
+167 Kaspersky Safe Kids com.kaspersky.safekids —
+168 Dr.Web Security Space com.drweb —
+169 Алиса (Умный дом) ru.yandex.iot —
+170 Салют (Sber) ru.sberbank.salute —
+171 VK Звонки com.vk.calls —
+172 TamTam (ТамТам) com.tamtam.chats —
+173 ICQ New com.icq.mobile.client —
+174 Mamba (Знакомства) ru.mamba.client —
+175 LovePlanet com.loveplanet.android —
+176 Zaycev.net (Музыка) com.zaycev.music —
+177 Радио Рекорд ru.radiorecord —
+178 My Games (Mail.ru) ru.mail.games.app —
+179 VK Play ru.vk.play —
+180 Яндекс Игры ru.yandex.games —
+181 Яндекс Переводчик ru.yandex.translate —
+182 ABBYY Lingvo com.abbyy.mobile.lingvo.market —
+183 PROMT.One ru.promt.tr.android —
+184 ГИС ЖКХ ru.gosuslugi.dom —
+185 БКС Мир Инвестиций ru.bcs.online.ib —
+186 Атон-лайн ru.atone.invest —
+187 Финам Трейд ru.finam.trade —
+188 Freedom Finance (RU) ru.ffin.bank —
+189 Магнит Аптека ru.tander.magnit.pharmacy —
+190 O'STIN ru.ostin.app —
+191 Demix ru.demix.app —
+192 СберСтрахование ru.sberins.life —
+193 Глобус (Ритейл) ru.globus.app —
+194 METRO (Cash & Carry) ru.metro.app —
+195 Заряд! (Пауэрбанки) ru.zaryad.app —
+196 Бери Заряд! ru.beribery.app —
+197 Power Now ru.powernow.app —
+198 OneTwoTrip com.onetwotrip.app —
+199 Level.Travel ru.level.travel —
+200 KudaGo com.kudago.android —
+№ Приложение Основной Package ID Дополнительные / Служебные пакеты
+201 Вкусно — и точка ru.vkusnoitochka.app —
+202 Такси Максим com.taxsee.taxsee ru.taxsee.driver (для водителей)
+203 Befree ru.befree.app —
+204 Zarina ru.zarina.app —
+205 Love Republic ru.loverepublic.app —
+206 Ralf Ringer ru.ralf.app —
+207 Henderson ru.henderson.app —
+208 Finn Flare ru.finnflare.app —
+209 Zolla ru.zolla.app —
+210 SberKids ru.sberbank.sberkids —
+211 Home Bank (Хоум) ru.homecredit.itools —
+212 Банк Зенит ru.zenit.android —
+213 Экспобанк ru.expobank.mobile —
+214 Банк Солидарность ru.solidarnost.mobile —
+215 Азиатско-Тихоокеанский Банк ru.atb.mobile —
+216 Примсоцбанк ru.primsotsbank.mobile —
+217 Новикомбанк ru.novikom.mobile —
+218 Ингосстрах Инвестиции ru.ingosinvest.mobile —
+219 СберНПФ ru.sbernpf.app —
+220 Тануки (Доставка) ru.tanuki.android —
+221 Якитория ru.yakitoriya.android —
+222 Farfor (Фарфор) ru.farfor.app —
+223 Mybox ru.mybox.app —
+224 FoodBand ru.foodband.app —
+225 Много Лосося ru.mnogolososya.app —
+226 Горздрав ru.gorzdrav.app —
+227 36.6 ru.366.app —
+228 Ригла ru.rigla.app —
+229 Живика ru.zhivika.app —
+230 Будь Здоров! ru.budzdorov.app —
+231 СберЕаптека (Партнер) ru.eapteka.partner —
+232 Смотрим (ВГТРК) ru.vgtrk.smotrim —
+233 НТВ (Эфир и архив) ru.ntv.news —
+234 Первый канал ru.1tv.app —
+235 Матч! (Спорт) ru.matchtv.app —
+236 СТК (Телеканал) ru.ctc.app —
+237 Москва 24 ru.m24.app —
+238 Радиостанция 101.ru ru.radio101 —
+239 Европа Плюс ru.europaplus —
+240 Авторадио ru.avtoradio —
+241 Контур.Диадок ru.skbkontur.diadoc —
+242 Контур.Эльба ru.skbkontur.elba —
+243 СБИС (Sbis) ru.tensor.sbis ru.tensor.messenger (Мессенджер)
+244 КонсультантПлюс ru.consultant.android —
+245 Гарант (База знаний) ru.garant.app —
+246 МойСклад ru.moysklad.app —
+247 Такском-Файлер ru.taxcom.filer —
+248 Эвотор ru.evotor.app —
+249 1С:Заказы com.e1c.orders —
+250 Bitrix24 (Битрикс24) bitrix24.android.online —
+251 Фоксфорд (Foxford) ru.foxford.app —
+252 ЯКласс ru.yaklass.app —
+253 Дневник.ру ru.dnevnik.android —
+254 Сферум (VK) ru.spherum.app —
+255 Умная Бумага ru.smartpaper.app —
+256 MGTS (МГТС Мой) ru.mgts.selfcare —
+257 ТТК (Мой ТТК) ru.ttk.selfcare —
+258 Ростелеком Ключ ru.rt.key —
+259 Умный Дом (билайн) ru.beeline.smarthome —
+260 МТС Юрент ru.urent.app (Уже упоминалось, высокий охват)
+261 Активный Гражданин ru.mos.ag —
+262 Наш город (Москва) ru.mos.gorod —
+263 Народный контроль ru.iteco.rt.nk (Региональные версии)
+264 Твой Дом (Ритейл) ru.tvoydom.app —
+265 Твой Парк ru.yourpark —
+266 Каршеринг Сити com.citymobil.carsharing —
+267 Транспорт Подмосковья ru.mta.app —
+268 Ярославль Транспорт ru.yar.transport —
+269 Казань Транспорт ru.kazan.transport —
+270 Горький (Книги) ru.gorky.media —
+271 Читай-город ru.chitai_gorod.app —
+272 Буквоед ru.bookvoed.app —
+273 ЛитРес: Школа ru.litres.school —
+274 Storytel (RU версия) com.storytel.storytel (После локализации)
+275 Pikabu (Пикабу) ru.pikabu.android —
+276 Sports.ru com.tribuna.sports —
+277 Чемпионат ru.sup.championat —
+278 РБК (Новости) ru.rbc.news —
+279 Коммерсантъ ru.kommersant.app —
+280 Ведомости ru.vedomosti.app —
+281 Кинопоиск (для ТВ) ru.kinopoisk.ott —
+282 Триколор Кино и ТВ com.tricolor.tv —
+283 НТВ-Плюс ТВ ru.ntvplus.tv —
+284 МегаФон ТВ ru.megafon.tv —
+285 Билайн ТВ ru.beeline.tv —
+286 Tinder (Аналоги РФ: Twinby) com.twinby.app —
+287 Teamo ru.teamo.android —
+288 Pure (RU dev) com.getpure.pure —
+289 Badoo (Аналог: Beboo) ru.beboo.app —
+290 Киноход ru.kinohod.app —
+291 Афиша ru.afisha.android —
+292 Kassir.ru ru.kassir.app —
+293 Yandex Ticket ru.yandex.ticket —
+294 Яндекс Карта (SDK/B2B) ru.yandex.yandexmaps.b2b —
+295 SberFood ru.sberfood.app —
+296 Кошелёк ru.cardsmobile.wm —
+297 Stocard (RU-аналог) ru.koshelek.android (Пересекается с Кошельком)
+298 Бонус Плюс ru.bonusplus —
+299 Едадилок (Сканер) ru.edadil.scanner —
+300 SuperStep ru.superstep.app —
+301 Street Beat ru.streetbeat.app —
+302 Quik (RU брокеры) com.arqatech.quik —
+303 Метриум ru.metrium.app —
+304 Этажи ru.etagi.app —
+305 Яндекс Пробки (Виджет) ru.yandex.traffic —
+306 Gismeteo com.gismeteo.it —
+307 Метеовести ru.fobos.meteovesti —
+308 Avia.tutu ru.tutu.avia —
+309 BlaBlaCar (RU сегмент) com.comuto.app (Локализованная поддержка)
+310 InDrive (RU наследие) sinet.startup.inDriver —
+311 Почта Крым ru.crimeapost.app —
+312 РНКБ 24/7 com.rncb.mobile —
+313 Генбанк ru.genbank.mobile —
+314 Банк «Россия» ru.abr.mobile —
+315 Энергомашбанк ru.energomash.mobile —
+316 СМП Банк ru.smpbank.mobile —
+317 Транскапиталбанк ru.tkb.mobile —
+318 Инвестторгбанк ru.itb.mobile —
+319 Ланта-Банк ru.lanta.mobile —
+320 Металлинвестбанк ru.metallinvest.mobile —
+321 СДЭК ID ru.cdek.id —
+322 DPD Russia ru.dpd.app —
+323 ПЭК (Грузоперевозки) ru.pecom.app —
+324 Деловые Линии ru.dellin.app —
+325 Энергия (ТК) ru.nrg_tk.app —
+326 Байкал Сервис ru.baikalsr.app —
+327 Яндекс Доставка ru.yandex.delivery —
+328 Достависта ru.dostavista.app —
+329 Pony Express ru.ponyexpress.app —
+330 Major Express ru.major.express —
+331 Билет.рф ru.biletrf.app —
+332 Спорт-Экспресс ru.sportexpress.app —
+333 Советский Спорт ru.sovsport.app —
+334 ТАСС (Новости) ru.tass.app —
+335 РИА Новости ru.ria.news —
+336 Интерфакс ru.interfax.app —
+337 Аргументы и Факты ru.aif.app —
+338 Lenta.ru ru.lenta.app —
+339 Gazeta.ru ru.gazeta.app —
+340 Baza (Медиа) ru.baza.app —
+341 Meduza (Архив/RU) io.meduza.android —
+342 The Bell ru.thebell.app —
+343 VC.ru ru.vc.app —
+344 DTF ru.dtf.app —
+345 Habr (Хабр) ru.habrahabr.app —
+346 Tproger ru.tproger.app —
+347 GeekBrains ru.geekbrains.app —
+348 Netology (Нетология) ru.netology.app —
+349 LinguaLeo (RU-офис) com.lingualeo.android —
+350 Puzzle English com.puzzleenglish.app —
+№ Приложение Основной Package ID Категория / Примечание
+351 Мосэнергосбыт ru.onlc.mosenergosbyt ЖКХ (Москва и МО)
+352 ТНС энерго ru.tns_e.pda ЖКХ (Региональный энергосбыт)
+353 Интер РАО (ЛКК) ru.interrao.lkk Энергоснабжение
+354 Квадра ru.quadra.lk Теплоснабжение
+355 Газпром межрегионгаз ru.smorodina.gaz Газоснабжение
+356 Мособлгаз ru.mosoblgaz.lkk Газоснабжение (МО)
+357 ЕИРЦ СПб ru.eirc.spb ЖКХ (Санкт-Петербург)
+358 Платосфера ru.nses.pda Оплата ЖКХ без комиссии
+359 Квартплата+ ru.faktura.kvartplata Платежный сервис ЖКХ
+360 Дом.Клик (Аренда) ru.domclick.rent Недвижимость
+361 Юнистрим com.unistream.moneytransfer Денежные переводы
+362 Золотая Корона ru.ftc.korona.moneytransfer Денежные переводы
+363 Contact ru.contact_sys.mobile Денежные переводы
+364 МТС Cashback ru.mts.cashback Программа лояльности
+365 Мультибонус (ВТБ) ru.vtb.multibonus Программа лояльности
+366 Ренессанс Страхование ru.renins.mobile Страхование
+367 АльфаСтрахование ru.alfastrah.mobile Страхование
+368 S7 Priority ru.s7.priority Программа лояльности авиа
+369 Аэрофлот Бонус ru.aeroflot.bonus (Встроено в основной пакет)
+370 Уральские Авиалинии ru.uralairlines.app Авиалинии
+371 NordStar ru.nordstar.app Авиалинии
+372 I'm (Таксовичкоф) ru.taxovichkof.app Такси (СПб/Регионы)
+373 Везёт (Такси) ru.rutaxi.app Такси
+374 Омега (Такси) com.omega.taxi Такси
+375 Red Taxi ru.redtaxi.app Такси
+376 Ситидрайв (Партнер) ru.citidrive.courier Логистика
+377 Метро (Схема) ru.metro.scheme Транспорт
+378 Пригород (РЖД) ru.vpp.prigorod Пригородные поезда
+379 Туту Электрички ru.tuturu.elektrichki Расписание
+380 Яндекс Электрички ru.yandex.suburban Расписание
+381 Умный транспорт ru.bus62.smarttransport Мониторинг автобусов
+382 Транспорт Байкала ru.baikal.transport Региональный транспорт
+383 О'КЕЙ ru.okmarket.app Ритейл
+384 Верный ru.verny.app Ритейл
+385 Монетка ru.monetka.app Ритейл
+386 Дикси ru.dixy.app Ритейл
+387 Ярче! ru.yarche.app Ритейл
+388 Командор ru.komandor.app Ритейл
+389 Самбери ru.samberi.app Ритейл (ДВ)
+390 Аллея (Ритейл) ru.alleya.app Ритейл
+391 Макси ru.maxi.app Ритейл
+392 Слата ru.slata.app Ритейл
+393 Бристоль ru.bristol.app Алкогольный ритейл
+394 Winelab ru.winelab.app Алкогольный ритейл
+395 Ароматный Мир ru.aromatnyimir.app Алкогольный ритейл
+396 Ladoga (Ладога) ru.ladoga.app Алкогольный ритейл
+397 SimpleWine ru.simplewine.app Алкогольный ритейл
+398 Familia (Фамилия) ru.familia.app Одежда (дискаунтер)
+399 Offprice ru.offprice.app Одежда (дискаунтер)
+400 Fix Price (Старый) com.fixprice.app Лояльность
+401 Ситилинк ru.citilink Техника и электроника
+402 ОнлайнТрейд ru.onlinetrade Техника
+403 Pult.ru ru.pult.app Hi-Fi техника
+404 Audiomania ru.audiomania.app Аудиотехника
+405 ВсеИнструменты.ру ru.vseinstrumenti.app Строительство
+406 Кувалда.ру ru.kuvalda.app Строительство
+407 Стройландия ru.stroylandiya.app Строительство
+408 Бауцентр ru.baucenter.app Строительство
+409 Максидом ru.maxidom.app Строительство
+410 Твой Дом ru.tvoydom.app ТЦ/Строительство
+411 Аскона ru.askona.app Мебель/Матрасы
+412 Орматек ru.ormatek.app Мебель
+413 Мария (Кухни) ru.marya.app Мебель
+414 Lazurit ru.lazurit.app Мебель
+415 Шатура ru.shatura.app Мебель
+416 Домкрат ru.domkrat.app Стройка
+417 Sinsay (RU) ru.lppsa.sinsay Одежда
+418 Reserved (RU) ru.lppsa.reserved Одежда
+419 House (RU) ru.lppsa.house Одежда
+420 Cropp (RU) ru.lppsa.cropp Одежда
+421 Lichi ru.lichi.app Одежда
+422 Lime (Лайм) ru.lime.app Одежда
+423 12 Storeez ru.12storeez.app Одежда
+424 Love Republic ru.loverepublic.app Одежда
+425 Befree ru.befree.app Одежда
+426 Henderson ru.henderson.app Мужская одежда
+427 Kanzler ru.kanzler.app Мужская одежда
+428 Snow Queen ru.snowqueen.app Снежная Королева
+429 Ekonika ru.ekonika.app Обувь
+430 Respect ru.respect.app Обувь
+431 Zenden ru.zenden.app Обувь
+432 Rendez-Vous ru.rendezvous.app Обувь
+433 Santehnika-Online ru.santehnika.online Сантехника
+434 Читай-город ru.chitai_gorod.app Книги
+435 Буквоед ru.bookvoed.app Книги
+436 Книжный Лабиринт ru.labirint.app Книги
+437 Альпина ru.alpina.app Книги
+438 Горздрав ru.gorzdrav.app Аптека
+439 36.6 ru.366.app Аптека
+440 Ригла ru.rigla.app Аптека
+441 Будь Здоров! ru.budzdorov.app Аптека
+442 Живика ru.zhivika.app Аптека
+443 Фармленд ru.farmlend.app Аптека (Башкортостан/Регионы)
+444 Вита ru.vita.app Аптека
+445 Планета Здоровья ru.planetazdorovya.android Аптека
+446 Аптека от склада ru.aptekaotsklada.app Аптека
+447 Лекоптторг ru.lekopttorg.app Аптека
+448 Самсон-Фарма ru.samsonpharma.app Аптека
+449 На Поправку ru.napopravku.app Запись к врачу
+450 МедТочка ru.medtochka.app Медицинская карта
+451 ПроДокторов ru.prodoktorov.app Отзывы о врачах
+452 DocDoc (СберЗдоровье) ru.docdoc.client Медицина
+453 Клиника Фомина ru.fomin.clinic Медицина
+454 Мать и Дитя ru.mamadeti.app Медицина
+455 EMC (Европейский медцентр) ru.emc.app Медицина
+456 Ситилаб ru.citilab.app Лаборатория
+457 Хеликс ru.helix.app Лаборатория
+458 Инвитро ru.invitro.android Лаборатория
+459 Гемотест ru.gemotest.app Лаборатория
+460 LabQuest ru.labquest.app Лаборатория
+461 ЧекСкан ru.checkscan.app Кэшбэк по чекам
+462 Biglion ru.biglion.app Купоны
+463 КупиКупон ru.kupikupon.app Купоны
+464 Gilmon ru.gilmon.app Купоны
+465 Zoon ru.zoon.app Рекомендательный сервис
+466 KudaGo com.kudago.android Афиша
+467 Афиша КП ru.kp.afisha Афиша
+468 Яндекс Билеты ru.yandex.ticket Билеты
+469 Kassir.ru ru.kassir.app Билеты
+470 Ticketland ru.ticketland.app Билеты
+471 Ponominalu ru.ponominalu.app Билеты
+472 Киноход ru.kinohod.app Кино билеты
+473 Рамблер/касса ru.rambler.kassa Кино билеты
+474 Киномакс ru.kinomax.app Сеть кинотеатров
+475 Синема Парк / Формула Кино ru.cinemapark.app Кинотеатры
+476 Каро Фильм ru.karofilm.app Кинотеатры
+477 Мори Синема ru.mori.cinema Кинотеатры
+478 Премьер Зал ru.premierhall.app Кинотеатры
+479 Смотрим (ВГТРК) ru.vgtrk.smotrim ТВ-платформа
+480 Первый (1TV) ru.1tv.app ТВ
+481 НТВ ru.ntv.news ТВ
+482 ТНТ-Club ru.tntclub.app Развлечения
+483 СТС ru.ctc.app ТВ
+484 Домашний ru.domashniy.app ТВ
+485 Пятница! ru.friday.app ТВ
+486 ТВ-3 ru.tv3.app ТВ
+487 Матч! ru.matchtv.app Спорт ТВ
+488 Европа Плюс ru.europaplus Радио
+489 Дорожное Радио ru.dorognoe Радио
+490 Радио Рекорд ru.radiorecord Радио
+491 Авторадио ru.avtoradio Радио
+492 Радио Шансон ru.chanson Радио
+493 Русское Радио ru.rusradio Радио
+494 Наше Радио ru.nashe Радио
+495 DFM ru.dfm Радио
+496 Maximum ru.maximum Радио
+497 Вести FM ru.vestifm Радио
+498 Маяк ru.mayak Радио
+499 Business FM ru.bfm Радио
+500 Эхо (Живое Эхо) ru.echo.mobile Новости
+501 Habr (Хабр) ru.habrahabr.app Техно-сообщество
+502 GeekBrains ru.geekbrains.app Обучение
+503 Нетология ru.netology.app Обучение
+504 Skillbox ru.skillbox.app Обучение
+505 Skyeng ru.skyeng.words Английский язык
+506 Puzzle English com.puzzleenglish.app Английский язык
+507 LinguaLeo com.lingualeo.android Английский язык
+508 Stepik org.stepik.android Курсы
+509 Uchi.ru (Учи.ру) ru.uchiru.android Школьное образование
+510 Фоксфорд ru.foxford.app Школьное образование
+511 Дневник.ру ru.dnevnik.android Электронный дневник
+512 ЭлЖур ru.eljur.app Электронный журнал
+513 ЯКласс ru.yaklass.app Образование
+514 Сферум ru.spherum.app Образование/Мессенджер
+515 Битрикс24 bitrix24.android.online CRM / Корпоративный софт
+516 Мегаплан ru.megaplan.app CRM
+517 AmoCRM com.amocrm.app CRM
+518 МойСклад ru.moysklad.app Торговля/Склад
+519 СБИС ru.tensor.sbis ЭДО/Бизнес
+520 Диадок (Контур) ru.skbkontur.diadoc ЭДО
+521 Эльба (Контур) ru.skbkontur.elba Бухгалтерия
+522 Бухгалтерия.Контур ru.skbkontur.buh Бухгалтерия
+523 1С:Заказы com.e1c.orders Мобильная торговля
+524 1С:Мобильная касса com.e1c.mobilecash Касса
+525 МойОфис Документы com.ncloudtech.clouddoc Офисный пакет
+526 Р7-Офис ru.r7_office.documents Офисный пакет
+527 TrueConf com.trueconf.videochat Видеосвязь
+528 Jazz by Sber ru.sberbank.jazz Видеосвязь
+529 IVA (ИВА) ru.iva.app Видеосвязь
+530 Vinteo ru.vinteo.app Видеосвязь
+531 ПИК (Личный кабинет) ru.pik.app Застройщик
+532 Самолет (Личный кабинет) ru.samolet.app Застройщик
+533 ЛСР (Личный кабинет) ru.lsr.app Застройщик
+534 Эталон ru.etalon.app Застройщик
+535 А101 ru.a101.app Застройщик
+536 Циан (Агенты) mobi.cian.agents Недвижимость
+537 Авито Работа ru.agsoft.avito.job Поиск сотрудников
+538 Superjob (Работа) ru.superjob.android.client Работа
+539 Работа.ру ru.rabota.app Работа
+540 Зарплата.ру ru.zarplata.app Работа
+541 Профи (Специалист) ru.profi.specialist Услуги
+542 YouDo (Исполнитель) ru.youdo.worker Услуги
+543 Яндекс Про (Курьер) ru.yandex.courier Логистика
+544 Достависта (Курьер) ru.dostavista.courier Логистика
+545 СДЭК Посылки ru.cdek.app Логистика
+546 Boxberry (Личный каб) ru.boxberry.app Логистика
+547 ПЭК (Личный каб) ru.pecom.app Логистика
+548 Деловые Линии (ЛК) ru.dellin.app Логистика
+549 Энергия (ТК) ru.nrg_tk.app Логистика
+550 Байкал Сервис ru.baikalsr.app Логистика
+551 Почта Крым ru.crimeapost.app Почта
+552 РНКБ (Крым) com.rncb.mobile Банк
+553 Генбанк (Крым) ru.genbank.mobile Банк
+554 Банк Россия ru.abr.mobile Банк
+555 Промсвязьбанк (ПСБ) ru.psbank.mobile.android Банк
+556 Новикомбанк ru.novikom.mobile Банк
+557 СМП Банк ru.smpbank.mobile Банк
+558 Алмазэргиэнбанк ru.albank.mobile Банк (Якутия)
+559 Челябэнергосбыт ru.esbt.lk ЖКХ
+560 ЕИРЦ РБ ru.eirc_rb.app ЖКХ (Башкортостан)
+561 Удмуртэнергосбыт ru.udmurtia.lk ЖКХ
+562 Самараэнерго ru.samaraenergo.lk ЖКХ
+563 Татэнергосбыт ru.tatenergosbyt.lk ЖКХ
+564 Энергосбыт Плюс ru.esplus.lk ЖКХ
+565 Владимирэнергосбыт ru.vladimir.lk ЖКХ
+566 Саратовэнерго ru.saratov.lk ЖКХ
+567 ТНС энерго Марий Эл ru.tns_e.mariel ЖКХ
+568 ТНС энерго Ростов ru.tns_e.rostov ЖКХ
+569 ТНС энерго НН ru.tns_e.nn ЖКХ
+570 ТНС энерго Тула ru.tns_e.tula ЖКХ
+571 Яндекс Маркет (Seller) ru.yandex.market.seller Для продавцов
+572 WB Partners ru.wildberries.seller Для продавцов
+573 Ozon Seller ru.ozon.seller Для продавцов
+574 KazanExpress Seller com.kazanexpress.seller Для продавцов
+575 Авито (Pro) ru.agsoft.avito.pro Для бизнеса
+576 2ГИС (Личный каб) ru.dublgis.dgismobile.business Для бизнеса
+577 ЮMoney (Бизнес) ru.yoomoney.business Финтех
+578 СБПэй ru.nspk.sbpay Платежи
+579 Мир Привет! ru.nspk.privet Лояльность карт Мир
+580 МТС Деньги ru.mts.money Кошелек
+581 МегаФон Банк ru.megafon.bank Кошелек (Архив)
+582 Tele2 Платежи ru.tele2.payments Кошелек
+583 Qiwi Кошелек ru.qiwi.wallet Финтех (Архив/Ограничен)
+584 WebMoney (RU) ru.webmoney.client Финтех
+585 Elecsnet (Элекснет) ru.elecsnet.wallet Финтех
+586 Золотое Яблоко (Мастер) ru.goldapple.master Сервис
+587 Л'Этуаль (Beauty) ru.letoile.beauty Сервис
+588 Рив Гош (Club) ru.rivegauche.club Лояльность
+589 Иль де Ботэ ru.iledebeaute.app Ритейл
+590 Sephora (RU) ru.sephora.app Ритейл
+591 Подружка ru.podrygka.app Ритейл
+592 Улыбка Радуги ru.r_ulybka.app Ритейл
+593 Магнит Косметик ru.tander.magnit.cosmetic Ритейл
+594 ВкусВилл (Доставка) ru.vkusvill.delivery Еда
+595 Кухня на районе ru.localkitchen.app Еда
+596 Много Лосося ru.mnogolososya.app Еда
+597 Тануки ru.tanuki.android Еда
+598 Якитория ru.yakitoriya.android Еда
+599 Dodo Pizza (Global) ru.dodopizza.app Еда
+600 Papa Johns (RU) ru.papajohns.app Еда
+601 Burger King (Loyalty) ru.burgerking.android Еда
+602 Вкусно - и точка ru.vkusnoitochka.app Еда
+603 Rostic's ru.rostics.app Еда
+604 Шоколадница ru.shoko.app Еда
+605 Кофемания ru.coffeemania.app Еда
+606 Cofix (Club) ru.cofix.app Еда
+607 One Price Coffee ru.onepricecoffee.app Еда
+608 Правда Кофе ru.pravdacoffee.app Еда
+609 Surf Coffee ru.surfcoffee.app Еда
+610 Skuratov Coffee ru.skuratov.app Еда
+611 Stars Coffee ru.starscoffee.app Еда
+612 Prime (Прайм) ru.prime_star.app Еда
+613 Хлеб Насущный ru.painquotidien.app Еда
+614 Буше ru.bushe.app Еда
+615 ЛюдиЛюбят ru.ludilove.app Еда
+616 Цех 85 ru.ceh85.app Еда
+617 Теремок (Лояльность) ru.teremok.app Еда
+618 Крошка Картошка ru.kartoshka.app Еда
+619 Му-Му ru.mumu.app Еда
+620 Грабли ru.grabli.app Еда
+621 Kaspersky QR Scanner com.kaspersky.qrscanner Утилита
+622 Kaspersky Who Calls com.kaspersky.whocalls Утилита
+623 Яндекс Определитель ru.yandex.searchplugin (Часть основного Яндекса)
+624 Getcontact (RU сегмент) com.getcontact Утилита (локализованная)
+625 NumBuster com.numbuster.android Утилита
+626 Truecaller (RU сегмент) com.truecaller Утилита
+627 CallApp (RU сегмент) com.callapp.contacts Утилита
+628 Who Calls (Сбер) ru.sberbank.whocalls Утилита
+629 Антиколлектор ru.anticollector.app Утилита
+630 Не бери трубку org.mistergroup.shouldianswer Утилита
+631 Госуслуги (Регион) ru.gosuslugi.regional Госсервисы
+632 Активный Гражданин ru.mos.ag Москва
+633 Наш Город ru.mos.gorod Москва
+634 Город Дорог ru.mos.dorogi Москва
+635 Парковки России ru.mos.parking Транспорт
+636 Тройка (Пополнение) ru.mos.troika Транспорт
+637 Метро Москвы ru.mosmetromobile Транспорт
+638 Велобайк ru.velobike.app Транспорт
+639 Whoosh whoosh.bike Транспорт
+640 Urent ru.urent.app Транспорт
+641 BusyFly ru.busyfly.app Транспорт
+642 Lite (Самокаты) ru.lite.app Транспорт
+643 Molnia (Самокаты) ru.molnia.app Транспорт
+644 Yandex Go (Drive) ru.yandex.drive Транспорт
+645 Ситидрайв ru.citidrive Транспорт
+646 Делимобиль ru.delimobil Транспорт
+647 BelkaCar ru.belkacar Транспорт
+648 Anytime (RU) ru.anytime.app Транспорт
+649 Car5 ru.car5.app Транспорт
+650 Rentmee ru.rentmee.app Транспорт

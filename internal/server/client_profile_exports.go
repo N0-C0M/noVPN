@@ -123,6 +123,10 @@ func (a *adminApp) clientSubscriptionURL(clientUUID string) string {
 	if base == "" || clientUUID == "" {
 		return ""
 	}
+	shortBase := strings.TrimRight(strings.TrimSuffix(base, a.basePath), "/")
+	if shortBase != "" {
+		return shortBase + "/s/" + url.PathEscape(clientUUID)
+	}
 	return base + "/client/subscription?client_uuid=" + url.QueryEscape(clientUUID)
 }
 
@@ -148,10 +152,7 @@ func (a *adminApp) resolveClientProfiles(clientID string, clientUUID string, dev
 				continue
 			}
 		} else {
-			if clientUUID != "" && client.UUID != clientUUID {
-				continue
-			}
-			if deviceID != "" && client.DeviceID != deviceID {
+			if !clientMatchesSelectors(client, clientUUID, deviceID) {
 				continue
 			}
 		}
@@ -181,4 +182,35 @@ func firstNonEmptyString(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func clientMatchesSelectors(client reality.ClientRecord, clientUUID string, deviceID string) bool {
+	clientUUID = strings.TrimSpace(clientUUID)
+	deviceID = strings.TrimSpace(deviceID)
+	if clientUUID == "" && deviceID == "" {
+		return false
+	}
+	if clientUUID != "" && client.UUID != clientUUID {
+		return false
+	}
+	if deviceID != "" && !clientHasDevice(client, deviceID) {
+		return false
+	}
+	return true
+}
+
+func clientHasDevice(client reality.ClientRecord, deviceID string) bool {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return false
+	}
+	if client.DeviceID == deviceID {
+		return true
+	}
+	for _, observed := range client.ObservedDevices {
+		if observed.DeviceID == deviceID {
+			return true
+		}
+	}
+	return false
 }

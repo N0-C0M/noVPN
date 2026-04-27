@@ -24,13 +24,13 @@ type RegistryStore struct {
 }
 
 type Registry struct {
-	Version           int            `json:"version"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-	Server            RegistryServer `json:"server"`
-	BootstrapClientID string         `json:"bootstrap_client_id,omitempty"`
-	Invites           []InviteRecord `json:"invites,omitempty"`
-	Promos            []PromoRecord  `json:"promos,omitempty"`
-	Clients           []ClientRecord `json:"clients,omitempty"`
+	Version           int                   `json:"version"`
+	UpdatedAt         time.Time             `json:"updated_at"`
+	Server            RegistryServer        `json:"server"`
+	BootstrapClientID string                `json:"bootstrap_client_id,omitempty"`
+	Invites           []InviteRecord        `json:"invites,omitempty"`
+	Promos            []PromoRecord         `json:"promos,omitempty"`
+	Clients           []ClientRecord        `json:"clients,omitempty"`
 	BlockedDevices    []BlockedDeviceRecord `json:"blocked_devices,omitempty"`
 }
 
@@ -149,7 +149,7 @@ type BlockedDeviceRecord struct {
 }
 
 type BlacklistResult struct {
-	Client         ClientRecord         `json:"client"`
+	Client         ClientRecord          `json:"client"`
 	BlockedDevices []BlockedDeviceRecord `json:"blocked_devices"`
 }
 
@@ -419,6 +419,10 @@ func (s *RegistryStore) ObserveSubscriptionDevice(clientUUID string, deviceID st
 		changed bool
 	)
 	_, err := s.Update(func(registry *Registry) error {
+		if blocked := registry.findBlockedDevice(normalizedObservedDeviceID); blocked != nil {
+			return fmt.Errorf("device %q is blacklisted", normalizedObservedDeviceID)
+		}
+
 		var client *ClientRecord
 		if normalizedUUID != "" {
 			client = registry.findBoundClientByUUID(normalizedUUID)
@@ -467,6 +471,9 @@ func (s *RegistryStore) ObserveSubscriptionDevice(clientUUID string, deviceID st
 				record.LastSeenAt = seenAt
 				changed = true
 			}
+			if changed {
+				client.UpdatedAt = seenAt
+			}
 			updated = *client
 			return nil
 		}
@@ -483,6 +490,7 @@ func (s *RegistryStore) ObserveSubscriptionDevice(clientUUID string, deviceID st
 		sort.SliceStable(client.ObservedDevices, func(i, j int) bool {
 			return client.ObservedDevices[i].FirstSeenAt.Before(client.ObservedDevices[j].FirstSeenAt)
 		})
+		client.UpdatedAt = seenAt
 		changed = true
 		updated = *client
 		return nil
@@ -872,10 +880,69 @@ func (s *RegistryStore) DisconnectDevice(deviceID string, clientUUID string) (Cl
 	if normalizedDeviceID == "" {
 		return ClientRecord{}, errors.New("device_id is required")
 	}
+	var updated ClientRecord
+	_, err := s.Update(func(registry *Registry) error {
+		if client := registry.findBoundClientByDeviceAndUUID(normalizedDeviceID, normalizedUUID); client != nil {
+			now := time.Now().UTC()
+			client.Active = false
+			client.RevokedAt = &now
+			client.TrafficBlockedAt = nil
+			client.UpdatedAt = now
+			updated = *client
+			return nil
+		}
 
-	return s.deactivateClient(func(registry *Registry) *ClientRecord {
-		return registry.findBoundClientByDeviceAndUUID(normalizedDeviceID, normalizedUUID)
+		client := registry.findBoundClientByUUID(normalizedUUID)
+		if client == nil {
+			return errors.New("client not found")
+		}
+		now := time.Now().UTC()
+		removed := false
+		filtered := make([]ObservedDeviceRecord, 0, len(client.ObservedDevices))
+		for _, record := range client.ObservedDevices {
+			if record.DeviceID == normalizedDeviceID {
+				removed = true
+				continue
+			}
+			filtered = append(filtered, record)
+		}
+		if !removed {
+			return errors.New("device not found")
+		}
+		blocked := registry.findBlockedDevice(normalizedDeviceID)
+		if blocked == nil {
+			registry.BlockedDevices = append(registry.BlockedDevices, BlockedDeviceRecord{
+				DeviceID:   normalizedDeviceID,
+				DeviceName: normalizedDeviceID,
+				ClientID:   client.ID,
+				ClientUUID: client.UUID,
+				Reason:     "device disconnected",
+				Source:     "manual-disconnect",
+				BlockedAt:  now,
+			})
+			blocked = &registry.BlockedDevices[len(registry.BlockedDevices)-1]
+		}
+		if blocked.ClientID == "" {
+			blocked.ClientID = client.ID
+		}
+		if blocked.ClientUUID == "" {
+			blocked.ClientUUID = client.UUID
+		}
+		if blocked.Reason == "" {
+			blocked.Reason = "device disconnected"
+		}
+		if blocked.Source == "" {
+			blocked.Source = "manual-disconnect"
+		}
+		if blocked.BlockedAt.IsZero() {
+			blocked.BlockedAt = now
+		}
+		client.ObservedDevices = filtered
+		client.UpdatedAt = now
+		updated = *client
+		return nil
 	})
+	return updated, err
 }
 
 func (s *RegistryStore) deactivateClient(resolve func(*Registry) *ClientRecord) (ClientRecord, error) {

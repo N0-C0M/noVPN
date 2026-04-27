@@ -1,0 +1,3 @@
+ninja: Entering directory `D:\projekt\noVPN\client\android\app\build-novpn\cxx\RelWithDebInfo\j6s1cq3h\armeabi-v7a'
+[1/2] Building CXX object CMakeFiles/novpn_tun2proxy_jni.dir/tun2proxy_jni.cpp.o
+[2/2] Linking CXX shared library D:\projekt\noVPN\client\android\app\build-novpn\intermediates\cxx\RelWithDebInfo\j6s1cq3h\obj\armeabi-v7a\libnovpn_tun2proxy_jni.so

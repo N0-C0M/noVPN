@@ -1,0 +1,4 @@
+#Tue Apr 14 17:08:54 SAMT 2026
+base.0=D\:\\projekt\\noVPN\\client\\android\\app\\build-novpn\\intermediates\\dex\\release\\minifyReleaseWithR8\\classes.dex
+renamed.0=classes.dex
+path.0=classes.dex

@@ -123,8 +123,30 @@ func TestClientSubscriptionURLUsesPublicBaseURL(t *testing.T) {
 	}
 
 	got := app.clientSubscriptionURL("11111111-1111-1111-1111-111111111111")
-	want := "https://panel.example.com/admin/client/subscription?client_uuid=11111111-1111-1111-1111-111111111111"
+	want := "https://panel.example.com/s/11111111-1111-1111-1111-111111111111"
 	if got != want {
 		t.Fatalf("unexpected subscription URL: got %q want %q", got, want)
+	}
+}
+
+func TestClientMatchesSelectorsIncludesObservedDevices(t *testing.T) {
+	t.Parallel()
+
+	client := reality.ClientRecord{
+		UUID:     "uuid-1",
+		DeviceID: "desktop-1",
+		ObservedDevices: []reality.ObservedDeviceRecord{
+			{DeviceID: "android-1", DeviceName: "Pixel 9"},
+		},
+	}
+
+	if !clientMatchesSelectors(client, "uuid-1", "android-1") {
+		t.Fatalf("expected observed device to match client selectors")
+	}
+	if !clientMatchesSelectors(client, "", "android-1") {
+		t.Fatalf("expected observed device to match without client uuid")
+	}
+	if clientMatchesSelectors(client, "uuid-2", "android-1") {
+		t.Fatalf("expected mismatched client uuid to fail selector match")
 	}
 }

@@ -1,0 +1,165 @@
+№ Название сайта Домен Категория Владелец / Компания
+1 ВКонтакте vk.com Социальная сеть VK Group
+
+3 LiveJournal livejournal.com Блогосфера Rambler&Co
+4 Habr habr.com IT-сообщество / Медиа Хабр Блокчейн Лаб
+5 Gismeteo gismeteo.com Погода НПЦ «Мэп Мейкер»
+6 Ivi ivi.tv Онлайн-кинотеатр ООО «Иви.ру»
+7 Okko okko.tv Онлайн-кинотеатр Okko (входит в экосистему Сбера)
+8 Kaspersky kaspersky.com Кибербезопасность «Лаборатория Касперского»
+9 Litres litres.com Электронные книги Группа компаний «ЛитРес»
+10 Aviasales aviasales.com Поиск авиабилетов Go Travel Un Limited (Основан К. Калиновым)
+№ Название сайта Домен Категория Владелец / Компания (Основатели)
+11 Yandex yandex.com Поисковик / IT-экосистема МКПАО «Яндекс»
+12 https://www.google.com/search?q=My.com my.com Игры и почтовые сервисы VK Group
+13 Tilda tilda.cc Конструктор сайтов Tilda Publishing (Н. Обухов)
+14 Premier premier.one Онлайн-кинотеатр «Газпром-Медиа»
+15 Bitrix24 bitrix24.com CRM и корпоративный портал «1С-Битрикс»
+16 inDrive indrive.com Сервис заказа такси inDrive (А. Томский, осн. в Якутске)
+17 Dodo Pizza dodopizza.com Сеть пиццерий / FoodTech Dodo Brands (Ф. Овчинников)
+18 Playrix playrix.com Мобильные игры Playrix (Бр. Бухманы, осн. в Вологде)
+19 Miro miro.com Интерактивные онлайн-доски Miro (А. Хусид, осн. в Перми)
+20 JetBrains jetbrains.com Инструменты для разработчиков JetBrains (Осн. выходцами из РФ)
+21 Nginx nginx.org Веб-сервер Создан Игорем Сысоевым
+22 Xsolla xsolla.com Платежи для видеоигр Xsolla (А. Агапитов, осн. в Перми)
+23 QIWI qiwi.com Платежная система Группа QIWI
+24 Ecwid ecwid.com Платформа электронной коммерции Ecwid (Р. Фазлыев, осн. в Ульяновске)
+25 Stepik stepik.org Образовательная платформа ООО «Степик»
+№ Название сайта Домен Категория Владелец / Основатели
+15 Bitrix24 bitrix24.com CRM и корпоративный портал «1С-Битрикс»
+16 inDrive indrive.com Сервис заказа такси Арсен Томский
+17 Dodo Pizza dodopizza.com Сеть пиццерий / FoodTech Dodo Brands (Федор Овчинников)
+18 Playrix playrix.com Мобильные игры (Homescapes и др.) Братья Бухманы
+19 Miro miro.com Интерактивные онлайн-доски Андрей Хусид
+20 JetBrains jetbrains.com Инструменты для разработчиков С. Дмитриев, Е. Беляев, В. Кипятков
+21 Nginx nginx.org Веб-сервер Игорь Сысоев
+22 Xsolla xsolla.com Платежи для видеоигр Александр Агапитов
+23 QIWI qiwi.com Платежная система Группа QIWI
+24 Ecwid ecwid.com Платформа электронной коммерции Руслан Фазлыев
+25 Stepik stepik.org Образовательная платформа Николай Вяххи
+26 Badoo badoo.com Сеть знакомств Андрей Андреев
+27 Wrike wrike.com Управление проектами Андрей Филев
+28 TradingView tradingview.com Платформа для трейдеров К. Иванов, Д. Глоба
+29 Gaijin gaijin.net Разработчик игр (War Thunder) Братья Юдинцевы
+30 ZeptoLab zeptolab.com Разработчик игр (Cut the Rope) Братья Воиновы
+31 ClickHouse clickhouse.com Система управления базами данных Создана в Яндексе (А. Зайцев)
+32 Semrush semrush.com Аналитика для SEO и маркетинга О. Щеголев, Д. Мельников
+33 Prisma prisma-ai.com Обработка фото (AI) Алексей Моисеенков
+34 Lingualeo lingualeo.com Изучение языков Айнур Абдулнасыров
+35 Joom joom.com Маркетплейс Илья Широков
+36 Coub coub.com Видеохостинг (короткие цикличные видео) Братья Гладкобородовы
+37 Yaplakal yaplakal.com Развлекательное сообщество Независимые разработчики
+38 JoyReactor joyreactor.cc Развлекательный портал Независимые разработчики
+39 4PDA 4pda.to Сообщество мобильной техники Независимые разработчики
+40 Escape from Tarkov escapefromtarkov.com Многопользовательская игра Battlestate Games (Н. Буянов)
+41 RuTracker rutracker.org Крупнейший BitTorrent-трекер Dreamtorrent Corp
+42 Sci-Hub sci-hub.se Теневая библиотека научных статей Александра Элбакян
+43 Kwork kwork.com Биржа фриланса ООО «Мирафокс»
+44 WebMoney webmoney.com Электронная платежная система WM Transfer Ltd
+45 Dr.Web drweb.com Антивирусное ПО Игорь Данилов
+46 Acronis acronis.com Защита и резервное копирование данных С. Белоусов, И. Зубарев
+47 Parallels parallels.com Программное обеспечение (виртуализация) С. Белоусов, И. Зубарев
+48 Veeam veeam.com Резервное копирование виртуальных машин Р. Тимашев, А. Баронов
+49 Meduza meduza.io Новостное издание Галина Тимченко
+50 The Bell thebell.io Деловое издание Елизавета Осетинская
+№ Название сайта Домен Категория Компания / Основатель
+51 ABBYY abbyy.com ПО для распознавания текста Давид Ян
+52 Skyeng skyeng.com Онлайн-школа английского Г. Соловьев, Х. Шайхутдинов
+53 OneTwoTrip onetwotrip.com Сервис бронирования поездок Петр Кутис
+54 Tutu.travel tutu.travel Сервис путешествий Дмитрий Храпов
+55 Adguard adguard.com Блокировщик рекламы ООО «Адгард»
+56 FaceApp faceapp.com Фоторедактор с AI Ярослав Гончаров
+57 Flo Health flo.health Женское здоровье (AI) Дмитрий и Юрий Гурские
+58 My.Games my.games Игровая платформа VK Group (межд. бренд)
+59 Nexters nexters.com Мобильные игры (Hero Wars) А. Кардаш, Б. Герцовский
+60 Wamba wamba.com Сеть знакомств (межд. Mamba) Группа Mamba
+61 Topface topface.com Социальный дейтинг-сервис ООО «Топфейс»
+62 BestChange bestchange.com Мониторинг обменников Agretis Software Design
+63 1inch 1inch.io Крипто-агрегатор DEX С. Кунц, А. Швейченко
+64 Waves waves.tech Блокчейн-платформа Александр Иванов
+65 Ton.org ton.org Блокчейн экосистема Основан командой Telegram
+66 Gcore gcore.com Edge-решения и CDN Основана в Москве
+67 Selectel selectel.com Облачный провайдер ООО «Селектел»
+68 ISPmanager ispmanager.com Панель управления хостингом ISPmanager
+69 ISPSystem ispsystem.com Разработка серверного ПО ISPSystem
+70 FastReport fast-report.com Инструменты отчетности ООО «Фаст Репортс»
+71 AppFollow appfollow.io Аналитика магазинов приложений А. Шабаков, Е. Береснев
+72 Readymag readymag.com Инструмент для дизайна сайтов Антон Гладкобородов
+73 7-Zip 7-zip.org Архиватор Игорь Павлов
+74 Far Manager farmanager.com Файловый менеджер Евгений Рошал
+75 WinRAR rarlab.com Архиватор Евгений Рошал
+76 Mundfish mundfish.com Студия (Atomic Heart) Роберт Багратуни
+77 Saber Interactive saber.games Разработка игр М. Кассоф, А. Иосилевич
+78 Mytona mytona.com Мобильные игры (The Day Before) Братья Ушницкие (Якутия)
+79 Vizor Games vizor-games.com Социальные и моб. игры ООО «Визор Геймз»
+80 Belka Games belkagames.com Моб. игры (Clockmaker) ООО «Белка Геймз»
+81 Kefir Games kefirgames.com Моб. игры (Last Day on Earth) Андрей Пряхин
+82 Pixonic pixonic.com Моб. игры (War Robots) Входит в MY.GAMES
+83 Game Insight game-insight.com Глобальный издатель игр Алиса Чумаченко
+84 G5 Entertainment g5e.com Моб. игры Влад Суглобов
+85 Playgendary playgendary.com Моб. игры (Bowmasters) Дмитрий Шеленговский
+86 Owlcat Games owlcat.games RPG игры (Pathfinder) Олег Шпильчевский
+87 Zillion Whales zillionwhales.com Стратегические игры Андрей Коротков
+88 1C Entertainment 1cpublishing.eu Издатель игр Группа компаний 1С
+89 Innova 4game.com Игровая платформа (L2, RF Online) ООО «Иннова Дистрибьюшен»
+90 Z-Library z-lib.org Онлайн-библиотека Российские разработчики
+91 Library Genesis libgen.is Научная библиотека Российские разработчики
+92 Lordfilm lordfilm.com Сеть онлайн-кинотеатров Независимые владельцы
+93 HDRezka rezka.ag Видео-агрегатор Независимые владельцы
+94 LostFilm lostfilm.tv Студия озвучки и портал Андрей Кравец
+95 Kinopub kinopub.me Видеосервис Независимые владельцы
+96 NNM-Club nnmclub.to Торрент-трекер Независимые владельцы
+97 RetailCRM retailcrm.pro CRM для интернет-торговли RetailCRM
+98 AmoCRM amocrm.com CRM-система Михаил Токовинин
+99 JivoChat jivochat.com Бизнес-чат (межд. Jivosite) Тимур Валишев
+100 Carrot Quest carrotquest.io Платформа автоматизации марк. Дмитрий Сергеев
+101 Mindbox mindbox.cloud Платформа марк. автоматизации Иван Боровиков
+102 Roistat roistat.com Сквозная аналитика Герман Гаврилов
+103 Calltouch calltouch.net Коллтрекинг и аналитика ООО «Коллтач Солюшнс»
+104 Sipuni sipuni.com Облачная телефония ООО «Сипуни»
+105 Planfix planfix.com Система управления компанией Дмитрий Гончаренко
+106 Kaiten kaiten.io Визуальное управление задачами Артур Нек
+107 Weeek weeek.net Таск-менеджер Иван Мараховка
+108 YouGile yougile.com Agile-система управления ООО «Юджайл»
+109 Pyrus pyrus.com Управление бизнес-процессами Максим Нальский
+110 SingularityApp singularity-app.com Планировщик задач ООО «Сингулярити»
+111 Chaos Control chaos-control.me GTD-планировщик Дмитрий Тарасов
+112 Endel endel.io Звуковая терапия (AI) Олег Ставицкий
+113 Loóna loona.app Приложение для сна Команда MSQRD
+114 PeakVisor peakvisor.com AR-гид по горам Денис Ефремов
+115 Simple simple.life Трекер интервального голодания Алексей Решетников
+116 InSales insales.com Платформа для интернет-магаз. ООО «Инсейлс Рус»
+117 Searchanise searchanise.io Умный поиск для e-commerce ООО «Сёрчанайз»
+118 Eclypsium eclypsium.com Безопасность «железа» Евгений Кузнецов
+119 NtechLab ntechlab.com Распознавание лиц (AI) Артём Кухаренко
+120 Capture One captureone.com Фоторедактор (часть техн. из РФ) Phase One (актив из РФ)
+121 Wildberries wildberries.com Глобальный витринный сайт Татьяна Бакальчук
+122 Ozon Investor ozon.com Корпоративный портал Ozon Holdings
+123 2GIS (ME) 2gis.ae Карты (ОАЭ и межд. версии) Семья Сысоевых (Новосибирск)
+124 Yandex Games yandex.com/games Игровая платформа МКПАО «Яндекс»
+125 Lenta lenta.com Ритейл (межд. домен) ООО «Лента»
+126 Magnit magnit.com Ритейл (межд. домен) ПАО «Магнит»
+127 Severstal severstal.com Металлургия Алексей Мордашов
+128 Norilsk Nickel nornickel.com Добыча металлов Владимир Потанин
+129 Rosatom rosatom.com Ядерная энергетика ГК «Росатом»
+130 Sputnik sputniknews.com Новостное агентство МИА «Россия сегодня»
+131 RT rt.com Телеканал / Медиа АНО «ТВ-Новости»
+132 TASS tass.com Информагентство Правительство РФ
+133 Interfax interfax.com Информагентство Группа Интерфакс
+134 Moscow Times themoscowtimes.com Издание Дерк Сауэр
+135 Meduza (En) meduza.io/en Англоязычная версия медиа Галина Тимченко
+136 Paper Paper paperpaper.me Городская газета ООО «Бумага Медиа»
+137 Meduza Live meduza.io/live Спецпроекты медиа Галина Тимченко
+138 The Insider theins.ru (зеркало) Расследовательское издание Роман Доброхотов
+139 VPost vpost-media.com Экономическое издание Независимые журналисты
+140 Republic republic.ru (зеркало) Аналитическое издание ООО «Рипаблик»
+141 T-Bank (Invest) tinkoff.group Холдинговый сайт банка Т-Банк
+142 Sberbank (Int) sberbank.com Международный портал ПАО Сбербанк
+143 Alfabank (Group) alfabank.com Холдинговый сайт Альфа-Групп
+144 VTB Capital vtbcapital.com Инвестиционный банкинг Группа ВТБ
+145 Gazprom Int gazprom.com Энергетический гигант ПАО Газпром
+146 Lukoil lukoil.com Нефтяная компания ПАО Лукойл
+147 Rosneft rosneft.com Нефтяная компания ПАО Роснефть
+148 Tatneft tatneft.com Нефтяная компания ПАО Татнефть
+149 Surgutneftegas surgutneftegas.com Нефтяная компания ПАО Сургутнефтегаз
+150 Alrosa alrosa.com Добыча алмазов ПАО Алроса

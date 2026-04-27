@@ -1,0 +1,201 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="safety.turtle"
+4    android:versionCode="1"
+5    android:versionName="0.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:4:5-67
+11-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:4:22-64
+12    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+12-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:5:5-77
+12-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:5:22-74
+13    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+13-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:6:5-89
+13-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:6:22-86
+14    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+14-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:7:5-78
+14-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:7:22-75
+15
+16    <queries>
+16-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:9:5-14:15
+17        <intent>
+17-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:10:9-13:18
+18            <action android:name="android.intent.action.MAIN" />
+18-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:11:13-65
+18-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:11:21-62
+19
+20            <category android:name="android.intent.category.LAUNCHER" />
+20-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:12:13-73
+20-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:12:23-70
+21        </intent>
+22    </queries>
+23
+24    <permission
+24-->[androidx.core:core:1.15.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\3e85dc3a27e7bbf172ac49206d18ddee\transformed\core-1.15.0\AndroidManifest.xml:22:5-24:47
+25        android:name="safety.turtle.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+25-->[androidx.core:core:1.15.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\3e85dc3a27e7bbf172ac49206d18ddee\transformed\core-1.15.0\AndroidManifest.xml:23:9-81
+26        android:protectionLevel="signature" />
+26-->[androidx.core:core:1.15.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\3e85dc3a27e7bbf172ac49206d18ddee\transformed\core-1.15.0\AndroidManifest.xml:24:9-44
+27
+28    <uses-permission android:name="safety.turtle.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+28-->[androidx.core:core:1.15.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\3e85dc3a27e7bbf172ac49206d18ddee\transformed\core-1.15.0\AndroidManifest.xml:26:5-97
+28-->[androidx.core:core:1.15.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\3e85dc3a27e7bbf172ac49206d18ddee\transformed\core-1.15.0\AndroidManifest.xml:26:22-94
+29
+30    <application
+31        android:allowBackup="true"
+31-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:17:9-35
+32        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+32-->[androidx.core:core:1.15.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\3e85dc3a27e7bbf172ac49206d18ddee\transformed\core-1.15.0\AndroidManifest.xml:28:18-86
+33        android:extractNativeLibs="true"
+34        android:icon="@mipmap/ic_launcher"
+34-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:18:9-43
+35        android:label="Safety Turtle"
+35-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:20:9-36
+36        android:roundIcon="@mipmap/ic_launcher_round"
+36-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:19:9-54
+37        android:supportsRtl="true"
+37-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:23:9-35
+38        android:theme="@style/Theme.NoVPN"
+38-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:22:9-43
+39        android:usesCleartextTraffic="true" >
+39-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:21:9-44
+40        <activity
+40-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:25:9-32:20
+41            android:name="com.novpn.ui.MainActivity"
+41-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:26:13-44
+42            android:exported="true" >
+42-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:27:13-36
+43            <intent-filter>
+43-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:28:13-31:29
+44                <action android:name="android.intent.action.MAIN" />
+44-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:11:13-65
+44-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:11:21-62
+45
+46                <category android:name="android.intent.category.LAUNCHER" />
+46-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:12:13-73
+46-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:12:23-70
+47            </intent-filter>
+48        </activity>
+49        <activity
+49-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:34:9-36:40
+50            android:name="com.novpn.ui.SettingsActivity"
+50-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:35:13-48
+51            android:exported="false" />
+51-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:36:13-37
+52
+53        <receiver
+53-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:38:9-45:20
+54            android:name="com.novpn.split.RuAppInstallReceiver"
+54-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:39:13-55
+55            android:exported="false" >
+55-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:40:13-37
+56            <intent-filter>
+56-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:41:13-44:29
+57                <action android:name="android.intent.action.PACKAGE_ADDED" />
+57-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:42:17-78
+57-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:42:25-75
+58
+59                <data android:scheme="package" />
+59-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:43:17-50
+59-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:43:23-47
+60            </intent-filter>
+61        </receiver>
+62
+63        <service
+63-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:47:9-58:19
+64            android:name="com.novpn.vpn.NoVpnService"
+64-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:48:13-45
+65            android:exported="false"
+65-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:49:13-37
+66            android:foregroundServiceType="specialUse"
+66-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:50:13-55
+67            android:permission="android.permission.BIND_VPN_SERVICE" >
+67-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:51:13-69
+68            <property
+68-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:52:13-54:76
+69                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+69-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:53:17-76
+70                android:value="vpn_core_runtime_and_obfuscation_sidecar" />
+70-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:54:17-73
+71
+72            <intent-filter>
+72-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:55:13-57:29
+73                <action android:name="android.net.VpnService" />
+73-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:56:17-65
+73-->D:\projekt\noVPN\client\android\app\src\main\AndroidManifest.xml:56:25-62
+74            </intent-filter>
+75        </service>
+76
+77        <provider
+77-->[androidx.emoji2:emoji2:1.3.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\268b965e38ac6c3d7965eb62437bdecd\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+78            android:name="androidx.startup.InitializationProvider"
+78-->[androidx.emoji2:emoji2:1.3.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\268b965e38ac6c3d7965eb62437bdecd\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+79            android:authorities="safety.turtle.androidx-startup"
+79-->[androidx.emoji2:emoji2:1.3.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\268b965e38ac6c3d7965eb62437bdecd\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+80            android:exported="false" >
+80-->[androidx.emoji2:emoji2:1.3.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\268b965e38ac6c3d7965eb62437bdecd\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+81            <meta-data
+81-->[androidx.emoji2:emoji2:1.3.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\268b965e38ac6c3d7965eb62437bdecd\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+82                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+82-->[androidx.emoji2:emoji2:1.3.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\268b965e38ac6c3d7965eb62437bdecd\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+83                android:value="androidx.startup" />
+83-->[androidx.emoji2:emoji2:1.3.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\268b965e38ac6c3d7965eb62437bdecd\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+84            <meta-data
+84-->[androidx.lifecycle:lifecycle-process:2.8.7] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\95d440c1033e6d1c5f23821c1e61aacd\transformed\lifecycle-process-2.8.7\AndroidManifest.xml:29:13-31:52
+85                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+85-->[androidx.lifecycle:lifecycle-process:2.8.7] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\95d440c1033e6d1c5f23821c1e61aacd\transformed\lifecycle-process-2.8.7\AndroidManifest.xml:30:17-78
+86                android:value="androidx.startup" />
+86-->[androidx.lifecycle:lifecycle-process:2.8.7] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\95d440c1033e6d1c5f23821c1e61aacd\transformed\lifecycle-process-2.8.7\AndroidManifest.xml:31:17-49
+87            <meta-data
+87-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:29:13-31:52
+88                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+88-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:30:17-85
+89                android:value="androidx.startup" />
+89-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:31:17-49
+90        </provider>
+91
+92        <receiver
+92-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:34:9-52:20
+93            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+93-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:35:13-76
+94            android:directBootAware="false"
+94-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:36:13-44
+95            android:enabled="true"
+95-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:37:13-35
+96            android:exported="true"
+96-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:38:13-36
+97            android:permission="android.permission.DUMP" >
+97-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:39:13-57
+98            <intent-filter>
+98-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:40:13-42:29
+99                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+99-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:41:17-91
+99-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:41:25-88
+100            </intent-filter>
+101            <intent-filter>
+101-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:43:13-45:29
+102                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+102-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:44:17-85
+102-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:44:25-82
+103            </intent-filter>
+104            <intent-filter>
+104-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:46:13-48:29
+105                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+105-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:47:17-88
+105-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:47:25-85
+106            </intent-filter>
+107            <intent-filter>
+107-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:49:13-51:29
+108                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+108-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:50:17-95
+108-->[androidx.profileinstaller:profileinstaller:1.4.0] D:\projekt\noVPN\client\android\.gradle-user-home\caches\8.9\transforms\19a04c9820552e8deab86a79cc2427e8\transformed\profileinstaller-1.4.0\AndroidManifest.xml:50:25-92
+109            </intent-filter>
+110        </receiver>
+111    </application>
+112
+113</manifest>

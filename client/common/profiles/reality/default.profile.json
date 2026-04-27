@@ -12,7 +12,7 @@
     "short_id": "b3bf979d07d04c47",
     "location_label": "87.121.105.190",
     "spider_x": "/",
-    "api_base": "http://2.26.85.47/admin"
+    "api_base": "https://xowery.ru/admin"
   },
   "local": {
     "socks_listen": "127.0.0.1",

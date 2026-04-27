@@ -11,29 +11,47 @@ import (
 func happSubscriptionObservationFromRequest(r *http.Request) (reality.SubscriptionDeviceObservation, bool) {
 	deviceID := strings.TrimSpace(firstNonEmptyString(
 		r.Header.Get("X-HWID"),
+		r.Header.Get("X-Device-ID"),
+		r.Header.Get("X-Client-Device-ID"),
 		r.URL.Query().Get("hwid"),
+		r.URL.Query().Get("device_id"),
 	))
 	if deviceID == "" {
 		return reality.SubscriptionDeviceObservation{}, false
 	}
 
+	deviceName := strings.TrimSpace(firstNonEmptyString(
+		r.Header.Get("X-Device-Name"),
+		r.Header.Get("X-Client-Device-Name"),
+		r.URL.Query().Get("device_name"),
+	))
 	deviceOS := strings.TrimSpace(firstNonEmptyString(
 		r.Header.Get("X-Device-OS"),
+		r.Header.Get("X-Client-Device-OS"),
 		r.URL.Query().Get("device_os"),
 	))
 	deviceOSVersion := strings.TrimSpace(firstNonEmptyString(
 		r.Header.Get("X-Ver-OS"),
+		r.Header.Get("X-Device-OS-Version"),
+		r.Header.Get("X-Client-Device-OS-Version"),
 		r.URL.Query().Get("device_os_version"),
 	))
 	deviceModel := strings.TrimSpace(firstNonEmptyString(
 		r.Header.Get("X-Device-Model"),
+		r.Header.Get("X-Client-Device-Model"),
 		r.URL.Query().Get("device_model"),
 	))
 	userAgent := strings.TrimSpace(r.UserAgent())
+	if deviceName == "" {
+		deviceName = happObservedDeviceName(deviceModel, deviceOS, deviceOSVersion)
+	}
+	if deviceName == "" {
+		deviceName = deviceID
+	}
 
 	return reality.SubscriptionDeviceObservation{
 		DeviceID:        deviceID,
-		DeviceName:      happObservedDeviceName(deviceModel, deviceOS, deviceOSVersion),
+		DeviceName:      deviceName,
 		DeviceOS:        deviceOS,
 		DeviceOSVersion: deviceOSVersion,
 		UserAgent:       userAgent,

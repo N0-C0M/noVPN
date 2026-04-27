@@ -1,0 +1,3 @@
+D:/projekt/noVPN/client/android/app/build-novpn/cxx/Debug/p3u4mb4t/x86/CMakeFiles/novpn_tun2proxy_jni.dir
+D:/projekt/noVPN/client/android/app/build-novpn/cxx/Debug/p3u4mb4t/x86/CMakeFiles/edit_cache.dir
+D:/projekt/noVPN/client/android/app/build-novpn/cxx/Debug/p3u4mb4t/x86/CMakeFiles/rebuild_cache.dir

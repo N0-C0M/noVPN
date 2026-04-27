@@ -1,0 +1,2 @@
+ninja: Entering directory `D:\projekt\noVPN\client\android\app\build-novpn\cxx\Debug\p3u4mb4t\x86_64'
+ninja: no work to do.

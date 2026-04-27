@@ -1,0 +1,412 @@
+=== app.log ===
+edded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:48:44.721 [runtime] Embedded runtime preparation complete
+2026-04-26 00:48:47.237 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 00:48:47.239 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 00:48:47.242 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 00:48:47.246 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=46359, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace/4c47
+2026-04-26 00:48:47.248 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:48:47.248 [runtime] Embedded runtime preparation complete
+2026-04-26 00:48:47.248 [runtime] Starting sidecars: xray=/data/app/~~-dEwHF8M61m5FVs86aNNRw==/safety.turtle-vjnaSQq1TP33D8CpPQZYVg==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~-dEwHF8M61m5FVs86aNNRw==/safety.turtle-vjnaSQq1TP33D8CpPQZYVg==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 00:48:47.250 [runtime] Obfuscator process started with handle=UNIXProcess@b8dee2d
+2026-04-26 00:48:47.501 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 00:48:47.507 [runtime] Xray process started with handle=UNIXProcess@b246fca
+2026-04-26 00:48:47.757 [runtime] Process xray is alive after startup probe
+2026-04-26 00:48:47.759 [tun2proxy] Waiting for local proxy 127.15.218.58:43617 for up to 10s
+2026-04-26 00:48:47.764 [tun2proxy] Local proxy became reachable
+2026-04-26 00:48:47.769 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 00:48:47.770 [tun2proxy] Waiting for local proxy 127.132.161.6:46359 for up to 10s
+2026-04-26 00:48:47.774 [tun2proxy] Local proxy became reachable
+2026-04-26 00:48:49.986 [service] Tunnel diagnostics check passed
+2026-04-26 00:48:50.018 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 00:48:50.019 [tun2proxy] Starting bridge session=2 fd=193 proxy=127.132.161.6:46359 mtu=1500
+2026-04-26 00:48:50.520 [tun2proxy] Bridge confirmed active after 500ms startup delay
+2026-04-26 00:48:50.521 [service] Core runtime started successfully
+2026-04-26 00:48:55.406 [service] Received STOP command startId=2
+2026-04-26 00:48:55.408 [service] Stopping core runtime
+2026-04-26 00:48:57.412 [tun2proxy] Bridge stop timed out after 2s
+2026-04-26 00:48:57.414 [runtime] Stopping embedded runtime processes
+2026-04-26 00:48:57.450 [service] Service onDestroy invoked
+2026-04-26 00:49:08.894 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 00:49:08.896 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 00:49:08.898 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 00:49:08.900 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=42973, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace/4c47
+2026-04-26 00:49:08.900 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:49:08.900 [runtime] Embedded runtime preparation complete
+2026-04-26 00:49:08.901 [runtime] Starting sidecars: xray=/data/app/~~-dEwHF8M61m5FVs86aNNRw==/safety.turtle-vjnaSQq1TP33D8CpPQZYVg==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~-dEwHF8M61m5FVs86aNNRw==/safety.turtle-vjnaSQq1TP33D8CpPQZYVg==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 00:49:08.901 [runtime] Obfuscator process started with handle=UNIXProcess@cbdc619
+2026-04-26 00:49:09.153 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 00:49:09.156 [runtime] Xray process started with handle=UNIXProcess@56c76d8
+2026-04-26 00:49:09.407 [runtime] Process xray is alive after startup probe
+2026-04-26 00:49:09.409 [tun2proxy] Waiting for local proxy 127.227.9.65:36055 for up to 10s
+2026-04-26 00:49:09.414 [tun2proxy] Local proxy became reachable
+2026-04-26 00:49:09.418 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 00:49:09.419 [tun2proxy] Waiting for local proxy 127.141.230.66:42973 for up to 10s
+2026-04-26 00:49:09.424 [tun2proxy] Local proxy became reachable
+2026-04-26 00:49:11.656 [service] Tunnel diagnostics check passed
+2026-04-26 00:49:11.684 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 00:49:11.684 [tun2proxy] Starting bridge session=2 fd=164 proxy=127.141.230.66:42973 mtu=1500
+2026-04-26 00:49:11.685 [tun2proxy] Bridge session=2 finished
+2026-04-26 00:49:12.206 [service] Core start failed: tun2proxy exited before traffic forwarding became active (code -1).
+Process xray is active.
+Process obfuscator is active.
+Log app: 2026-04-26 00:49:09.153 [runtime] Process obfuscator is alive after startup probe | 2026-04-26 00:49:09.156 [runtime] Xray process started with handle=UNIXProcess@56c76d8 | 2026-04-26 00:49:09.407 [runtime] Process xray is alive after startup probe | 2026-04-26 00:49:09.409 [tun2proxy] Waiting for local proxy 127.227.9.65:36055 for up to 10s | 2026-04-26 00:49:09.414 [tun2proxy] Local proxy became reachable | 2026-04-26 00:49:09.418 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge | 2026-04-26 00:49:09.419 [tun2proxy] Waiting for local proxy 127.141.230.66:42973 for up to 10s | 2026-04-26 00:49:09.424 [tun2proxy] Local proxy became reachable | 2026-04-26 00:49:11.656 [service] Tunnel diagnostics check passed | 2026-04-26 00:49:11.684 [service] Android VPN tunnel established, starting tun2proxy | 2026-04-26 00:49:11.684 [tun2proxy] Starting bridge session=2 fd=164 proxy=127.141.230.66:42973 mtu=1500 | 2026-04-26 00:49:11.685 [tun2proxy] Bridge session=2 finished
+Log xray: 2026/04/25 20:49:09.220335 [Info] app/dns: DNS: created UDP client initialized for 1.1.1.1:53 | 2026/04/25 20:49:09.224184 [Info] app/dns: DNS: created UDP client initialized for 1.0.0.1:53 | 2026/04/25 20:49:09.267432 [Info] transport/internet/tcp: listening TCP on 127.141.230.66:42973 | 2026/04/25 20:49:09.267485 [Info] transport/internet/udp: listening UDP on 127.141.230.66:42973 | 2026/04/25 20:49:09.267847 [Warning] core: Xray 26.3.27 started | 2026/04/25 20:49:09.424985 [Info] [1285237641] proxy/socks: Connection closed immediately, likely health check connection | 2026/04/25 20:49:09.429922 [Info] [3452872049] proxy/socks: TCP Connect request to tcp:2.26.85.47:80 | 2026/04/25 20:49:09.430592 from tcp:127.0.0.1:44436 accepted tcp:2.26.85.47:80 [socks-in -> proxy] | 2026/04/25 20:49:09.430611 [Info] [3452872049] app/dispatcher: sniffed domain: 2.26.85.47 | 2026/04/25 20:49:09.430673 [Info] [3452872049] app/dispatcher: Hit route rule: [default-proxy] so taking detour [proxy] for [tcp:2.26.85.47:80] | 2026/04/25 20:49:09.430693 [Info] [3452872049] transport/internet/tcp: dialing TCP to tcp:87.121.105.190:8443 | 2026/04/25 20:49:09.569771 [Info] [3452872049] proxy/vless/outbound: tunneling request to tcp:2.26.85.47:80 via 87.121.105.190:8443
+Log obfuscator: 2026/04/25 20:49:08 [obfuscator] starting runtime | 2026/04/25 20:49:08 [obfuscator] config=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json | 2026/04/25 20:49:08 [obfuscator] mode=client remote=87.121.105.190:8443 seed_length=27 | 2026/04/25 20:49:08 [obfuscator] strategies traffic=cdn_mimic pattern=pulse | 2026/04/25 20:49:08 [obfuscator] xray_config=/data/user/0/safety.turtle/files/xray/config.json | 2026/04/25 20:49:08 [obfuscator] expected_cli=--config <path> | 2026/04/25 20:49:08 [obfuscator] session nonce=1b84ed528d11339a rotation_bucket=1480958 fingerprint=edge spider_x=/cdn-cgi/trace/4c47 | 2026/04/25 20:49:08 [obfuscator] session_pools fingerprints=2 cover_paths=5 | 2026/04/25 20:49:08 [obfuscator] pattern_tuning padding=pulse-mixed jitter_ms=297 padding_bytes=194-589 burst_ms=917-2251 idle_ms=1654-3793 | 2026/04/25 20:49:08 [obfuscator] proxy_listen=127.227.9.65:36055 upstream=127.141.230.66:42973 | 2026/04/25 20:49:09 [obfuscator] session=1 client=127.0.0.1:56660 error=read greeting: EOF | 2026/04/25 20:49:09 [obfuscator] session=2 client=127.0.0.1:56668 error=unsupported command 3
+2026-04-26 00:49:12.207 [service] Stopping core runtime
+2026-04-26 00:49:12.207 [runtime] Stopping embedded runtime processes
+2026-04-26 00:49:12.260 [service] Service onDestroy invoked
+2026-04-26 00:49:18.949 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:49:18.951 [runtime] Embedded runtime preparation complete
+2026-04-26 00:49:20.696 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 00:49:20.698 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 00:49:20.701 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 00:49:20.705 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=33093, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace/4c47
+2026-04-26 00:49:20.706 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:49:20.706 [runtime] Embedded runtime preparation complete
+2026-04-26 00:49:20.706 [runtime] Starting sidecars: xray=/data/app/~~-dEwHF8M61m5FVs86aNNRw==/safety.turtle-vjnaSQq1TP33D8CpPQZYVg==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~-dEwHF8M61m5FVs86aNNRw==/safety.turtle-vjnaSQq1TP33D8CpPQZYVg==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 00:49:20.709 [runtime] Obfuscator process started with handle=UNIXProcess@4d3d8f3
+2026-04-26 00:49:20.960 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 00:49:20.963 [runtime] Xray process started with handle=UNIXProcess@d2eed0e
+2026-04-26 00:49:21.214 [runtime] Process xray is alive after startup probe
+2026-04-26 00:49:21.215 [tun2proxy] Waiting for local proxy 127.42.145.229:42375 for up to 10s
+2026-04-26 00:49:21.218 [tun2proxy] Local proxy became reachable
+2026-04-26 00:49:21.223 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 00:49:21.224 [tun2proxy] Waiting for local proxy 127.158.90.224:33093 for up to 10s
+2026-04-26 00:49:21.226 [tun2proxy] Local proxy became reachable
+2026-04-26 00:49:23.430 [service] Tunnel diagnostics check passed
+2026-04-26 00:49:23.451 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 00:49:23.452 [tun2proxy] Starting bridge session=2 fd=5 proxy=127.158.90.224:33093 mtu=1500
+2026-04-26 00:49:23.952 [tun2proxy] Bridge confirmed active after 500ms startup delay
+2026-04-26 00:49:23.954 [service] Core runtime started successfully
+2026-04-26 00:52:21.214 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:52:21.219 [runtime] Embedded runtime preparation complete
+2026-04-26 00:52:24.472 [service] Received STOP command startId=1
+2026-04-26 00:52:24.474 [service] Service onDestroy invoked
+2026-04-26 00:52:25.447 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 00:52:25.450 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 00:52:25.453 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 00:52:25.460 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=33373, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace/4c47
+2026-04-26 00:52:25.461 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:52:25.461 [runtime] Embedded runtime preparation complete
+2026-04-26 00:52:25.462 [runtime] Starting sidecars: xray=/data/app/~~0Bg_7xhqTW8kmp0lMymrMA==/safety.turtle-FYmLSxFacFSdQlrOQUWx3g==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~0Bg_7xhqTW8kmp0lMymrMA==/safety.turtle-FYmLSxFacFSdQlrOQUWx3g==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 00:52:25.465 [runtime] Obfuscator process started with handle=UNIXProcess@a39b2e4
+2026-04-26 00:52:25.715 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 00:52:25.722 [runtime] Xray process started with handle=UNIXProcess@a07d18b
+2026-04-26 00:52:25.972 [runtime] Process xray is alive after startup probe
+2026-04-26 00:52:25.973 [tun2proxy] Waiting for local proxy 127.63.28.237:35813 for up to 10s
+2026-04-26 00:52:25.977 [tun2proxy] Local proxy became reachable
+2026-04-26 00:52:25.983 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 00:52:25.984 [tun2proxy] Waiting for local proxy 127.1.117.107:33373 for up to 10s
+2026-04-26 00:52:25.988 [tun2proxy] Local proxy became reachable
+2026-04-26 00:52:28.216 [service] Tunnel diagnostics check passed
+2026-04-26 00:52:28.259 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 00:52:28.260 [tun2proxy] Starting bridge session=2 fd=191 proxy=127.1.117.107:33373 mtu=1500
+2026-04-26 00:52:28.761 [tun2proxy] Bridge confirmed active after 500ms startup delay
+2026-04-26 00:52:28.762 [service] Core runtime started successfully
+2026-04-26 00:52:37.050 [service] Received STOP command startId=2
+2026-04-26 00:52:37.052 [service] Stopping core runtime
+2026-04-26 00:52:42.054 [tun2proxy] Bridge stop timed out after 5s
+2026-04-26 00:52:42.056 [runtime] Stopping embedded runtime processes
+2026-04-26 00:52:42.058 [runtime] Stopping process xray handle=UNIXProcess@a07d18b
+2026-04-26 00:52:42.160 [runtime] Process xray exited after destroy()
+2026-04-26 00:52:42.161 [runtime] Stopping process obfuscator handle=UNIXProcess@a39b2e4
+2026-04-26 00:52:42.261 [runtime] Process obfuscator exited after destroy()
+2026-04-26 00:52:42.285 [service] Service onDestroy invoked
+2026-04-26 00:52:46.928 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 00:52:46.930 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 00:52:46.931 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 00:52:46.933 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=39435, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace/4c47
+2026-04-26 00:52:46.933 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 00:52:46.933 [runtime] Embedded runtime preparation complete
+2026-04-26 00:52:46.933 [runtime] Starting sidecars: xray=/data/app/~~0Bg_7xhqTW8kmp0lMymrMA==/safety.turtle-FYmLSxFacFSdQlrOQUWx3g==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~0Bg_7xhqTW8kmp0lMymrMA==/safety.turtle-FYmLSxFacFSdQlrOQUWx3g==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 00:52:46.935 [runtime] Obfuscator process started with handle=UNIXProcess@c43d2a5
+2026-04-26 00:52:47.185 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 00:52:47.189 [runtime] Xray process started with handle=UNIXProcess@6682794
+2026-04-26 00:52:47.440 [runtime] Process xray is alive after startup probe
+2026-04-26 00:52:47.441 [tun2proxy] Waiting for local proxy 127.149.32.253:46373 for up to 10s
+2026-04-26 00:52:47.446 [tun2proxy] Local proxy became reachable
+2026-04-26 00:52:47.451 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 00:52:47.451 [tun2proxy] Waiting for local proxy 127.233.74.199:39435 for up to 10s
+2026-04-26 00:52:47.454 [tun2proxy] Local proxy became reachable
+2026-04-26 00:52:49.735 [service] Tunnel diagnostics check passed
+2026-04-26 00:52:49.763 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 00:52:49.764 [tun2proxy] Starting bridge session=2 fd=5 proxy=127.233.74.199:39435 mtu=1500
+2026-04-26 00:52:49.765 [tun2proxy] Bridge session=2 finished
+2026-04-26 00:52:50.283 [service] Core start failed: tun2proxy exited before traffic forwarding became active (code -1).
+Process xray is active.
+Process obfuscator is active.
+Log app: 2026-04-26 00:52:47.185 [runtime] Process obfuscator is alive after startup probe | 2026-04-26 00:52:47.189 [runtime] Xray process started with handle=UNIXProcess@6682794 | 2026-04-26 00:52:47.440 [runtime] Process xray is alive after startup probe | 2026-04-26 00:52:47.441 [tun2proxy] Waiting for local proxy 127.149.32.253:46373 for up to 10s | 2026-04-26 00:52:47.446 [tun2proxy] Local proxy became reachable | 2026-04-26 00:52:47.451 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge | 2026-04-26 00:52:47.451 [tun2proxy] Waiting for local proxy 127.233.74.199:39435 for up to 10s | 2026-04-26 00:52:47.454 [tun2proxy] Local proxy became reachable | 2026-04-26 00:52:49.735 [service] Tunnel diagnostics check passed | 2026-04-26 00:52:49.763 [service] Android VPN tunnel established, starting tun2proxy | 2026-04-26 00:52:49.764 [tun2proxy] Starting bridge session=2 fd=5 proxy=127.233.74.199:39435 mtu=1500 | 2026-04-26 00:52:49.765 [tun2proxy] Bridge session=2 finished
+Log xray: 2026/04/25 20:52:47.253266 [Info] app/dns: DNS: created UDP client initialized for 1.1.1.1:53 | 2026/04/25 20:52:47.257509 [Info] app/dns: DNS: created UDP client initialized for 1.0.0.1:53 | 2026/04/25 20:52:47.298458 [Info] transport/internet/tcp: listening TCP on 127.233.74.199:39435 | 2026/04/25 20:52:47.298901 [Info] transport/internet/udp: listening UDP on 127.233.74.199:39435 | 2026/04/25 20:52:47.298934 [Warning] core: Xray 26.3.27 started | 2026/04/25 20:52:47.455271 [Info] [3256550260] proxy/socks: Connection closed immediately, likely health check connection | 2026/04/25 20:52:47.460445 [Info] [3909370319] proxy/socks: TCP Connect request to tcp:2.26.85.47:80 | 2026/04/25 20:52:47.460764 [Info] [3909370319] app/dispatcher: sniffed domain: 2.26.85.47 | 2026/04/25 20:52:47.460826 [Info] [3909370319] app/dispatcher: Hit route rule: [default-proxy] so taking detour [proxy] for [tcp:2.26.85.47:80] | 2026/04/25 20:52:47.460840 [Info] [3909370319] transport/internet/tcp: dialing TCP to tcp:87.121.105.190:8443 | 2026/04/25 20:52:47.460914 from tcp:127.0.0.1:57734 accepted tcp:2.26.85.47:80 [socks-in -> proxy] | 2026/04/25 20:52:47.650686 [Info] [3909370319] proxy/vless/outbound: tunneling request to tcp:2.26.85.47:80 via 87.121.105.190:8443
+Log obfuscator: 2026/04/25 20:52:46 [obfuscator] starting runtime | 2026/04/25 20:52:46 [obfuscator] config=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json | 2026/04/25 20:52:46 [obfuscator] mode=client remote=87.121.105.190:8443 seed_length=27 | 2026/04/25 20:52:46 [obfuscator] strategies traffic=cdn_mimic pattern=pulse | 2026/04/25 20:52:46 [obfuscator] xray_config=/data/user/0/safety.turtle/files/xray/config.json | 2026/04/25 20:52:46 [obfuscator] expected_cli=--config <path> | 2026/04/25 20:52:46 [obfuscator] session nonce=1b84ed528d11339a rotation_bucket=1480958 fingerprint=edge spider_x=/cdn-cgi/trace/4c47 | 2026/04/25 20:52:46 [obfuscator] session_pools fingerprints=2 cover_paths=5 | 2026/04/25 20:52:46 [obfuscator] pattern_tuning padding=pulse-mixed jitter_ms=297 padding_bytes=194-589 burst_ms=917-2251 idle_ms=1654-3793 | 2026/04/25 20:52:46 [obfuscator] proxy_listen=127.149.32.253:46373 upstream=127.233.74.199:39435 | 2026/04/25 20:52:47 [obfuscator] session=1 client=127.0.0.1:40676 error=read greeting: EOF | 2026/04/25 20:52:47 [obfuscator] session=2 client=127.0.0.1:40688 error=unsupported command 3
+2026-04-26 00:52:50.283 [service] Stopping core runtime
+2026-04-26 00:52:50.284 [tun2proxy] Bridge stop completed within timeout
+2026-04-26 00:52:50.284 [runtime] Stopping embedded runtime processes
+2026-04-26 00:52:50.285 [runtime] Stopping process xray handle=UNIXProcess@6682794
+2026-04-26 00:52:50.386 [runtime] Process xray exited after destroy()
+2026-04-26 00:52:50.386 [runtime] Stopping process obfuscator handle=UNIXProcess@c43d2a5
+2026-04-26 00:52:50.487 [runtime] Process obfuscator exited after destroy()
+2026-04-26 00:52:50.539 [service] Service onDestroy invoked
+2026-04-26 01:01:40.871 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:01:40.877 [runtime] Embedded runtime preparation complete
+2026-04-26 01:01:43.151 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 01:01:43.154 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 01:01:43.156 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 01:01:43.160 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=42655, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace?pulse=51ccf7
+2026-04-26 01:01:43.161 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:01:43.161 [runtime] Embedded runtime preparation complete
+2026-04-26 01:01:43.162 [runtime] Starting sidecars: xray=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 01:01:43.164 [runtime] Obfuscator process started with handle=UNIXProcess@d925686
+2026-04-26 01:01:43.414 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 01:01:43.418 [runtime] Xray process started with handle=UNIXProcess@18c4fa5
+2026-04-26 01:01:43.669 [runtime] Process xray is alive after startup probe
+2026-04-26 01:01:43.670 [tun2proxy] Waiting for local proxy 127.31.222.109:37145 for up to 10s
+2026-04-26 01:01:43.673 [tun2proxy] Local proxy became reachable
+2026-04-26 01:01:43.677 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 01:01:43.678 [tun2proxy] Waiting for local proxy 127.132.28.19:42655 for up to 10s
+2026-04-26 01:01:43.680 [tun2proxy] Local proxy became reachable
+2026-04-26 01:01:45.918 [service] Tunnel diagnostics check passed
+2026-04-26 01:01:45.945 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 01:01:45.946 [tun2proxy] Starting bridge session=2 fd=163 proxy=127.132.28.19:42655 mtu=1500
+2026-04-26 01:01:46.447 [tun2proxy] Bridge confirmed active after 500ms startup delay
+2026-04-26 01:01:46.448 [service] Core runtime started successfully
+2026-04-26 01:01:53.288 [service] Received STOP command startId=2
+2026-04-26 01:01:53.289 [service] Stopping core runtime
+2026-04-26 01:01:58.291 [tun2proxy] Bridge stop timed out after 5s
+2026-04-26 01:01:58.294 [runtime] Stopping embedded runtime processes
+2026-04-26 01:01:58.295 [runtime] Stopping process xray handle=UNIXProcess@18c4fa5
+2026-04-26 01:01:58.396 [runtime] Process xray exited after destroy()
+2026-04-26 01:01:58.398 [runtime] Stopping process obfuscator handle=UNIXProcess@d925686
+2026-04-26 01:01:58.501 [runtime] Process obfuscator exited after destroy()
+2026-04-26 01:01:58.538 [service] Service onDestroy invoked
+2026-04-26 01:02:07.858 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 01:02:07.861 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 01:02:07.863 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 01:02:07.866 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=39745, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace?pulse=51ccf7
+2026-04-26 01:02:07.866 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:02:07.867 [runtime] Embedded runtime preparation complete
+2026-04-26 01:02:07.867 [runtime] Starting sidecars: xray=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 01:02:07.868 [runtime] Obfuscator process started with handle=UNIXProcess@62d6199
+2026-04-26 01:02:08.119 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 01:02:08.121 [runtime] Xray process started with handle=UNIXProcess@187c058
+2026-04-26 01:02:08.372 [runtime] Process xray is alive after startup probe
+2026-04-26 01:02:08.373 [tun2proxy] Waiting for local proxy 127.137.73.240:39191 for up to 10s
+2026-04-26 01:02:08.376 [tun2proxy] Local proxy became reachable
+2026-04-26 01:02:08.380 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 01:02:08.381 [tun2proxy] Waiting for local proxy 127.134.200.229:39745 for up to 10s
+2026-04-26 01:02:08.383 [tun2proxy] Local proxy became reachable
+2026-04-26 01:02:10.864 [service] Tunnel diagnostics check passed
+2026-04-26 01:02:10.912 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 01:02:10.913 [tun2proxy] Starting bridge session=2 fd=167 proxy=127.134.200.229:39745 mtu=1500
+2026-04-26 01:02:10.914 [tun2proxy] Bridge session=2 finished
+2026-04-26 01:02:11.439 [service] Core start failed: tun2proxy exited before traffic forwarding became active (code -1).
+Process xray is active.
+Process obfuscator is active.
+Log app: 2026-04-26 01:02:08.119 [runtime] Process obfuscator is alive after startup probe | 2026-04-26 01:02:08.121 [runtime] Xray process started with handle=UNIXProcess@187c058 | 2026-04-26 01:02:08.372 [runtime] Process xray is alive after startup probe | 2026-04-26 01:02:08.373 [tun2proxy] Waiting for local proxy 127.137.73.240:39191 for up to 10s | 2026-04-26 01:02:08.376 [tun2proxy] Local proxy became reachable | 2026-04-26 01:02:08.380 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge | 2026-04-26 01:02:08.381 [tun2proxy] Waiting for local proxy 127.134.200.229:39745 for up to 10s | 2026-04-26 01:02:08.383 [tun2proxy] Local proxy became reachable | 2026-04-26 01:02:10.864 [service] Tunnel diagnostics check passed | 2026-04-26 01:02:10.912 [service] Android VPN tunnel established, starting tun2proxy | 2026-04-26 01:02:10.913 [tun2proxy] Starting bridge session=2 fd=167 proxy=127.134.200.229:39745 mtu=1500 | 2026-04-26 01:02:10.914 [tun2proxy] Bridge session=2 finished
+Log xray: 2026/04/25 21:02:08.172911 [Info] app/dns: DNS: created UDP client initialized for 1.1.1.1:53 | 2026/04/25 21:02:08.175806 [Info] app/dns: DNS: created UDP client initialized for 1.0.0.1:53 | 2026/04/25 21:02:08.204006 [Info] transport/internet/tcp: listening TCP on 127.134.200.229:39745 | 2026/04/25 21:02:08.204152 [Info] transport/internet/udp: listening UDP on 127.134.200.229:39745 | 2026/04/25 21:02:08.204558 [Warning] core: Xray 26.3.27 started | 2026/04/25 21:02:08.384090 [Info] [2477055531] proxy/socks: Connection closed immediately, likely health check connection | 2026/04/25 21:02:08.389644 [Info] [637567084] proxy/socks: TCP Connect request to tcp:2.26.85.47:80 | 2026/04/25 21:02:08.390045 [Info] [637567084] app/dispatcher: sniffed domain: 2.26.85.47 | 2026/04/25 21:02:08.390113 [Info] [637567084] app/dispatcher: Hit route rule: [default-proxy] so taking detour [proxy] for [tcp:2.26.85.47:80] | 2026/04/25 21:02:08.390137 [Info] [637567084] transport/internet/tcp: dialing TCP to tcp:87.121.105.190:8443 | 2026/04/25 21:02:08.390199 from tcp:127.0.0.1:58770 accepted tcp:2.26.85.47:80 [socks-in -> proxy] | 2026/04/25 21:02:08.728558 [Info] [637567084] proxy/vless/outbound: tunneling request to tcp:2.26.85.47:80 via 87.121.105.190:8443
+Log obfuscator: 2026/04/25 21:02:07 [obfuscator] starting runtime | 2026/04/25 21:02:07 [obfuscator] config=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json | 2026/04/25 21:02:07 [obfuscator] mode=client remote=87.121.105.190:8443 seed_length=27 | 2026/04/25 21:02:07 [obfuscator] strategies traffic=cdn_mimic pattern=pulse | 2026/04/25 21:02:07 [obfuscator] xray_config=/data/user/0/safety.turtle/files/xray/config.json | 2026/04/25 21:02:07 [obfuscator] expected_cli=--config <path> | 2026/04/25 21:02:07 [obfuscator] session nonce=51ccf74e31b3a300 rotation_bucket=1480959 fingerprint=edge spider_x=/cdn-cgi/trace?pulse=51ccf7 | 2026/04/25 21:02:07 [obfuscator] session_pools fingerprints=2 cover_paths=5 | 2026/04/25 21:02:07 [obfuscator] pattern_tuning padding=pulse-mixed jitter_ms=187 padding_bytes=190-497 burst_ms=1079-2363 idle_ms=1500-3777 | 2026/04/25 21:02:07 [obfuscator] proxy_listen=127.137.73.240:39191 upstream=127.134.200.229:39745 | 2026/04/25 21:02:08 [obfuscator] session=1 client=127.0.0.1:35772 error=read greeting: EOF | 2026/04/25 21:02:08 [obfuscator] session=2 client=127.0.0.1:35774 error=unsupported command 3
+2026-04-26 01:02:11.440 [service] Stopping core runtime
+2026-04-26 01:02:11.440 [tun2proxy] Bridge stop completed within timeout
+2026-04-26 01:02:11.440 [runtime] Stopping embedded runtime processes
+2026-04-26 01:02:11.440 [runtime] Stopping process xray handle=UNIXProcess@187c058
+2026-04-26 01:02:11.542 [runtime] Process xray exited after destroy()
+2026-04-26 01:02:11.543 [runtime] Stopping process obfuscator handle=UNIXProcess@62d6199
+2026-04-26 01:02:11.646 [runtime] Process obfuscator exited after destroy()
+2026-04-26 01:02:11.713 [service] Service onDestroy invoked
+2026-04-26 01:02:34.105 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 01:02:34.107 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 01:02:34.109 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 01:02:34.110 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=39505, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace?pulse=51ccf7
+2026-04-26 01:02:34.110 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:02:34.110 [runtime] Embedded runtime preparation complete
+2026-04-26 01:02:34.111 [runtime] Starting sidecars: xray=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 01:02:34.112 [runtime] Obfuscator process started with handle=UNIXProcess@bc7c530
+2026-04-26 01:02:34.362 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 01:02:34.365 [runtime] Xray process started with handle=UNIXProcess@2411ccb
+2026-04-26 01:02:34.616 [runtime] Process xray is alive after startup probe
+2026-04-26 01:02:34.618 [tun2proxy] Waiting for local proxy 127.183.227.68:38255 for up to 10s
+2026-04-26 01:02:34.621 [tun2proxy] Local proxy became reachable
+2026-04-26 01:02:34.624 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 01:02:34.625 [tun2proxy] Waiting for local proxy 127.135.4.168:39505 for up to 10s
+2026-04-26 01:02:34.628 [tun2proxy] Local proxy became reachable
+2026-04-26 01:02:36.971 [service] Tunnel diagnostics check passed
+2026-04-26 01:02:36.990 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 01:02:36.990 [tun2proxy] Starting bridge session=2 fd=165 proxy=127.135.4.168:39505 mtu=1500
+2026-04-26 01:02:36.991 [tun2proxy] Bridge session=2 finished
+2026-04-26 01:02:37.508 [service] Core start failed: tun2proxy exited before traffic forwarding became active (code -1).
+Process xray is active.
+Process obfuscator is active.
+Log app: 2026-04-26 01:02:34.362 [runtime] Process obfuscator is alive after startup probe | 2026-04-26 01:02:34.365 [runtime] Xray process started with handle=UNIXProcess@2411ccb | 2026-04-26 01:02:34.616 [runtime] Process xray is alive after startup probe | 2026-04-26 01:02:34.618 [tun2proxy] Waiting for local proxy 127.183.227.68:38255 for up to 10s | 2026-04-26 01:02:34.621 [tun2proxy] Local proxy became reachable | 2026-04-26 01:02:34.624 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge | 2026-04-26 01:02:34.625 [tun2proxy] Waiting for local proxy 127.135.4.168:39505 for up to 10s | 2026-04-26 01:02:34.628 [tun2proxy] Local proxy became reachable | 2026-04-26 01:02:36.971 [service] Tunnel diagnostics check passed | 2026-04-26 01:02:36.990 [service] Android VPN tunnel established, starting tun2proxy | 2026-04-26 01:02:36.990 [tun2proxy] Starting bridge session=2 fd=165 proxy=127.135.4.168:39505 mtu=1500 | 2026-04-26 01:02:36.991 [tun2proxy] Bridge session=2 finished
+Log xray: 2026/04/25 21:02:34.416884 [Info] app/dns: DNS: created UDP client initialized for 1.1.1.1:53 | 2026/04/25 21:02:34.419248 [Info] app/dns: DNS: created UDP client initialized for 1.0.0.1:53 | 2026/04/25 21:02:34.445461 [Info] transport/internet/tcp: listening TCP on 127.135.4.168:39505 | 2026/04/25 21:02:34.445687 [Info] transport/internet/udp: listening UDP on 127.135.4.168:39505 | 2026/04/25 21:02:34.445702 [Warning] core: Xray 26.3.27 started | 2026/04/25 21:02:34.629055 [Info] [1603079389] proxy/socks: Connection closed immediately, likely health check connection | 2026/04/25 21:02:34.632694 [Info] [4023016243] proxy/socks: TCP Connect request to tcp:2.26.85.47:80 | 2026/04/25 21:02:34.633530 from tcp:127.0.0.1:52766 accepted tcp:2.26.85.47:80 [socks-in -> proxy] | 2026/04/25 21:02:34.633549 [Info] [4023016243] app/dispatcher: sniffed domain: 2.26.85.47 | 2026/04/25 21:02:34.633581 [Info] [4023016243] app/dispatcher: Hit route rule: [default-proxy] so taking detour [proxy] for [tcp:2.26.85.47:80] | 2026/04/25 21:02:34.633593 [Info] [4023016243] transport/internet/tcp: dialing TCP to tcp:87.121.105.190:8443 | 2026/04/25 21:02:34.819675 [Info] [4023016243] proxy/vless/outbound: tunneling request to tcp:2.26.85.47:80 via 87.121.105.190:8443
+Log obfuscator: 2026/04/25 21:02:34 [obfuscator] starting runtime | 2026/04/25 21:02:34 [obfuscator] config=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json | 2026/04/25 21:02:34 [obfuscator] mode=client remote=87.121.105.190:8443 seed_length=27 | 2026/04/25 21:02:34 [obfuscator] strategies traffic=cdn_mimic pattern=pulse | 2026/04/25 21:02:34 [obfuscator] xray_config=/data/user/0/safety.turtle/files/xray/config.json | 2026/04/25 21:02:34 [obfuscator] expected_cli=--config <path> | 2026/04/25 21:02:34 [obfuscator] session nonce=51ccf74e31b3a300 rotation_bucket=1480959 fingerprint=edge spider_x=/cdn-cgi/trace?pulse=51ccf7 | 2026/04/25 21:02:34 [obfuscator] session_pools fingerprints=2 cover_paths=5 | 2026/04/25 21:02:34 [obfuscator] pattern_tuning padding=pulse-mixed jitter_ms=187 padding_bytes=190-497 burst_ms=1079-2363 idle_ms=1500-3777 | 2026/04/25 21:02:34 [obfuscator] proxy_listen=127.183.227.68:38255 upstream=127.135.4.168:39505 | 2026/04/25 21:02:34 [obfuscator] session=1 client=127.0.0.1:34560 error=read greeting: EOF | 2026/04/25 21:02:34 [obfuscator] session=2 client=127.0.0.1:34568 error=unsupported command 3
+2026-04-26 01:02:37.509 [service] Stopping core runtime
+2026-04-26 01:02:37.509 [tun2proxy] Bridge stop completed within timeout
+2026-04-26 01:02:37.509 [runtime] Stopping embedded runtime processes
+2026-04-26 01:02:37.510 [runtime] Stopping process xray handle=UNIXProcess@2411ccb
+2026-04-26 01:02:37.610 [runtime] Process xray exited after destroy()
+2026-04-26 01:02:37.612 [runtime] Stopping process obfuscator handle=UNIXProcess@bc7c530
+2026-04-26 01:02:37.712 [runtime] Process obfuscator exited after destroy()
+2026-04-26 01:02:37.759 [service] Service onDestroy invoked
+2026-04-26 01:11:23.646 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:11:23.653 [runtime] Embedded runtime preparation complete
+2026-04-26 01:11:25.676 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 01:11:25.677 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 01:11:25.684 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 01:11:25.689 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=43981, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace?pulse=51ccf7
+2026-04-26 01:11:25.691 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:11:25.692 [runtime] Embedded runtime preparation complete
+2026-04-26 01:11:25.692 [runtime] Starting sidecars: xray=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~f9trj2PfsKIjk4EcjLKxmw==/safety.turtle-6juMGdNSV8P0lPMWjfN59A==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 01:11:25.695 [runtime] Obfuscator process started with handle=UNIXProcess@4a0d25f
+2026-04-26 01:11:25.946 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 01:11:25.953 [runtime] Xray process started with handle=UNIXProcess@548599
+2026-04-26 01:11:26.204 [runtime] Process xray is alive after startup probe
+2026-04-26 01:11:26.205 [tun2proxy] Waiting for local proxy 127.164.95.3:43941 for up to 10s
+2026-04-26 01:11:26.208 [tun2proxy] Local proxy became reachable
+2026-04-26 01:11:26.214 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 01:11:26.215 [tun2proxy] Waiting for local proxy 127.28.28.12:43981 for up to 10s
+2026-04-26 01:11:26.218 [tun2proxy] Local proxy became reachable
+2026-04-26 01:11:28.753 [service] Tunnel diagnostics check passed
+2026-04-26 01:11:28.789 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 01:11:28.790 [tun2proxy] Starting bridge session=2 fd=158 proxy=127.28.28.12:43981 mtu=1500
+2026-04-26 01:11:29.291 [tun2proxy] Bridge confirmed active after 500ms startup delay
+2026-04-26 01:11:29.291 [service] Core runtime started successfully
+2026-04-26 01:12:01.111 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:12:01.116 [runtime] Embedded runtime preparation complete
+2026-04-26 01:12:04.195 [service] Received STOP command startId=1
+2026-04-26 01:12:04.200 [service] Service onDestroy invoked
+2026-04-26 01:12:05.881 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 01:12:05.883 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 01:12:05.885 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 01:12:05.889 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=39307, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace?pulse=51ccf7
+2026-04-26 01:12:05.890 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:12:05.891 [runtime] Embedded runtime preparation complete
+2026-04-26 01:12:05.891 [runtime] Starting sidecars: xray=/data/app/~~UYYE9WysqiCSzRf0YgakgA==/safety.turtle-dHB91JzMnUWx3DkP7qMcuw==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~UYYE9WysqiCSzRf0YgakgA==/safety.turtle-dHB91JzMnUWx3DkP7qMcuw==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 01:12:05.892 [runtime] Obfuscator process started with handle=UNIXProcess@9d3c1a0
+2026-04-26 01:12:06.143 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 01:12:06.147 [runtime] Xray process started with handle=UNIXProcess@a91fd71
+2026-04-26 01:12:06.397 [runtime] Process xray is alive after startup probe
+2026-04-26 01:12:06.398 [tun2proxy] Waiting for local proxy 127.114.26.161:44039 for up to 10s
+2026-04-26 01:12:06.402 [tun2proxy] Local proxy became reachable
+2026-04-26 01:12:06.406 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 01:12:06.406 [tun2proxy] Waiting for local proxy 127.72.47.128:39307 for up to 10s
+2026-04-26 01:12:06.409 [tun2proxy] Local proxy became reachable
+2026-04-26 01:12:08.788 [service] Tunnel diagnostics check passed
+2026-04-26 01:12:08.819 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 01:12:08.820 [tun2proxy] Starting bridge session=2 fd=194 proxy=127.72.47.128:39307 mtu=1500
+2026-04-26 01:12:09.320 [tun2proxy] Bridge confirmed active after 500ms startup delay
+2026-04-26 01:12:09.321 [service] Core runtime started successfully
+2026-04-26 01:12:13.466 [service] Received STOP command startId=2
+2026-04-26 01:12:13.467 [service] Stopping core runtime
+2026-04-26 01:12:13.468 [service] Closing Android VPN tunnel interface before tun2proxy stop
+2026-04-26 01:12:18.494 [tun2proxy] Bridge stop timed out after 5s
+2026-04-26 01:12:18.496 [runtime] Stopping embedded runtime processes
+2026-04-26 01:12:18.498 [runtime] Stopping process xray handle=UNIXProcess@a91fd71
+2026-04-26 01:12:18.602 [runtime] Process xray exited after destroy()
+2026-04-26 01:12:18.605 [runtime] Stopping process obfuscator handle=UNIXProcess@9d3c1a0
+2026-04-26 01:12:18.709 [runtime] Process obfuscator exited after destroy()
+2026-04-26 01:12:18.722 [service] Service onDestroy invoked
+2026-04-26 01:12:23.203 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 01:12:23.205 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 01:12:23.206 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 01:12:23.207 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=37813, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace?pulse=51ccf7
+2026-04-26 01:12:23.207 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:12:23.208 [runtime] Embedded runtime preparation complete
+2026-04-26 01:12:23.208 [runtime] Starting sidecars: xray=/data/app/~~UYYE9WysqiCSzRf0YgakgA==/safety.turtle-dHB91JzMnUWx3DkP7qMcuw==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~UYYE9WysqiCSzRf0YgakgA==/safety.turtle-dHB91JzMnUWx3DkP7qMcuw==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 01:12:23.209 [runtime] Obfuscator process started with handle=UNIXProcess@9b44e24
+2026-04-26 01:12:23.460 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 01:12:23.464 [runtime] Xray process started with handle=UNIXProcess@7e64a1c
+2026-04-26 01:12:23.715 [runtime] Process xray is alive after startup probe
+2026-04-26 01:12:23.716 [tun2proxy] Waiting for local proxy 127.45.236.193:42141 for up to 10s
+2026-04-26 01:12:23.719 [tun2proxy] Local proxy became reachable
+2026-04-26 01:12:23.721 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 01:12:23.721 [tun2proxy] Waiting for local proxy 127.178.148.176:37813 for up to 10s
+2026-04-26 01:12:23.723 [tun2proxy] Local proxy became reachable
+2026-04-26 01:12:26.087 [service] Tunnel diagnostics check passed
+2026-04-26 01:12:26.112 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 01:12:26.113 [tun2proxy] Starting bridge session=2 fd=141 proxy=127.178.148.176:37813 mtu=1500
+2026-04-26 01:12:26.114 [tun2proxy] Bridge session=2 finished
+2026-04-26 01:12:26.630 [service] Core start failed: tun2proxy exited before traffic forwarding became active (code -1).
+Process xray is active.
+Process obfuscator is active.
+Log app: 2026-04-26 01:12:23.460 [runtime] Process obfuscator is alive after startup probe | 2026-04-26 01:12:23.464 [runtime] Xray process started with handle=UNIXProcess@7e64a1c | 2026-04-26 01:12:23.715 [runtime] Process xray is alive after startup probe | 2026-04-26 01:12:23.716 [tun2proxy] Waiting for local proxy 127.45.236.193:42141 for up to 10s | 2026-04-26 01:12:23.719 [tun2proxy] Local proxy became reachable | 2026-04-26 01:12:23.721 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge | 2026-04-26 01:12:23.721 [tun2proxy] Waiting for local proxy 127.178.148.176:37813 for up to 10s | 2026-04-26 01:12:23.723 [tun2proxy] Local proxy became reachable | 2026-04-26 01:12:26.087 [service] Tunnel diagnostics check passed | 2026-04-26 01:12:26.112 [service] Android VPN tunnel established, starting tun2proxy | 2026-04-26 01:12:26.113 [tun2proxy] Starting bridge session=2 fd=141 proxy=127.178.148.176:37813 mtu=1500 | 2026-04-26 01:12:26.114 [tun2proxy] Bridge session=2 finished
+Log xray: 2026/04/25 21:12:23.512633 [Info] app/dns: DNS: created UDP client initialized for 1.1.1.1:53 | 2026/04/25 21:12:23.516986 [Info] app/dns: DNS: created UDP client initialized for 1.0.0.1:53 | 2026/04/25 21:12:23.545242 [Info] transport/internet/tcp: listening TCP on 127.178.148.176:37813 | 2026/04/25 21:12:23.545462 [Info] transport/internet/udp: listening UDP on 127.178.148.176:37813 | 2026/04/25 21:12:23.545488 [Warning] core: Xray 26.3.27 started | 2026/04/25 21:12:23.723501 [Info] [1659747986] proxy/socks: Connection closed immediately, likely health check connection | 2026/04/25 21:12:23.726506 [Info] [1996567231] proxy/socks: TCP Connect request to tcp:2.26.85.47:80 | 2026/04/25 21:12:23.727016 [Info] [1996567231] app/dispatcher: sniffed domain: 2.26.85.47 | 2026/04/25 21:12:23.727059 [Info] [1996567231] app/dispatcher: Hit route rule: [default-proxy] so taking detour [proxy] for [tcp:2.26.85.47:80] | 2026/04/25 21:12:23.727085 [Info] [1996567231] transport/internet/tcp: dialing TCP to tcp:87.121.105.190:8443 | 2026/04/25 21:12:23.727121 from tcp:127.0.0.1:33270 accepted tcp:2.26.85.47:80 [socks-in -> proxy] | 2026/04/25 21:12:23.954257 [Info] [1996567231] proxy/vless/outbound: tunneling request to tcp:2.26.85.47:80 via 87.121.105.190:8443
+Log obfuscator: 2026/04/25 21:12:23 [obfuscator] starting runtime | 2026/04/25 21:12:23 [obfuscator] config=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json | 2026/04/25 21:12:23 [obfuscator] mode=client remote=87.121.105.190:8443 seed_length=27 | 2026/04/25 21:12:23 [obfuscator] strategies traffic=cdn_mimic pattern=pulse | 2026/04/25 21:12:23 [obfuscator] xray_config=/data/user/0/safety.turtle/files/xray/config.json | 2026/04/25 21:12:23 [obfuscator] expected_cli=--config <path> | 2026/04/25 21:12:23 [obfuscator] session nonce=51ccf74e31b3a300 rotation_bucket=1480959 fingerprint=edge spider_x=/cdn-cgi/trace?pulse=51ccf7 | 2026/04/25 21:12:23 [obfuscator] session_pools fingerprints=2 cover_paths=5 | 2026/04/25 21:12:23 [obfuscator] pattern_tuning padding=pulse-mixed jitter_ms=187 padding_bytes=190-497 burst_ms=1079-2363 idle_ms=1500-3777 | 2026/04/25 21:12:23 [obfuscator] proxy_listen=127.45.236.193:42141 upstream=127.178.148.176:37813 | 2026/04/25 21:12:23 [obfuscator] session=1 client=127.0.0.1:39016 error=read greeting: EOF | 2026/04/25 21:12:23 [obfuscator] session=2 client=127.0.0.1:39028 error=unsupported command 3
+2026-04-26 01:12:26.631 [service] Stopping core runtime
+2026-04-26 01:12:26.631 [service] Closing Android VPN tunnel interface before tun2proxy stop
+2026-04-26 01:12:26.656 [tun2proxy] Bridge stop completed within timeout
+2026-04-26 01:12:26.657 [runtime] Stopping embedded runtime processes
+2026-04-26 01:12:26.657 [runtime] Stopping process xray handle=UNIXProcess@7e64a1c
+2026-04-26 01:12:26.758 [runtime] Process xray exited after destroy()
+2026-04-26 01:12:26.759 [runtime] Stopping process obfuscator handle=UNIXProcess@9b44e24
+2026-04-26 01:12:26.860 [runtime] Process obfuscator exited after destroy()
+2026-04-26 01:12:26.877 [service] Service onDestroy invoked
+2026-04-26 01:12:56.096 [service] Received START command startId=1 profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json bypassRu=true routing=only_selected selectedApps=28 traffic=cdn_mimic pattern=pulse
+2026-04-26 01:12:56.099 [service] Preflight passed for profileId=file:profile.invite-inv-a4dafa4535dd4db9fcde1bb9-1.json
+2026-04-26 01:12:56.101 [service] Starting core for profile=Me · Sweden primary, server=87.121.105.190:8443, simplifiedBridgePath=false
+2026-04-26 01:12:56.102 [xray-config] Generated config for profile=Me · Sweden primary, server=87.121.105.190:8443, bypassRu=true, socksPort=44663, udp=true, dns=1.1.1.1, 1.0.0.1, domainMatcher=hybrid, routeOnly=false, fingerprint=chrome, spiderX=/, sessionFingerprint=edge, sessionSpiderX=/cdn-cgi/trace?pulse=51ccf7
+2026-04-26 01:12:56.102 [runtime] Preparing embedded runtime in /data/user/0/safety.turtle/files/runtime
+2026-04-26 01:12:56.103 [runtime] Embedded runtime preparation complete
+2026-04-26 01:12:56.103 [runtime] Starting sidecars: xray=/data/app/~~UYYE9WysqiCSzRf0YgakgA==/safety.turtle-dHB91JzMnUWx3DkP7qMcuw==/lib/arm64/libnovpn_xray_exec.so, obfuscator=/data/app/~~UYYE9WysqiCSzRf0YgakgA==/safety.turtle-dHB91JzMnUWx3DkP7qMcuw==/lib/arm64/libnovpn_obfuscator_exec.so, xrayConfig=/data/user/0/safety.turtle/files/xray/config.json, obfuscatorConfig=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026-04-26 01:12:56.104 [runtime] Obfuscator process started with handle=UNIXProcess@e23d3bd
+2026-04-26 01:12:56.355 [runtime] Process obfuscator is alive after startup probe
+2026-04-26 01:12:56.358 [runtime] Xray process started with handle=UNIXProcess@a26810a
+2026-04-26 01:12:56.609 [runtime] Process xray is alive after startup probe
+2026-04-26 01:12:56.611 [tun2proxy] Waiting for local proxy 127.2.64.174:41741 for up to 10s
+2026-04-26 01:12:56.616 [tun2proxy] Local proxy became reachable
+2026-04-26 01:12:56.620 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge
+2026-04-26 01:12:56.620 [tun2proxy] Waiting for local proxy 127.167.59.106:44663 for up to 10s
+2026-04-26 01:12:56.623 [tun2proxy] Local proxy became reachable
+2026-04-26 01:12:58.957 [service] Tunnel diagnostics check passed
+2026-04-26 01:12:58.981 [service] Android VPN tunnel established, starting tun2proxy
+2026-04-26 01:12:58.982 [tun2proxy] Starting bridge session=2 fd=142 proxy=127.167.59.106:44663 mtu=1500
+2026-04-26 01:12:58.983 [tun2proxy] Bridge session=2 finished
+2026-04-26 01:12:59.500 [service] Core start failed: tun2proxy exited before traffic forwarding became active (code -1).
+Process xray is active.
+Process obfuscator is active.
+Log app: 2026-04-26 01:12:56.355 [runtime] Process obfuscator is alive after startup probe | 2026-04-26 01:12:56.358 [runtime] Xray process started with handle=UNIXProcess@a26810a | 2026-04-26 01:12:56.609 [runtime] Process xray is alive after startup probe | 2026-04-26 01:12:56.611 [tun2proxy] Waiting for local proxy 127.2.64.174:41741 for up to 10s | 2026-04-26 01:12:56.616 [tun2proxy] Local proxy became reachable | 2026-04-26 01:12:56.620 [service] Local obfuscator SOCKS bridge failed UDP probe: Локальный SOCKS отклонил CONNECT с кодом 7.. Falling back to direct local Xray bridge | 2026-04-26 01:12:56.620 [tun2proxy] Waiting for local proxy 127.167.59.106:44663 for up to 10s | 2026-04-26 01:12:56.623 [tun2proxy] Local proxy became reachable | 2026-04-26 01:12:58.957 [service] Tunnel diagnostics check passed | 2026-04-26 01:12:58.981 [service] Android VPN tunnel established, starting tun2proxy | 2026-04-26 01:12:58.982 [tun2proxy] Starting bridge session=2 fd=142 proxy=127.167.59.106:44663 mtu=1500 | 2026-04-26 01:12:58.983 [tun2proxy] Bridge session=2 finished
+Log xray: 2026/04/25 21:12:56.399476 [Info] app/dns: DNS: created UDP client initialized for 1.1.1.1:53 | 2026/04/25 21:12:56.401656 [Info] app/dns: DNS: created UDP client initialized for 1.0.0.1:53 | 2026/04/25 21:12:56.435786 [Info] transport/internet/tcp: listening TCP on 127.167.59.106:44663 | 2026/04/25 21:12:56.436026 [Info] transport/internet/udp: listening UDP on 127.167.59.106:44663 | 2026/04/25 21:12:56.436439 [Warning] core: Xray 26.3.27 started | 2026/04/25 21:12:56.623509 [Info] [1074526741] proxy/socks: Connection closed immediately, likely health check connection | 2026/04/25 21:12:56.628180 [Info] [1502050842] proxy/socks: TCP Connect request to tcp:2.26.85.47:80 | 2026/04/25 21:12:56.628840 [Info] [1502050842] app/dispatcher: sniffed domain: 2.26.85.47 | 2026/04/25 21:12:56.628958 from tcp:127.0.0.1:55414 accepted tcp:2.26.85.47:80 [socks-in -> proxy] | 2026/04/25 21:12:56.628870 [Info] [1502050842] app/dispatcher: Hit route rule: [default-proxy] so taking detour [proxy] for [tcp:2.26.85.47:80] | 2026/04/25 21:12:56.629130 [Info] [1502050842] transport/internet/tcp: dialing TCP to tcp:87.121.105.190:8443 | 2026/04/25 21:12:56.829564 [Info] [1502050842] proxy/vless/outbound: tunneling request to tcp:2.26.85.47:80 via 87.121.105.190:8443
+Log obfuscator: 2026/04/25 21:12:56 [obfuscator] starting runtime | 2026/04/25 21:12:56 [obfuscator] config=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json | 2026/04/25 21:12:56 [obfuscator] mode=client remote=87.121.105.190:8443 seed_length=27 | 2026/04/25 21:12:56 [obfuscator] strategies traffic=cdn_mimic pattern=pulse | 2026/04/25 21:12:56 [obfuscator] xray_config=/data/user/0/safety.turtle/files/xray/config.json | 2026/04/25 21:12:56 [obfuscator] expected_cli=--config <path> | 2026/04/25 21:12:56 [obfuscator] session nonce=51ccf74e31b3a300 rotation_bucket=1480959 fingerprint=edge spider_x=/cdn-cgi/trace?pulse=51ccf7 | 2026/04/25 21:12:56 [obfuscator] session_pools fingerprints=2 cover_paths=5 | 2026/04/25 21:12:56 [obfuscator] pattern_tuning padding=pulse-mixed jitter_ms=187 padding_bytes=190-497 burst_ms=1079-2363 idle_ms=1500-3777 | 2026/04/25 21:12:56 [obfuscator] proxy_listen=127.2.64.174:41741 upstream=127.167.59.106:44663 | 2026/04/25 21:12:56 [obfuscator] session=1 client=127.0.0.1:41894 error=read greeting: EOF | 2026/04/25 21:12:56 [obfuscator] session=2 client=127.0.0.1:41906 error=unsupported command 3
+2026-04-26 01:12:59.501 [service] Stopping core runtime
+2026-04-26 01:12:59.501 [service] Closing Android VPN tunnel interface before tun2proxy stop
+2026-04-26 01:12:59.535 [tun2proxy] Bridge stop completed within timeout
+2026-04-26 01:12:59.536 [runtime] Stopping embedded runtime processes
+2026-04-26 01:12:59.536 [runtime] Stopping process xray handle=UNIXProcess@a26810a
+2026-04-26 01:12:59.637 [runtime] Process xray exited after destroy()
+2026-04-26 01:12:59.638 [runtime] Stopping process obfuscator handle=UNIXProcess@e23d3bd
+2026-04-26 01:12:59.739 [runtime] Process obfuscator exited after destroy()
+2026-04-26 01:12:59.765 [service] Service onDestroy invoked
+
+
+=== xray.log ===
+Xray 26.3.27 (Xray, Penetrates Everything.) d2758a0 (go1.26.1 android/arm64)
+A unified platform for anti-censorship.
+2026/04/25 21:12:56.375456 [Info] infra/conf/serial: Reading config: &{Name:/data/user/0/safety.turtle/files/xray/config.json Format:json}
+2026/04/25 21:12:56.399476 [Info] app/dns: DNS: created UDP client initialized for 1.1.1.1:53
+2026/04/25 21:12:56.401656 [Info] app/dns: DNS: created UDP client initialized for 1.0.0.1:53
+2026/04/25 21:12:56.435786 [Info] transport/internet/tcp: listening TCP on 127.167.59.106:44663
+2026/04/25 21:12:56.436026 [Info] transport/internet/udp: listening UDP on 127.167.59.106:44663
+2026/04/25 21:12:56.436439 [Warning] core: Xray 26.3.27 started
+2026/04/25 21:12:56.623509 [Info] [1074526741] proxy/socks: Connection closed immediately, likely health check connection
+2026/04/25 21:12:56.628180 [Info] [1502050842] proxy/socks: TCP Connect request to tcp:2.26.85.47:80
+2026/04/25 21:12:56.628840 [Info] [1502050842] app/dispatcher: sniffed domain: 2.26.85.47
+2026/04/25 21:12:56.628958 from tcp:127.0.0.1:55414 accepted tcp:2.26.85.47:80 [socks-in -> proxy]
+2026/04/25 21:12:56.628870 [Info] [1502050842] app/dispatcher: Hit route rule: [default-proxy] so taking detour [proxy] for [tcp:2.26.85.47:80]
+2026/04/25 21:12:56.629130 [Info] [1502050842] transport/internet/tcp: dialing TCP to tcp:87.121.105.190:8443
+2026/04/25 21:12:56.829564 [Info] [1502050842] proxy/vless/outbound: tunneling request to tcp:2.26.85.47:80 via 87.121.105.190:8443
+
+
+=== obfuscator.log ===
+2026/04/25 21:12:56 [obfuscator] starting runtime
+2026/04/25 21:12:56 [obfuscator] config=/data/user/0/safety.turtle/files/runtime/obfuscator.config.json
+2026/04/25 21:12:56 [obfuscator] mode=client remote=87.121.105.190:8443 seed_length=27
+2026/04/25 21:12:56 [obfuscator] strategies traffic=cdn_mimic pattern=pulse
+2026/04/25 21:12:56 [obfuscator] xray_config=/data/user/0/safety.turtle/files/xray/config.json
+2026/04/25 21:12:56 [obfuscator] expected_cli=--config <path>
+2026/04/25 21:12:56 [obfuscator] session nonce=51ccf74e31b3a300 rotation_bucket=1480959 fingerprint=edge spider_x=/cdn-cgi/trace?pulse=51ccf7
+2026/04/25 21:12:56 [obfuscator] session_pools fingerprints=2 cover_paths=5
+2026/04/25 21:12:56 [obfuscator] pattern_tuning padding=pulse-mixed jitter_ms=187 padding_bytes=190-497 burst_ms=1079-2363 idle_ms=1500-3777
+2026/04/25 21:12:56 [obfuscator] proxy_listen=127.2.64.174:41741 upstream=127.167.59.106:44663
+2026/04/25 21:12:56 [obfuscator] session=1 client=127.0.0.1:41894 error=read greeting: EOF
+2026/04/25 21:12:56 [obfuscator] session=2 client=127.0.0.1:41906 error=unsupported command 3
+2026/04/25 21:12:59 [obfuscator] shutdown complete
+

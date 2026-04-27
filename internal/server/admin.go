@@ -134,6 +134,7 @@ func newAdminServer(cfg config.AdminConfig, realityProvisioner *reality.Provisio
 func (a *adminApp) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/image.png", a.handleSiteImage)
+	mux.HandleFunc("/s/", a.handleShortClientSubscription)
 	mux.HandleFunc("/", a.redirectDashboard)
 	mux.HandleFunc(a.basePath+"/", a.routeBySuffix)
 	mux.HandleFunc(a.basePath, a.redirectDashboard)
@@ -642,10 +643,7 @@ func (a *adminApp) handlePublicClientQuota(w http.ResponseWriter, r *http.Reques
 	var target reality.ClientRecord
 	found := false
 	for _, client := range clients {
-		if clientUUID != "" && client.UUID != clientUUID {
-			continue
-		}
-		if deviceID != "" && client.DeviceID != deviceID {
+		if !clientMatchesSelectors(client, clientUUID, deviceID) {
 			continue
 		}
 		target = client
@@ -657,11 +655,23 @@ func (a *adminApp) handlePublicClientQuota(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if observedTarget, _, observeErr := a.observePublicClientDevice(target, r); observeErr != nil {
+		if isBlacklistedDeviceError(observeErr) {
+			http.Error(w, observeErr.Error(), http.StatusForbidden)
+			return
+		}
+		a.logger.Warn("observe public client quota device failed", "error", observeErr, "client_uuid", target.UUID, "device_id", deviceID)
+	} else {
+		target = observedTarget
+	}
+
 	responsePayload := map[string]any{
 		"observed_at":             time.Now().UTC(),
 		"client_id":               target.ID,
 		"client_uuid":             target.UUID,
 		"device_id":               target.DeviceID,
+		"device_name":             target.DeviceName,
+		"observed_devices":        target.ObservedDevices,
 		"active":                  target.Active,
 		"traffic_used_bytes":      target.TrafficUsedBytes,
 		"traffic_limit_bytes":     target.TrafficLimitBytes,
@@ -1026,16 +1036,14 @@ func (a *adminApp) handlePublicClientSubscription(w http.ResponseWriter, r *http
 		return
 	}
 
-	if observation, ok := happSubscriptionObservationFromRequest(r); ok {
-		observedTarget, changed, observeErr := a.reality.ObserveSubscriptionDeviceNoRefresh(target.UUID, target.DeviceID, observation)
-		if observeErr != nil {
-			a.logger.Warn("observe happ subscription device failed", "error", observeErr, "client_uuid", target.UUID, "device_id", observation.DeviceID)
-		} else {
-			target = observedTarget
-			if changed {
-				a.logger.Info("observed happ subscription device", "client_id", target.ID, "device_id", observation.DeviceID, "device_name", observation.DeviceName)
-			}
+	if observedTarget, _, observeErr := a.observePublicClientDevice(target, r); observeErr != nil {
+		if isBlacklistedDeviceError(observeErr) {
+			http.Error(w, observeErr.Error(), http.StatusForbidden)
+			return
 		}
+		a.logger.Warn("observe public client subscription device failed", "error", observeErr, "client_uuid", target.UUID)
+	} else {
+		target = observedTarget
 	}
 
 	subscriptionText, err := marshalClientProfileSubscriptionText(clientProfiles)
@@ -1049,6 +1057,42 @@ func (a *adminApp) handlePublicClientSubscription(w http.ResponseWriter, r *http
 	w.Header().Set("Subscription-Always-HWID-Enable", "1")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s-subscription.txt"`, target.ID))
 	_, _ = io.WriteString(w, subscriptionText)
+}
+
+func (a *adminApp) handleShortClientSubscription(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	clientUUID := strings.Trim(strings.TrimPrefix(r.URL.Path, "/s/"), "/")
+	if clientUUID == "" {
+		http.NotFound(w, r)
+		return
+	}
+	query := r.URL.Query()
+	query.Set("client_uuid", clientUUID)
+	r.URL.RawQuery = query.Encode()
+	a.handlePublicClientSubscription(w, r)
+}
+
+func (a *adminApp) observePublicClientDevice(target reality.ClientRecord, r *http.Request) (reality.ClientRecord, bool, error) {
+	observation, ok := happSubscriptionObservationFromRequest(r)
+	if !ok {
+		return target, false, nil
+	}
+
+	observedTarget, changed, err := a.reality.ObserveSubscriptionDeviceNoRefresh(target.UUID, target.DeviceID, observation)
+	if err != nil {
+		return target, true, err
+	}
+	if changed {
+		a.logger.Info("observed public client device", "client_id", observedTarget.ID, "device_id", observation.DeviceID, "device_name", observation.DeviceName)
+	}
+	return observedTarget, true, nil
+}
+
+func isBlacklistedDeviceError(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "blacklisted")
 }
 
 func (a *adminApp) handleClientAction(w http.ResponseWriter, r *http.Request) {
