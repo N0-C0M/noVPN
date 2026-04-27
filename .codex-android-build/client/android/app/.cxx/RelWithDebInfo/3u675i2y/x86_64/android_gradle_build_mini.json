@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "D:\\projekt\\noVPN\\.codex-android-build\\client\\android\\app\\src\\main\\cpp\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\n\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "D:\\projekt\\noVPN\\.codex-android-build\\client\\android\\app\\.cxx\\RelWithDebInfo\\3u675i2y\\x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\n\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "D:\\projekt\\noVPN\\.codex-android-build\\client\\android\\app\\.cxx\\RelWithDebInfo\\3u675i2y\\x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "novpn_tun2proxy_jni::@6890427a1f51a3e7e1df": {
+      "artifactName": "novpn_tun2proxy_jni",
+      "abi": "x86_64",
+      "output": "D:\\projekt\\noVPN\\.codex-android-build\\client\\android\\app\\build\\intermediates\\cxx\\RelWithDebInfo\\3u675i2y\\obj\\x86_64\\libnovpn_tun2proxy_jni.so",
+      "runtimeFiles": []
+    }
+  }
+}

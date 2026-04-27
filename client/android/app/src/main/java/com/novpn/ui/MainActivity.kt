@@ -969,7 +969,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun activateInviteCode() {
-        val code = inviteCodeInput.text?.toString().orEmpty()
+        val rawInput = inviteCodeInput.text?.toString().orEmpty()
+        val parsedInput = IncomingAccessLinkParser.parse(rawInput)
+        if (parsedInput?.kind == IncomingAccessKind.SUBSCRIPTION_URL ||
+            parsedInput?.kind == IncomingAccessKind.VLESS_URL
+        ) {
+            importIncomingLink(parsedInput)
+            return
+        }
+        val code = if (parsedInput?.kind == IncomingAccessKind.INVITE_CODE) {
+            parsedInput.value
+        } else {
+            rawInput
+        }
+        inviteCodeInput.setText(code)
         viewModel.setInviteCode(code)
         activateCodeButton.isEnabled = false
         statusTitle.text = getString(R.string.invite_code_activating)

@@ -123,10 +123,6 @@ func (a *adminApp) clientSubscriptionURL(clientUUID string) string {
 	if base == "" || clientUUID == "" {
 		return ""
 	}
-	shortBase := strings.TrimRight(strings.TrimSuffix(base, a.basePath), "/")
-	if shortBase != "" {
-		return shortBase + "/s/" + url.PathEscape(clientUUID)
-	}
 	return base + "/client/subscription?client_uuid=" + url.QueryEscape(clientUUID)
 }
 

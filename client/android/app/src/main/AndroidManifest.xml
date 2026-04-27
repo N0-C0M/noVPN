@@ -42,11 +42,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="xowery.ru" android:pathPrefix="/s/" />
+                <data android:scheme="https" android:host="xowery.ru" android:pathPrefix="/redeem/" />
+                <data android:scheme="https" android:host="xowery.ru" android:pathPrefix="/client/subscription" />
                 <data android:scheme="https" android:host="xowery.ru" android:pathPrefix="/admin/client/subscription" />
                 <data android:scheme="https" android:host="xowery.ru" android:pathPrefix="/admin/redeem/" />
+                <data android:scheme="http" android:host="2.26.85.47" android:pathPrefix="/redeem/" />
+                <data android:scheme="http" android:host="2.26.85.47" android:pathPrefix="/client/subscription" />
                 <data android:scheme="http" android:host="2.26.85.47" android:pathPrefix="/admin/client/subscription" />
                 <data android:scheme="http" android:host="2.26.85.47" android:pathPrefix="/admin/redeem/" />
                 <data android:scheme="http" android:host="2.26.85.47" android:port="9112" android:pathPrefix="/s/" />
+                <data android:scheme="http" android:host="2.26.85.47" android:port="9112" android:pathPrefix="/redeem/" />
+                <data android:scheme="http" android:host="2.26.85.47" android:port="9112" android:pathPrefix="/client/subscription" />
                 <data android:scheme="http" android:host="2.26.85.47" android:port="9112" android:pathPrefix="/admin/client/subscription" />
                 <data android:scheme="http" android:host="2.26.85.47" android:port="9112" android:pathPrefix="/admin/redeem/" />
             </intent-filter>

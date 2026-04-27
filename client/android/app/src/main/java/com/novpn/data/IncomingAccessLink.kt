@@ -16,6 +16,21 @@ enum class IncomingAccessKind {
 }
 
 object IncomingAccessLinkParser {
+    fun parse(rawValue: String): IncomingAccessLink? {
+        val trimmed = rawValue.trim()
+        if (trimmed.isBlank()) {
+            return null
+        }
+        parseInternal(Uri.parse(trimmed).normalizeScheme(), depth = 0)?.let { return it }
+        if (!trimmed.contains("://") && trimmed.contains('/') && trimmed.contains('.')) {
+            parseInternal(Uri.parse("https://$trimmed").normalizeScheme(), depth = 0)?.let { return it }
+        }
+        return IncomingAccessLink(
+            kind = IncomingAccessKind.INVITE_CODE,
+            value = trimmed
+        )
+    }
+
     fun parse(uri: Uri?): IncomingAccessLink? {
         return parseInternal(uri?.normalizeScheme(), depth = 0)
     }
@@ -40,7 +55,8 @@ object IncomingAccessLinkParser {
                     isRedeemPath(uri) -> extractInviteCode(uri)?.let { code ->
                         IncomingAccessLink(
                             kind = IncomingAccessKind.INVITE_CODE,
-                            value = code
+                            value = code,
+                            apiBaseOverride = deriveApiBase(uri)
                         )
                     }
                     isSubscriptionPath(uri) -> IncomingAccessLink(
@@ -53,7 +69,8 @@ object IncomingAccessLinkParser {
                             ?: extractInviteCode(uri)?.let { code ->
                                 IncomingAccessLink(
                                     kind = IncomingAccessKind.INVITE_CODE,
-                                    value = code
+                                    value = code,
+                                    apiBaseOverride = deriveApiBase(uri)
                                 )
                             }
                     }
@@ -64,7 +81,8 @@ object IncomingAccessLinkParser {
                     ?: extractInviteCode(uri)?.let { code ->
                         IncomingAccessLink(
                             kind = IncomingAccessKind.INVITE_CODE,
-                            value = code
+                            value = code,
+                            apiBaseOverride = uri.getQueryParameter("api_base")?.trim().orEmpty()
                         )
                     }
             }
@@ -125,6 +143,8 @@ object IncomingAccessLinkParser {
     private fun isSubscriptionPath(uri: Uri): Boolean {
         val path = uri.path.orEmpty()
         return path.startsWith("/s/") ||
+            path == "/client/subscription" ||
+            path.startsWith("/client/subscription/") ||
             path == "/admin/client/subscription" ||
             path.startsWith("/admin/client/subscription/")
     }

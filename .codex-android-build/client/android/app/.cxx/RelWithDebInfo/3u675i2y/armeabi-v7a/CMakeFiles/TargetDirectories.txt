@@ -1,0 +1,3 @@
+D:/projekt/noVPN/.codex-android-build/client/android/app/.cxx/RelWithDebInfo/3u675i2y/armeabi-v7a/CMakeFiles/novpn_tun2proxy_jni.dir
+D:/projekt/noVPN/.codex-android-build/client/android/app/.cxx/RelWithDebInfo/3u675i2y/armeabi-v7a/CMakeFiles/edit_cache.dir
+D:/projekt/noVPN/.codex-android-build/client/android/app/.cxx/RelWithDebInfo/3u675i2y/armeabi-v7a/CMakeFiles/rebuild_cache.dir

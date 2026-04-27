@@ -1,5 +1,6 @@
 package com.novpn.data
 
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -34,20 +35,17 @@ class InviteRedeemer {
         deviceName: String
     ): CodeRedeemResult = withContext(Dispatchers.IO) {
         val normalizedAddress = serverAddress.trim().trimEnd('/')
-        val normalizedApiBase = normalizeApiBase(serverAddress, apiBase)
-        val normalizedCode = inviteCode.trim()
+        val parsedInput = IncomingAccessLinkParser.parse(inviteCode.trim())
+        require(parsedInput == null || parsedInput.kind == IncomingAccessKind.INVITE_CODE) {
+            "This link should be imported directly instead of activated as an invite code."
+        }
+        val normalizedCode = parsedInput?.value?.trim().orEmpty().ifBlank { inviteCode.trim() }
+        val normalizedApiBase = normalizeApiBase(
+            serverAddress,
+            parsedInput?.apiBaseOverride?.takeIf { it.isNotBlank() } ?: apiBase
+        )
         require(normalizedAddress.isNotBlank() || normalizedApiBase.isNotBlank()) { "No server address available for invite activation." }
         require(normalizedCode.isNotBlank()) { "Enter an invite code first." }
-
-        val endpoint = URL("$normalizedApiBase/redeem/$normalizedCode")
-        val connection = (endpoint.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 10_000
-            readTimeout = 15_000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            setRequestProperty("Accept", "application/json")
-        }
 
         val payload = """
             {
@@ -56,12 +54,12 @@ class InviteRedeemer {
             }
         """.trimIndent()
 
-        connection.outputStream.use { output ->
-            output.write(payload.toByteArray(StandardCharsets.UTF_8))
-        }
-
-        val status = connection.responseCode
-        val body = readAll(connection)
+        val response = executePostWithRedirects(
+            endpoint = URL("$normalizedApiBase/redeem/${Uri.encode(normalizedCode)}"),
+            payload = payload
+        )
+        val status = response.statusCode
+        val body = response.body
         if (status !in 200..299) {
             throw IllegalStateException(
                 body.ifBlank { "Invite activation failed with HTTP $status." }
@@ -129,16 +127,6 @@ class InviteRedeemer {
         require(deviceId.isNotBlank()) { "Device ID is missing." }
         require(clientUuid.isNotBlank()) { "Client UUID is missing." }
 
-        val endpoint = URL("$normalizedApiBase/disconnect")
-        val connection = (endpoint.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 10_000
-            readTimeout = 15_000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            setRequestProperty("Accept", "application/json")
-        }
-
         val payload = """
             {
               "device_id": ${quoteJson(deviceId)},
@@ -147,17 +135,49 @@ class InviteRedeemer {
             }
         """.trimIndent()
 
-        connection.outputStream.use { output ->
-            output.write(payload.toByteArray(StandardCharsets.UTF_8))
-        }
-
-        val status = connection.responseCode
-        val body = readAll(connection)
+        val response = executePostWithRedirects(
+            endpoint = URL("$normalizedApiBase/disconnect"),
+            payload = payload
+        )
+        val status = response.statusCode
+        val body = response.body
         if (status !in 200..299) {
             throw IllegalStateException(
                 body.ifBlank { "Device disconnect failed with HTTP $status." }
             )
         }
+    }
+
+    private fun executePostWithRedirects(endpoint: URL, payload: String): HttpResponse {
+        var currentUrl = endpoint
+        repeat(MAX_REDIRECTS + 1) { attempt ->
+            val connection = (currentUrl.openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 15_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("Accept", "application/json")
+            }
+
+            connection.outputStream.use { output ->
+                output.write(payload.toByteArray(StandardCharsets.UTF_8))
+            }
+
+            val status = connection.responseCode
+            val body = readAll(connection)
+            if (status !in REDIRECT_STATUS_CODES) {
+                return HttpResponse(statusCode = status, body = body)
+            }
+
+            val location = connection.getHeaderField("Location").orEmpty().trim()
+            if (location.isBlank() || attempt >= MAX_REDIRECTS) {
+                return HttpResponse(statusCode = status, body = body)
+            }
+            currentUrl = URL(currentUrl, location)
+        }
+        return HttpResponse(statusCode = 500, body = "")
     }
 
     private fun readAll(connection: HttpURLConnection): String {
@@ -323,5 +343,15 @@ class InviteRedeemer {
             return ""
         }
         return "http://$normalizedAddress/admin"
+    }
+
+    private data class HttpResponse(
+        val statusCode: Int,
+        val body: String
+    )
+
+    companion object {
+        private const val MAX_REDIRECTS = 4
+        private val REDIRECT_STATUS_CODES = setOf(301, 302, 303, 307, 308)
     }
 }

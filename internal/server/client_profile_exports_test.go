@@ -123,7 +123,7 @@ func TestClientSubscriptionURLUsesPublicBaseURL(t *testing.T) {
 	}
 
 	got := app.clientSubscriptionURL("11111111-1111-1111-1111-111111111111")
-	want := "https://panel.example.com/s/11111111-1111-1111-1111-111111111111"
+	want := "https://panel.example.com/admin/client/subscription?client_uuid=11111111-1111-1111-1111-111111111111"
 	if got != want {
 		t.Fatalf("unexpected subscription URL: got %q want %q", got, want)
 	}

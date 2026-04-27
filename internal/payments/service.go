@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -188,6 +189,13 @@ func (s *Service) Shutdown(timeout time.Duration) error {
 func (s *Service) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealth)
+	mux.HandleFunc("/s/", s.handleCompatShortSubscription)
+	mux.HandleFunc("/redeem/", s.handleCompatPublicControlPlane)
+	mux.HandleFunc("/disconnect", s.handleCompatPublicControlPlane)
+	mux.HandleFunc("/client/policy", s.handleCompatPublicControlPlane)
+	mux.HandleFunc("/client/subscription", s.handleCompatPublicControlPlane)
+	mux.HandleFunc("/client/notices", s.handleCompatPublicControlPlane)
+	mux.HandleFunc("/client/quota", s.handleCompatPublicControlPlane)
 	mux.Handle("/downloads/", http.StripPrefix("/downloads/", http.FileServer(http.Dir(s.downloadsDir()))))
 	mux.HandleFunc("/cabinet/open", s.handleCabinetOpen)
 	mux.HandleFunc("/cabinet/", s.handleCabinetRoutes)
@@ -222,6 +230,79 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("ok\n"))
+}
+
+func (s *Service) handleCompatShortSubscription(w http.ResponseWriter, r *http.Request) {
+	clientUUID := strings.Trim(strings.TrimPrefix(r.URL.Path, "/s/"), "/")
+	if clientUUID == "" {
+		http.NotFound(w, r)
+		return
+	}
+	query := r.URL.Query()
+	query.Set("client_uuid", clientUUID)
+	targetPath := "/client/subscription?" + query.Encode()
+	s.proxyPublicControlPlane(w, r, targetPath)
+}
+
+func (s *Service) handleCompatPublicControlPlane(w http.ResponseWriter, r *http.Request) {
+	targetPath := r.URL.Path
+	if rawQuery := strings.TrimSpace(r.URL.RawQuery); rawQuery != "" {
+		targetPath += "?" + rawQuery
+	}
+	s.proxyPublicControlPlane(w, r, targetPath)
+}
+
+func (s *Service) proxyPublicControlPlane(w http.ResponseWriter, r *http.Request, targetPath string) {
+	targetURL, err := s.compatControlPlaneURL(targetPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	copyProxyHeaders(req.Header, r.Header)
+
+	resp, err := s.controlPlane.client.Do(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	copyProxyHeaders(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
+func (s *Service) compatControlPlaneURL(targetPath string) (string, error) {
+	base := strings.TrimRight(strings.TrimSpace(s.cfg.ControlPlaneBaseURL), "/")
+	if base == "" {
+		return "", errors.New("control plane base URL is empty")
+	}
+	if strings.HasPrefix(targetPath, "http://") || strings.HasPrefix(targetPath, "https://") {
+		return targetPath, nil
+	}
+	if strings.HasPrefix(targetPath, "/") {
+		return base + targetPath, nil
+	}
+	return base + "/" + targetPath, nil
+}
+
+func copyProxyHeaders(target http.Header, source http.Header) {
+	for key, values := range source {
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "connection", "content-length", "host", "transfer-encoding":
+			continue
+		}
+		target.Del(key)
+		for _, value := range values {
+			target.Add(key, value)
+		}
+	}
 }
 
 func (s *Service) handleLanding(w http.ResponseWriter, r *http.Request) {

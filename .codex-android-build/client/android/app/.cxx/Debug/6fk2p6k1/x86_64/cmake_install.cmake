@@ -1,4 +1,4 @@
-# Install script for directory: D:/projekt/noVPN/.codex-android-build/client/android/app/src/main/cpp
+# Install script for directory: D:/projekt/noVPN/client/android/app/src/main/cpp
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "D:/projekt/noVPN/.codex-android-build/client/android/app/.cxx/Debug/6fk2p6k1/x86_64/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "D:/projekt/noVPN/client/android/app/.cxx/Debug/6fk2p6k1/x86_64/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
