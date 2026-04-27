@@ -5,147 +5,225 @@ const landingTemplate = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{.BrandName}} · VPN без ожидания</title>
+  <title>{{.BrandName}} · VPN на ваших условиях</title>
   <style>
     :root {
-      --bg:#f4efe5;
-      --ink:#1d1d1f;
-      --muted:#645f57;
-      --card:#fffaf1;
-      --panel:#fbf6ed;
-      --line:rgba(29,29,31,0.12);
-      --accent:#cb4b16;
-      --accent-soft:#f48b3c;
-      --forest:#1e4d3a;
-      --bad:#7f1d1d;
-      --shadow:0 24px 70px rgba(75,49,27,0.16);
+      --bg:#f2efe8;
+      --sand:#e6dcc8;
+      --ink:#0f1720;
+      --muted:#56616b;
+      --card:#fffaf2;
+      --line:rgba(15,23,32,0.09);
+      --teal:#0f766e;
+      --teal-soft:#7dd3c7;
+      --orange:#dd6b20;
+      --orange-soft:#ffb36b;
+      --slate:#1f2937;
+      --shadow:0 26px 70px rgba(20,31,45,0.12);
     }
     * { box-sizing:border-box; }
     body {
       margin:0;
       color:var(--ink);
       background:
-        radial-gradient(circle at top left, rgba(244,139,60,0.28), transparent 32%),
-        radial-gradient(circle at top right, rgba(30,77,58,0.16), transparent 26%),
-        linear-gradient(180deg, #f8f2e8 0%, #efe7da 100%);
-      font-family:"Segoe UI Variable","Trebuchet MS","Segoe UI",sans-serif;
+        radial-gradient(circle at 8% 12%, rgba(221,107,32,0.20), transparent 26%),
+        radial-gradient(circle at 92% 0%, rgba(15,118,110,0.18), transparent 24%),
+        linear-gradient(180deg, #f8f5ef 0%, #eee6d7 100%);
+      font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
     }
-    a { color:var(--forest); }
-    .shell { max-width:1180px; margin:0 auto; padding:28px 18px 72px; }
+    a { color:var(--teal); }
+    .shell { max-width:1240px; margin:0 auto; padding:24px 18px 64px; }
     .hero {
       display:grid;
+      grid-template-columns:1.1fr 0.9fr;
       gap:18px;
-      grid-template-columns:1.15fr 0.85fr;
       align-items:start;
     }
-    .heroCard, .card {
-      background:linear-gradient(180deg, rgba(255,255,255,0.56), rgba(255,255,255,0.86));
+    .panel {
+      background:linear-gradient(180deg, rgba(255,255,255,0.78), rgba(255,255,255,0.92));
       border:1px solid var(--line);
-      border-radius:28px;
+      border-radius:30px;
       box-shadow:var(--shadow);
-      backdrop-filter: blur(10px);
+      backdrop-filter:blur(12px);
     }
     .heroCard { padding:28px; }
     .eyebrow {
       display:inline-flex;
-      gap:8px;
       align-items:center;
+      gap:8px;
       padding:8px 12px;
       border-radius:999px;
-      background:#fff3df;
-      color:var(--accent);
-      font-weight:700;
-      letter-spacing:0.04em;
-      text-transform:uppercase;
+      background:#fff0de;
+      color:var(--orange);
       font-size:12px;
+      font-weight:800;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
     }
     h1 {
-      margin:18px 0 12px;
-      font-size:clamp(34px, 5vw, 64px);
-      line-height:0.96;
-      letter-spacing:-0.04em;
+      margin:16px 0 10px;
+      font-size:clamp(38px, 6vw, 72px);
+      line-height:0.94;
+      letter-spacing:-0.05em;
       max-width:11ch;
     }
     .lead {
       margin:0;
       color:var(--muted);
       font-size:18px;
-      line-height:1.6;
-      max-width:44rem;
+      line-height:1.7;
+      max-width:48rem;
     }
-    .grid {
-      margin-top:22px;
+    .kpis, .grid {
       display:grid;
-      gap:16px;
+      gap:14px;
       grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
     }
-    .card { padding:22px; }
-    .price { font-size:34px; font-weight:800; letter-spacing:-0.04em; }
-    .muted { color:var(--muted); }
-    .planPicker { display:grid; gap:14px; }
-    .planOption {
-      display:block;
-      padding:18px;
-      border:1px solid var(--line);
-      border-radius:22px;
+    .kpis { margin-top:22px; }
+    .stat, .tile, .checkout, .card {
       background:var(--card);
-      cursor:pointer;
-    }
-    .planOption input { margin-right:10px; transform:translateY(1px); }
-    .planOption strong { font-size:18px; }
-    .badge {
-      display:inline-flex;
-      padding:5px 10px;
-      border-radius:999px;
-      background:#ecf6ef;
-      color:var(--forest);
-      font-size:12px;
-      font-weight:700;
-      margin-bottom:10px;
-    }
-    ul { margin:10px 0 0; padding-left:18px; color:var(--muted); }
-    form { display:grid; gap:14px; }
-    .inputs { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
-    label { display:block; font-size:14px; font-weight:700; margin-bottom:6px; }
-    input, textarea, button {
-      width:100%;
-      border-radius:16px;
       border:1px solid var(--line);
-      padding:13px 15px;
-      font:inherit;
-      background:#fffdf8;
-      color:var(--ink);
+      border-radius:24px;
     }
-    textarea { min-height:110px; resize:vertical; }
-    button {
-      border:none;
-      background:linear-gradient(135deg, var(--accent), var(--accent-soft));
-      color:white;
+    .stat, .tile, .card { padding:18px; }
+    .value { font-size:32px; font-weight:900; letter-spacing:-0.04em; }
+    .muted { color:var(--muted); }
+    .builder { padding:22px; }
+    .builder h2 { margin:0 0 14px; font-size:24px; letter-spacing:-0.03em; }
+    .sectionLabel {
+      display:block;
+      margin-bottom:8px;
+      color:var(--muted);
+      font-size:13px;
       font-weight:800;
-      letter-spacing:0.02em;
-      cursor:pointer;
-      box-shadow:0 18px 36px rgba(203,75,22,0.22);
+      letter-spacing:0.08em;
+      text-transform:uppercase;
     }
-    .meta { display:grid; gap:12px; }
-    .infoList { display:grid; gap:10px; }
-    .infoRow {
+    .months {
+      display:grid;
+      gap:10px;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .monthBtn {
+      width:100%;
+      padding:14px 14px;
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:#fff;
+      color:var(--ink);
+      font:inherit;
+      font-weight:800;
+      text-align:left;
+      cursor:pointer;
+    }
+    .monthBtn span { display:block; }
+    .monthBtn .sub { margin-top:4px; color:var(--muted); font-size:13px; font-weight:700; }
+    .monthBtn.active {
+      border-color:rgba(15,118,110,0.28);
+      background:linear-gradient(135deg, rgba(15,118,110,0.12), rgba(125,211,199,0.12));
+      box-shadow:inset 0 0 0 1px rgba(15,118,110,0.10);
+    }
+    .rangeWrap {
+      display:grid;
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .devicesHead {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .bigNumber {
+      font-size:40px;
+      font-weight:900;
+      letter-spacing:-0.05em;
+    }
+    input[type="range"] {
+      width:100%;
+      accent-color:var(--teal);
+    }
+    .summary {
+      margin-top:18px;
+      padding:18px;
+      border-radius:24px;
+      background:linear-gradient(135deg, #0f766e, #155e75);
+      color:#f4fffd;
+      box-shadow:0 22px 50px rgba(15,118,110,0.22);
+    }
+    .summaryPrice {
+      font-size:40px;
+      font-weight:900;
+      letter-spacing:-0.05em;
+    }
+    .rows { display:grid; gap:10px; margin-top:14px; }
+    .row {
       display:flex;
       justify-content:space-between;
       gap:16px;
-      padding:12px 14px;
-      border-radius:16px;
-      background:rgba(255,255,255,0.62);
+      padding:12px 0;
+      border-bottom:1px solid rgba(255,255,255,0.12);
+    }
+    .row:last-child { border-bottom:none; padding-bottom:0; }
+    form { display:grid; gap:14px; }
+    .fields {
+      display:grid;
+      gap:12px;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    }
+    input, textarea, button {
+      width:100%;
+      border-radius:18px;
       border:1px solid var(--line);
+      padding:13px 14px;
+      font:inherit;
+      background:#fffefb;
+      color:var(--ink);
     }
-    .warn {
+    textarea { min-height:110px; resize:vertical; }
+    button[type="submit"] {
+      border:none;
+      background:linear-gradient(135deg, var(--orange), var(--orange-soft));
+      color:white;
+      font-weight:900;
+      letter-spacing:0.02em;
+      cursor:pointer;
+      box-shadow:0 20px 40px rgba(221,107,32,0.24);
+    }
+    .notice {
       padding:14px 16px;
-      border-radius:16px;
-      background:#fff1ec;
-      color:var(--bad);
-      border:1px solid rgba(127,29,29,0.12);
-      line-height:1.5;
+      border-radius:18px;
+      background:#eefaf8;
+      border:1px solid rgba(15,118,110,0.12);
+      color:#0f4e49;
+      line-height:1.6;
     }
-    @media (max-width: 860px) {
+    .heroFoot {
+      margin-top:18px;
+      display:grid;
+      gap:14px;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    }
+    .support {
+      margin-top:18px;
+      display:grid;
+      gap:14px;
+      grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    }
+    .portalForm {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .portalForm input { flex:1 1 260px; }
+    .portalForm button {
+      width:auto;
+      min-width:200px;
+      background:linear-gradient(135deg, #0f766e, #38b2ac);
+      box-shadow:none;
+    }
+    @media (max-width: 920px) {
       .hero { grid-template-columns:1fr; }
     }
   </style>
@@ -153,107 +231,193 @@ const landingTemplate = `<!doctype html>
 <body>
   <div class="shell">
     <section class="hero">
-      <div class="heroCard">
-        <div class="eyebrow">VPN access · ручная модерация</div>
-        <h1>Купить VPN и получить доступ сразу</h1>
-        <p class="lead">
-          После перевода на карту и загрузки скрина система сразу выдаёт код или профиль. Платёж остаётся на ручной проверке:
-          если подтверждения оплаты нет, доступ отключается, а привязанные устройства попадают в блэклист.
-        </p>
-        <div class="grid">
-          <div class="card">
+      <div class="panel heroCard">
+        <div class="eyebrow">Частный VPN-сервис · один кабинет</div>
+        <h1>{{.BrandName}} без шаблонных тарифов</h1>
+        <p class="lead">{{.Pricing.ProductDescription}}</p>
+        <div class="kpis">
+          <div class="stat">
             <div class="muted">Оплата</div>
-            <div class="price">Перевод на карту</div>
-            <div class="infoList" style="margin-top:14px;">
-              <div class="infoRow"><span>Карта</span><strong>{{if .PaymentCardNumber}}{{.PaymentCardNumber}}{{else}}указать в конфиге{{end}}</strong></div>
-              <div class="infoRow"><span>Получатель</span><strong>{{if .PaymentCardHolder}}{{.PaymentCardHolder}}{{else}}указать в конфиге{{end}}</strong></div>
-              <div class="infoRow"><span>Банк</span><strong>{{if .PaymentCardBank}}{{.PaymentCardBank}}{{else}}указать в конфиге{{end}}</strong></div>
-            </div>
+            <div class="value">СБП</div>
+            <div class="muted">Интеграцию можно подключить позже без переделки витрины.</div>
           </div>
-          <div class="card">
-            <div class="muted">Что выдаётся</div>
-            <ul>
-              <li>код активации для Android / Windows, если выбран кодовый тариф;</li>
-              <li>ссылка для Happ, vless:// и YAML-профиль, если выбран iOS / Windows тариф;</li>
-              <li>ссылки на лаунчеры и кабинет заказа.</li>
+          <div class="stat">
+            <div class="muted">Ключи</div>
+            <div class="value">Happ + ключи</div>
+            <div class="muted">На каждое устройство выпускается отдельный subscription URL.</div>
+          </div>
+          <div class="stat">
+            <div class="muted">Кабинет</div>
+            <div class="value">Ключ кабинета</div>
+            <div class="muted">Один ключ от сайта для истории заказов, копирования ключей и продления.</div>
+          </div>
+        </div>
+        <div class="heroFoot">
+          <div class="tile">
+            <strong>{{.Pricing.AccountPortalHeadline}}</strong>
+            <p class="muted" style="margin:10px 0 0;">{{.Pricing.AccountPortalSubtext}}</p>
+          </div>
+          <div class="tile">
+            <strong>Что входит</strong>
+            <ul class="muted" style="margin:10px 0 0; padding-left:18px;">
+              {{range .Pricing.Features}}<li>{{.}}</li>{{end}}
             </ul>
           </div>
         </div>
       </div>
-      <div class="card">
-        <h2 style="margin-top:0;">Оформить заказ</h2>
-        <form method="post" action="/order" enctype="multipart/form-data">
-          <div class="planPicker">
-            {{range $index, $plan := .Plans}}
-            <label class="planOption">
-              <div class="badge">{{$plan.Badge}}</div>
+
+      <div class="panel builder">
+        <h2>Собрать тариф</h2>
+        {{if .SiteKeyNotice}}<div class="notice" style="margin-bottom:14px;">{{.SiteKeyNotice}}</div>{{end}}
+        <form method="post" action="/order">
+          <input type="hidden" name="account_id" value="{{.AccountID}}">
+          <input type="hidden" name="account_token" value="{{.AccountToken}}">
+          <input type="hidden" name="device_count" id="device_count" value="{{.DefaultQuote.DeviceCount}}">
+          <input type="hidden" name="months" id="months" value="{{.DefaultQuote.Months}}">
+
+          <div class="rangeWrap">
+            <div class="devicesHead">
               <div>
-                <input type="radio" name="plan_id" value="{{$plan.ID}}" {{if eq $index 0}}checked{{end}}>
-                <strong>{{$plan.Name}}</strong>
+                <span class="sectionLabel">Количество устройств</span>
+                <div class="muted">От {{.Pricing.MinDevices}} до {{.Pricing.MaxDevices}} устройств в одном заказе.</div>
               </div>
-              <div class="price" style="font-size:28px; margin-top:8px;">{{formatMoney $plan.PriceMinor $plan.Currency}}</div>
-              <div class="muted">{{$plan.Description}}</div>
-              {{if $plan.Features}}
-              <ul>
-                {{range $plan.Features}}<li>{{.}}</li>{{end}}
-              </ul>
-              {{end}}
-            </label>
-            {{end}}
+              <div class="bigNumber" id="deviceCountLabel">{{.DefaultQuote.DeviceCount}}</div>
+            </div>
+            <input id="deviceRange" type="range" min="{{.Pricing.MinDevices}}" max="{{.Pricing.MaxDevices}}" value="{{.DefaultQuote.DeviceCount}}">
           </div>
-          <div class="inputs">
+
+          <div>
+            <span class="sectionLabel">Срок подписки</span>
+            <div class="months" id="monthsGrid">
+              {{range .Pricing.MonthOptions}}
+              <button class="monthBtn" type="button" data-months="{{.Months}}" data-discount="{{.DiscountPercent}}">
+                <span>{{.Label}}</span>
+                <span class="sub">{{if gt .DiscountPercent 0}}Скидка {{.DiscountPercent}}%{{else}}Без скидки{{end}}</span>
+              </button>
+              {{end}}
+            </div>
+          </div>
+
+          <div class="summary">
+            <div class="muted" style="color:rgba(244,255,253,0.78);">Итого по заказу</div>
+            <div class="summaryPrice" id="totalPrice">{{formatMoney .DefaultQuote.TotalMinor .DefaultQuote.Currency}}</div>
+            <div id="summaryLine" style="font-size:15px; line-height:1.6;">{{.DefaultQuote.DeviceCount}} устройство · {{.DefaultQuote.Months}} мес. · скидка {{.DefaultQuote.DiscountPercent}}%</div>
+            <div class="rows">
+              <div class="row"><span>База</span><strong id="basePrice">{{formatMoney .DefaultQuote.SubtotalMinor .DefaultQuote.Currency}}</strong></div>
+              <div class="row"><span>Скидка</span><strong id="discountPrice">{{formatMoney .DefaultQuote.DiscountMinor .DefaultQuote.Currency}}</strong></div>
+            </div>
+          </div>
+
+          <div class="fields">
             <div>
-              <label for="customer_name">Имя</label>
-              <input id="customer_name" name="customer_name" placeholder="Например, Ivan" required>
+              <label class="sectionLabel" for="customer_name">Имя</label>
+              <input id="customer_name" name="customer_name" value="{{.CustomerName}}" placeholder="Например, Ivan" required>
             </div>
             <div>
-              <label for="contact">Контакт</label>
-              <input id="contact" name="contact" placeholder="Telegram, email или телефон" required>
+              <label class="sectionLabel" for="contact">Контакт</label>
+              <input id="contact" name="contact" value="{{.Contact}}" placeholder="Telegram, email или телефон" required>
             </div>
             <div>
-              <label for="device_label">Устройство</label>
-              <input id="device_label" name="device_label" placeholder="Например, iPhone 15 / ПК дома">
+              <label class="sectionLabel" for="device_label">Подпись для слотов</label>
+              <input id="device_label" name="device_label" value="{{.DeviceLabel}}" placeholder="Например, Family / Office / Personal">
             </div>
             <div>
-              <label for="payment_screenshot">Скрин оплаты</label>
-              <input id="payment_screenshot" name="payment_screenshot" type="file" accept=".png,.jpg,.jpeg,.webp" required>
+              <label class="sectionLabel" for="promo_code">Промокод</label>
+              <input id="promo_code" name="promo_code" value="{{.PromoCode}}" placeholder="Если есть скидка или тестовый код">
             </div>
           </div>
           <div>
-            <label for="note">Комментарий</label>
-            <textarea id="note" name="note" placeholder="Можно указать удобный способ связи или детали по устройству"></textarea>
+            <label class="sectionLabel" for="note">Комментарий</label>
+            <textarea id="note" name="note" placeholder="Например, какие устройства подключать в первую очередь">{{.Note}}</textarea>
           </div>
-          <div class="warn">
-            Фальшивая оплата, чужой скрин или отменённый перевод приводят к отклонению заказа. Если к моменту отклонения доступ уже был активирован, аккаунт и привязанные устройства блокируются.
-          </div>
-          <button type="submit">Оплатил, выдать доступ</button>
+          <div class="notice">{{.Pricing.SBPPaymentNotice}}</div>
+          <button type="submit">Перейти к оплате и выпуску ключей</button>
         </form>
       </div>
     </section>
-    <section class="grid" style="margin-top:18px;">
-      <div class="card meta">
-        <h3 style="margin:0;">Ссылки на клиенты</h3>
-        <div class="infoList">
-          {{if .AndroidLauncherURL}}<div class="infoRow"><span>Android</span><a href="{{.AndroidLauncherURL}}" target="_blank" rel="noreferrer">Скачать APK</a></div>{{end}}
-          {{if .WindowsLauncherURL}}<div class="infoRow"><span>Windows</span><a href="{{.WindowsLauncherURL}}" target="_blank" rel="noreferrer">Скачать лаунчер</a></div>{{end}}
-          {{if .HappDownloadURL}}<div class="infoRow"><span>iOS / Happ</span><a href="{{.HappDownloadURL}}" target="_blank" rel="noreferrer">Открыть Happ</a></div>{{end}}
+
+    <section class="support">
+      <div class="card">
+        <strong>Уже есть ключ кабинета?</strong>
+        <p class="muted" style="margin:10px 0 12px;">Открой кабинет, чтобы скопировать текущие ключи, посмотреть историю заказов и оформить продление.</p>
+        <form class="portalForm" method="post" action="/cabinet/open">
+          <input name="site_key" placeholder="Вставьте ключ от сайта" required>
+          <button type="submit">Открыть кабинет</button>
+        </form>
+      </div>
+      <div class="card">
+        <strong>Клиенты</strong>
+        <div class="grid" style="margin-top:12px;">
+          {{if .HappDownloadURL}}<div class="tile"><div class="muted">Happ</div><a href="{{.HappDownloadURL}}" target="_blank" rel="noreferrer">Открыть / скачать</a></div>{{end}}
+          {{if .AndroidLauncherURL}}<div class="tile"><div class="muted">Android APK</div><a href="{{.AndroidLauncherURL}}" target="_blank" rel="noreferrer">Скачать</a></div>{{end}}
+          {{if .WindowsLauncherURL}}<div class="tile"><div class="muted">ПК-клиент</div><a href="{{.WindowsLauncherURL}}" target="_blank" rel="noreferrer">Скачать</a></div>{{end}}
         </div>
       </div>
-      <div class="card meta">
-        <h3 style="margin:0;">Где брать ссылку для Happ</h3>
-        <p class="muted" style="margin:0;">
-          Для тарифа iOS / Windows ссылка выдаётся сразу в кабинете заказа как поле <strong>«Ссылка для Happ»</strong>.
-          Технически это публичный endpoint вида <code>/admin/client/subscription?client_uuid=...</code>.
-        </p>
-      </div>
-      <div class="card meta">
-        <h3 style="margin:0;">Поддержка</h3>
-        <p class="muted" style="margin:0;">
-          {{if .SupportLink}}Если нужен ручной разбор заказа или перенос доступа, используйте <a href="{{.SupportLink}}" target="_blank" rel="noreferrer">{{.SupportLink}}</a>.{{else}}Ссылку на поддержку можно добавить в конфиг support_link.{{end}}
+      <div class="card">
+        <strong>Поддержка</strong>
+        <p class="muted" style="margin:10px 0 0;">
+          {{if .SupportLink}}Нужна ручная помощь или перенос доступа: <a href="{{.SupportLink}}" target="_blank" rel="noreferrer">{{.SupportLink}}</a>.{{else}}Ссылку на поддержку можно добавить через ` + "`support_link`" + ` в конфиге pay-service.{{end}}
         </p>
       </div>
     </section>
   </div>
+
+  <script>
+    (() => {
+      const pricing = {
+        baseMonthly: {{.Pricing.BaseMonthlyPriceMinor}},
+        currency: {{printf "%q" .Pricing.Currency}},
+        options: {{toJSON .Pricing.MonthOptions}}
+      };
+      const currency = pricing.currency || "RUB";
+      const range = document.getElementById("deviceRange");
+      const deviceCountInput = document.getElementById("device_count");
+      const monthsInput = document.getElementById("months");
+      const deviceCountLabel = document.getElementById("deviceCountLabel");
+      const totalPrice = document.getElementById("totalPrice");
+      const basePrice = document.getElementById("basePrice");
+      const discountPrice = document.getElementById("discountPrice");
+      const summaryLine = document.getElementById("summaryLine");
+      const buttons = Array.from(document.querySelectorAll(".monthBtn"));
+
+      function money(value) {
+        if ((currency || "").toUpperCase() === "RUB") return value + " ₽";
+        return value + " " + currency;
+      }
+
+      function selectedOption() {
+        const months = Number(monthsInput.value || 0);
+        return pricing.options.find(item => item.months === months) || pricing.options[0];
+      }
+
+      function render() {
+        const devices = Number(range.value || 1);
+        const option = selectedOption();
+        const subtotal = pricing.baseMonthly * devices * option.months;
+        const discount = Math.floor(subtotal * option.discount_percent / 100);
+        const total = subtotal - discount;
+
+        deviceCountInput.value = String(devices);
+        deviceCountLabel.textContent = String(devices);
+        totalPrice.textContent = money(total);
+        basePrice.textContent = money(subtotal);
+        discountPrice.textContent = money(discount);
+        summaryLine.textContent = devices + " устройств · " + option.months + " мес. · скидка " + option.discount_percent + "%";
+        buttons.forEach(btn => {
+          btn.classList.toggle("active", Number(btn.dataset.months) === option.months);
+        });
+      }
+
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          monthsInput.value = btn.dataset.months;
+          render();
+        });
+      });
+      range.addEventListener("input", render);
+      render();
+    })();
+  </script>
 </body>
 </html>`
 
@@ -265,42 +429,38 @@ const orderTemplate = `<!doctype html>
   <title>Заказ {{.Order.ID}}</title>
   <style>
     :root {
-      --bg:#0f1115;
-      --panel:#171b22;
-      --card:#1d2330;
+      --bg:#0c121a;
+      --ink:#eef5ff;
+      --muted:#9aa6b2;
+      --panel:#101924;
+      --card:#162230;
       --line:rgba(255,255,255,0.08);
-      --ink:#f5f7fa;
-      --muted:#a6afbd;
-      --accent:#4ad3a8;
-      --accent2:#ff8a3d;
-      --bad:#ff7b7b;
-      --shadow:0 22px 60px rgba(0,0,0,0.28);
+      --teal:#38b2ac;
+      --green:#0f766e;
+      --orange:#ff9a4a;
+      --red:#ff8a8a;
+      --shadow:0 26px 80px rgba(0,0,0,0.30);
     }
     * { box-sizing:border-box; }
     body {
       margin:0;
-      background:
-        radial-gradient(circle at top right, rgba(74,211,168,0.14), transparent 30%),
-        radial-gradient(circle at left center, rgba(255,138,61,0.16), transparent 28%),
-        linear-gradient(180deg, #0c1016 0%, #111723 100%);
       color:var(--ink);
-      font-family:"Segoe UI Variable","Trebuchet MS","Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(56,178,172,0.16), transparent 24%),
+        radial-gradient(circle at 90% 0%, rgba(255,154,74,0.18), transparent 26%),
+        linear-gradient(180deg, #081019 0%, #0f1622 100%);
+      font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
     }
-    a { color:#8ce9c7; word-break:break-all; }
+    a { color:#9ce7de; word-break:break-all; }
     code, pre { font-family:"Cascadia Code","Consolas",monospace; }
-    .shell { max-width:1080px; margin:0 auto; padding:28px 18px 64px; }
-    .stack { display:grid; gap:16px; }
-    .card {
-      background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent), var(--card);
+    .shell { max-width:1180px; margin:0 auto; padding:26px 18px 60px; display:grid; gap:16px; }
+    .hero { display:grid; gap:16px; grid-template-columns:1.05fr 0.95fr; }
+    .panel {
+      background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent), var(--panel);
       border:1px solid var(--line);
-      border-radius:24px;
-      padding:22px;
+      border-radius:28px;
       box-shadow:var(--shadow);
-    }
-    .hero {
-      display:grid;
-      gap:16px;
-      grid-template-columns:1.1fr 0.9fr;
+      padding:22px;
     }
     .pill {
       display:inline-flex;
@@ -308,162 +468,539 @@ const orderTemplate = `<!doctype html>
       padding:7px 12px;
       border-radius:999px;
       font-size:12px;
-      font-weight:800;
-      letter-spacing:0.05em;
+      font-weight:900;
+      letter-spacing:0.08em;
       text-transform:uppercase;
     }
-    .pending { background:rgba(255,138,61,0.16); color:#ffbd8a; }
-    .confirmed { background:rgba(74,211,168,0.16); color:#8ce9c7; }
-    .rejected { background:rgba(255,123,123,0.16); color:#ffb2b2; }
-    h1 { margin:14px 0 10px; font-size:clamp(28px,4vw,50px); letter-spacing:-0.04em; }
+    .awaiting_payment { background:rgba(255,154,74,0.14); color:#ffd1a7; }
+    .provisioning { background:rgba(56,178,172,0.14); color:#a9efe7; }
+    .active { background:rgba(15,118,110,0.18); color:#9ce7de; }
+    .cancelled { background:rgba(255,138,138,0.14); color:#ffbbbb; }
+    h1 { margin:16px 0 10px; font-size:clamp(30px,4vw,56px); letter-spacing:-0.05em; }
     .muted { color:var(--muted); }
-    .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+    .grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+    .tile, .card {
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:22px;
+      padding:18px;
+    }
+    .price { font-size:38px; font-weight:900; letter-spacing:-0.05em; }
+    .rows { display:grid; gap:10px; margin-top:14px; }
     .row {
       display:flex;
       justify-content:space-between;
-      gap:16px;
+      gap:12px;
       padding:12px 0;
       border-bottom:1px solid var(--line);
     }
     .row:last-child { border-bottom:none; padding-bottom:0; }
-    .bundle {
-      border:1px solid var(--line);
-      border-radius:18px;
-      padding:16px;
-      background:rgba(255,255,255,0.03);
-    }
-    .actions { display:flex; flex-wrap:wrap; gap:12px; }
-    .button {
+    .cta {
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      min-height:46px;
-      padding:0 16px;
-      border-radius:14px;
-      background:linear-gradient(135deg, #39bf94, #2aa7d5);
-      color:white;
+      min-height:48px;
+      padding:0 18px;
+      border:none;
+      border-radius:16px;
+      background:linear-gradient(135deg, var(--orange), #ffb768);
+      color:#fff;
+      font:inherit;
+      font-weight:900;
+      cursor:pointer;
       text-decoration:none;
-      font-weight:800;
+    }
+    .cta.secondary {
+      background:linear-gradient(135deg, #0f766e, #38b2ac);
+    }
+    .qr {
+      min-height:220px;
+      display:grid;
+      place-items:center;
+      border-radius:24px;
+      border:1px dashed rgba(255,255,255,0.18);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02) 10px, transparent 10px, transparent 20px);
+      text-align:center;
+      padding:18px;
     }
     pre {
-      margin:0;
+      margin:10px 0 0;
       padding:14px;
       border-radius:16px;
-      background:#11161f;
-      color:#dfe8f3;
+      background:#0d151f;
       overflow:auto;
       white-space:pre-wrap;
       word-break:break-word;
     }
-    @media (max-width: 860px) {
+    .keyGrid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+    .notice {
+      padding:14px 16px;
+      border-radius:18px;
+      background:rgba(255,138,138,0.12);
+      border:1px solid rgba(255,138,138,0.12);
+      color:#ffd2d2;
+    }
+    @media (max-width: 920px) {
       .hero { grid-template-columns:1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="shell stack">
+  <div class="shell">
     <section class="hero">
-      <div class="card">
+      <div class="panel">
         <span class="pill {{statusClass .Order.Status}}">{{statusLabel .Order.Status}}</span>
-        <h1>Заказ {{.Order.ID}}</h1>
-        <p class="muted" style="margin:0;">
-          Доступ выдан сразу. Статус оплаты пока проверяется модератором вручную.
-          При отклонении заказ отключается, а уже привязанные устройства блокируются.
-        </p>
+        <h1>{{.BrandName}} · заказ {{.Order.ID}}</h1>
+        <p class="muted" style="margin:0;">После подтверждения сервис выпускает отдельный ключ на каждый слот устройства и привязывает заказ к вашему ключу кабинета.</p>
         <div class="grid" style="margin-top:18px;">
-          <div class="bundle">
-            <div class="muted">Тариф</div>
+          <div class="tile">
+            <div class="muted">Собранный тариф</div>
             <strong>{{.Order.PlanName}}</strong>
-            <div style="margin-top:8px;">{{formatMoney .Order.PriceMinor .Order.Currency}}</div>
+            <div style="margin-top:8px;">{{.Order.DeviceCount}} устройств · {{.Order.Months}} мес.</div>
           </div>
-          <div class="bundle">
+          <div class="tile">
             <div class="muted">Контакт</div>
             <strong>{{.Order.Contact}}</strong>
-            <div style="margin-top:8px;">{{if .Order.CustomerName}}{{.Order.CustomerName}}{{else}}без имени{{end}}</div>
+            <div style="margin-top:8px;">{{.Order.CustomerName}}</div>
           </div>
-          <div class="bundle">
-            <div class="muted">Создан</div>
-            <strong>{{formatTime .Order.CreatedAt}}</strong>
-            <div style="margin-top:8px;">{{if .Order.DeviceLabel}}{{.Order.DeviceLabel}}{{else}}устройство не указано{{end}}</div>
+          <div class="tile">
+            <div class="muted">Ключ кабинета</div>
+            <strong>{{.Order.AccountToken}}</strong>
+            <div style="margin-top:8px;"><a href="{{.AccountURL}}">Открыть кабинет</a></div>
           </div>
         </div>
       </div>
-      <div class="card">
-        <h2 style="margin-top:0;">Ссылки на клиенты</h2>
-        <div class="actions">
-          {{if .AndroidLauncherURL}}<a class="button" href="{{.AndroidLauncherURL}}" target="_blank" rel="noreferrer">Android APK</a>{{end}}
-          {{if .WindowsLauncherURL}}<a class="button" href="{{.WindowsLauncherURL}}" target="_blank" rel="noreferrer">Windows launcher</a>{{end}}
-          {{if .HappDownloadURL}}<a class="button" href="{{.HappDownloadURL}}" target="_blank" rel="noreferrer">Happ для iOS</a>{{end}}
+
+      <div class="panel">
+        {{if eq .Order.Status "active"}}
+        <div class="muted">{{if and (eq .Order.PriceMinor 0) .Order.PromoCode}}Оплата не требуется{{else}}К оплате{{end}}</div>
+        <div class="price">{{formatMoney .Order.PriceMinor .Order.Currency}}</div>
+        <p class="muted" style="line-height:1.7;">{{if and (eq .Order.PriceMinor 0) .Order.PromoCode}}Заказ был активирован без СБП: промокод полностью покрыл стоимость. Ключи уже выпущены и доступны ниже.{{else}}Оплата зафиксирована. Ключи уже выпущены и доступны ниже. Для следующих покупок и продления используйте ваш кабинет.{{end}}</p>
+        <a class="cta secondary" href="{{.AccountURL}}">Перейти в кабинет</a>
+        {{else}}
+        <div class="muted">{{if and (eq .Order.PriceMinor 0) .Order.PromoCode}}Активация по промокоду{{else}}Этап оплаты{{end}}</div>
+        <div class="price">{{formatMoney .Order.PriceMinor .Order.Currency}}</div>
+        {{if and (eq .Order.PriceMinor 0) .Order.PromoCode}}
+        <p class="muted" style="line-height:1.7;">Промокод полностью покрыл стоимость заказа. СБП для этого заказа не требуется. Если автоматический выпуск ключей не завершился, нажмите кнопку ниже для повторной активации.</p>
+        {{else}}
+        <p class="muted" style="line-height:1.7;">СБП будет подключен реальным провайдером позже. Пока эта страница работает как checkout-заглушка: после нажатия кнопки ниже доступ выдается сразу.</p>
+        <div class="qr">
+          <div>
+            <strong>{{if .SBPCardHolder}}{{.SBPCardHolder}}{{else}}Получатель СБП{{end}}</strong>
+            <div class="muted" style="margin-top:8px;">{{if .SBPCardBank}}{{.SBPCardBank}}{{else}}Ваш банк по СБП{{end}}</div>
+            <div style="margin-top:12px;">{{if .SBPCardNumber}}{{.SBPCardNumber}}{{else}}Подключите реальные реквизиты позже{{end}}</div>
+          </div>
         </div>
-        <p class="muted" style="margin:16px 0 0;">
-          Этот кабинет можно открыть снова по этой же ссылке. Для Happ нужна строка <strong>«Ссылка для Happ»</strong> ниже.
-        </p>
+        {{end}}
+        {{if .Order.ProvisionError}}<div class="notice" style="margin-top:14px;">Последняя попытка выпуска ключей завершилась ошибкой: {{.Order.ProvisionError}}</div>{{end}}
+        <form method="post" action="/order/{{.Order.ID}}/activate?token={{.Order.AccessToken}}" style="margin-top:14px;">
+          <button class="cta" type="submit">{{if eq .Order.Status "provisioning"}}Выпуск уже идет{{else if and (eq .Order.PriceMinor 0) .Order.PromoCode}}Выдать ключи без оплаты{{else}}Я оплатил, выдать ключи{{end}}</button>
+        </form>
+        {{end}}
       </div>
     </section>
 
-    <section class="card stack">
-      <h2 style="margin:0;">Выданный доступ</h2>
-      {{if .Order.InviteCode}}
-      <div class="bundle">
-        <div class="muted">Код активации</div>
-        <pre>{{.Order.InviteCode}}</pre>
-        <p class="muted" style="margin:10px 0 0;">Подходит для Android и Windows-лаунчера, если тариф выдает код.</p>
+    <section class="panel">
+      <h2 style="margin:0 0 12px; font-size:24px; letter-spacing:-0.03em;">Финальная конфигурация заказа</h2>
+      <div class="rows">
+        <div class="row"><span class="muted">База</span><strong>{{formatMoney .Order.SubtotalMinor .Order.Currency}}</strong></div>
+        <div class="row"><span class="muted">Скидка за срок</span><strong>{{formatMoney .Order.DiscountMinor .Order.Currency}} ({{.Order.DiscountPercent}}%)</strong></div>
+        {{if .Order.PromoCode}}<div class="row"><span class="muted">Промокод</span><strong>{{.Order.PromoCode}}{{if .Order.PromoName}} · {{.Order.PromoName}}{{end}}</strong></div>{{end}}
+        {{if gt .Order.PromoDiscountMinor 0}}<div class="row"><span class="muted">Скидка по промокоду</span><strong>{{formatMoney .Order.PromoDiscountMinor .Order.Currency}} ({{.Order.PromoDiscountPercent}}%)</strong></div>{{end}}
+        <div class="row"><span class="muted">Итого</span><strong>{{formatMoney .Order.PriceMinor .Order.Currency}}</strong></div>
+        <div class="row"><span class="muted">Срок доступа</span><strong>{{.Order.Months}} мес. / {{.Order.DurationDays}} дней</strong></div>
+        <div class="row"><span class="muted">Создан</span><strong>{{formatTime .Order.CreatedAt}}</strong></div>
+        {{if .Order.ActivatedAt}}<div class="row"><span class="muted">Активирован</span><strong>{{formatTimePtr .Order.ActivatedAt}}</strong></div>{{end}}
       </div>
-      {{end}}
-
-      {{if .Order.SubscriptionURL}}
-      <div class="bundle">
-        <div class="muted">Ссылка для Happ</div>
-        <pre>{{.Order.SubscriptionURL}}</pre>
-      </div>
-      {{end}}
-
-      {{if .Order.PrimaryVLESSURL}}
-      <div class="bundle">
-        <div class="muted">Основной vless://</div>
-        <pre>{{.Order.PrimaryVLESSURL}}</pre>
-      </div>
-      {{end}}
-
-      {{if .Order.VLESSURLs}}
-      <div class="bundle">
-        <div class="muted">Все VLESS-ссылки</div>
-        <pre>{{joinLines .Order.VLESSURLs}}</pre>
-      </div>
-      {{end}}
-
-      {{if .Order.ProfileYAMLs}}
-      <div class="bundle">
-        <div class="muted">YAML-профили для Windows-лаунчера</div>
-        <div class="actions" style="margin-top:10px;">
-          {{range $index, $_ := .Order.ProfileYAMLs}}
-          <a class="button" href="/order/{{$.Order.ID}}/profiles/{{$index}}.yaml?token={{$.Order.AccessToken}}">Скачать профиль {{$index}}</a>
-          {{end}}
-        </div>
-      </div>
-      {{end}}
-
-      {{if .Order.SubscriptionText}}
-      <div class="bundle">
-        <div class="muted">Текст подписки</div>
-        <pre>{{.Order.SubscriptionText}}</pre>
-      </div>
-      {{end}}
     </section>
 
-    <section class="card">
-      <h2 style="margin-top:0;">Статус модерации</h2>
-      <div class="row"><span class="muted">Текущий статус</span><strong>{{statusLabel .Order.Status}}</strong></div>
-      {{if .Order.ReviewReason}}<div class="row"><span class="muted">Комментарий модератора</span><strong>{{.Order.ReviewReason}}</strong></div>{{end}}
-      {{if .Order.ReviewedAt}}<div class="row"><span class="muted">Обновлено</span><strong>{{formatTimePtr .Order.ReviewedAt}}</strong></div>{{end}}
-      {{if and (eq .Order.DeliveryMode "invite_code") (not .Order.SubscriptionURL)}}
-      <p class="muted" style="margin:16px 0 0;">
-        Для Happ ссылка сразу не выдается на кодовом тарифе. Она формируется только для готового профиля и находится в ответе сервера как
-        <code>/admin/client/subscription?client_uuid=...</code>.
-      </p>
-      {{end}}
+    {{if .Order.AccessKeys}}
+    <section class="panel">
+      <h2 style="margin:0 0 14px; font-size:24px; letter-spacing:-0.03em;">Выданные ключи</h2>
+      <div class="keyGrid">
+        {{range .Order.AccessKeys}}
+        <div class="card">
+          <strong>Слот {{.SlotNumber}} · {{.Label}}</strong>
+          <div class="muted" style="margin-top:8px;">ID клиента: {{.ClientID}}</div>
+          {{if .SubscriptionURL}}<pre>{{.SubscriptionURL}}</pre>{{end}}
+          {{if .PrimaryVLESSURL}}<div class="muted" style="margin-top:10px;">Резервный VLESS</div><pre>{{.PrimaryVLESSURL}}</pre>{{end}}
+        </div>
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    <section class="panel">
+      <h2 style="margin:0 0 14px; font-size:24px; letter-spacing:-0.03em;">Клиенты и кабинет</h2>
+      <div class="grid">
+        <div class="tile">
+          <div class="muted">Happ</div>
+          {{if .HappURL}}<a href="{{.HappURL}}" target="_blank" rel="noreferrer">Открыть / скачать</a>{{else}}Ссылка не задана{{end}}
+        </div>
+        <div class="tile">
+          <div class="muted">Android APK</div>
+          {{if .AndroidURL}}<a href="{{.AndroidURL}}" target="_blank" rel="noreferrer">Скачать</a>{{else}}Ссылка не задана{{end}}
+        </div>
+        <div class="tile">
+          <div class="muted">ПК-клиент</div>
+          {{if .WindowsURL}}<a href="{{.WindowsURL}}" target="_blank" rel="noreferrer">Скачать</a>{{else}}Ссылка не задана{{end}}
+        </div>
+      </div>
     </section>
   </div>
+</body>
+</html>`
+
+const accountTemplate = `<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.BrandName}} · кабинет</title>
+  <style>
+    :root {
+      --bg:#f3f5f7;
+      --ink:#13202b;
+      --muted:#5b6875;
+      --panel:#ffffff;
+      --line:rgba(19,32,43,0.08);
+      --teal:#0f766e;
+      --orange:#dd6b20;
+      --slate:#223040;
+      --shadow:0 24px 70px rgba(19,32,43,0.10);
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      color:var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(15,118,110,0.10), transparent 22%),
+        radial-gradient(circle at top right, rgba(221,107,32,0.12), transparent 24%),
+        linear-gradient(180deg, #f7f9fb 0%, #eef2f5 100%);
+      font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
+    }
+    a { color:var(--teal); word-break:break-all; }
+    code, pre { font-family:"Cascadia Code","Consolas",monospace; }
+    .shell { max-width:1240px; margin:0 auto; padding:24px 18px 64px; display:grid; gap:16px; }
+    .hero, .grid { display:grid; gap:16px; }
+    .hero { grid-template-columns:1.05fr 0.95fr; }
+    .panel, .card {
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+    }
+    .panel { padding:24px; }
+    .card { padding:18px; }
+    h1 { margin:12px 0 10px; font-size:clamp(32px,4.4vw,58px); letter-spacing:-0.05em; }
+    .muted { color:var(--muted); }
+    .siteKey {
+      padding:16px 18px;
+      border-radius:20px;
+      background:linear-gradient(135deg, rgba(15,118,110,0.08), rgba(221,107,32,0.08));
+      border:1px solid rgba(15,118,110,0.10);
+    }
+    .kpiGrid, .keyGrid, .orderGrid {
+      display:grid;
+      gap:14px;
+      grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    }
+    .big { font-size:34px; font-weight:900; letter-spacing:-0.05em; }
+    pre {
+      margin:10px 0 0;
+      padding:14px;
+      border-radius:16px;
+      background:#edf4f3;
+      overflow:auto;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+    .builder {
+      padding:22px;
+      border-radius:24px;
+      background:#fbfcfd;
+      border:1px solid var(--line);
+    }
+    .months {
+      display:grid;
+      gap:10px;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      margin-top:10px;
+    }
+    .monthBtn {
+      width:100%;
+      padding:14px;
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:#fff;
+      color:var(--ink);
+      font:inherit;
+      font-weight:800;
+      text-align:left;
+      cursor:pointer;
+    }
+    .monthBtn .sub { display:block; margin-top:6px; color:var(--muted); font-size:13px; }
+    .monthBtn.active {
+      border-color:rgba(15,118,110,0.22);
+      background:linear-gradient(135deg, rgba(15,118,110,0.10), rgba(15,118,110,0.03));
+    }
+    input, textarea, button {
+      width:100%;
+      border-radius:18px;
+      border:1px solid var(--line);
+      padding:13px 14px;
+      font:inherit;
+      background:#fff;
+      color:var(--ink);
+    }
+    textarea { min-height:100px; resize:vertical; }
+    button[type="submit"] {
+      border:none;
+      background:linear-gradient(135deg, var(--orange), #ffb36b);
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 18px 38px rgba(221,107,32,0.20);
+    }
+    .fields {
+      display:grid;
+      gap:12px;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    }
+    .sectionLabel {
+      display:block;
+      margin-bottom:8px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:800;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+    }
+    .summary {
+      margin-top:16px;
+      padding:18px;
+      border-radius:22px;
+      background:linear-gradient(135deg, #0f766e, #155e75);
+      color:#f6fffd;
+    }
+    .summary .big { color:#fff; }
+    .orderCard {
+      border:1px solid var(--line);
+      border-radius:22px;
+      padding:18px;
+      background:#fbfcfd;
+    }
+    .pill {
+      display:inline-flex;
+      align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+    }
+    .awaiting_payment { background:rgba(221,107,32,0.12); color:#b45309; }
+    .provisioning { background:rgba(15,118,110,0.12); color:#0f766e; }
+    .active { background:rgba(15,118,110,0.12); color:#0f766e; }
+    .cancelled { background:rgba(185,28,28,0.10); color:#b91c1c; }
+    @media (max-width: 920px) {
+      .hero { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="panel">
+        <div class="muted">Кабинет клиента</div>
+        <h1>{{.BrandName}} · ваши ключи и продление</h1>
+        <p class="muted" style="margin:0; line-height:1.7;">Здесь собраны все оплаченные заказы, активные ключи устройств и быстрый конструктор для продления или покупки новых устройств.</p>
+        <div class="siteKey" style="margin-top:18px;">
+          <strong>Ключ кабинета</strong>
+          <pre>{{.AccountToken}}</pre>
+          <div class="muted" style="margin-top:10px;">Прямая ссылка: <a href="{{.AccountURL}}">{{.AccountURL}}</a></div>
+        </div>
+        <div class="kpiGrid" style="margin-top:18px;">
+          <div class="card">
+            <div class="muted">Заказов</div>
+            <div class="big">{{len .Orders}}</div>
+          </div>
+          <div class="card">
+            <div class="muted">Активных ключей</div>
+            <div class="big">{{len .ActiveKeys}}</div>
+          </div>
+          <div class="card">
+            <div class="muted">Контакт</div>
+            <div class="big" style="font-size:22px;">{{.Contact}}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="builder">
+          <h2 style="margin:0 0 12px; font-size:24px; letter-spacing:-0.03em;">Продлить или добавить устройства</h2>
+          <form method="post" action="/order">
+            <input type="hidden" name="account_id" value="{{.AccountID}}">
+            <input type="hidden" name="account_token" value="{{.AccountToken}}">
+            <input type="hidden" name="device_count" id="renew_device_count" value="{{.DefaultQuote.DeviceCount}}">
+            <input type="hidden" name="months" id="renew_months" value="{{.DefaultQuote.Months}}">
+
+            <label class="sectionLabel" for="renew_range">Количество устройств</label>
+            <input id="renew_range" type="range" min="{{.Pricing.MinDevices}}" max="{{.Pricing.MaxDevices}}" value="{{.DefaultQuote.DeviceCount}}">
+            <div class="muted">Сейчас выбрано: <strong id="renew_device_label">{{.DefaultQuote.DeviceCount}}</strong></div>
+
+            <div>
+              <span class="sectionLabel">Срок</span>
+              <div class="months" id="renew_months_grid">
+                {{range .Pricing.MonthOptions}}
+                <button class="monthBtn" type="button" data-months="{{.Months}}" data-discount="{{.DiscountPercent}}">
+                  <span>{{.Label}}</span>
+                  <span class="sub">{{if gt .DiscountPercent 0}}Скидка {{.DiscountPercent}}%{{else}}Без скидки{{end}}</span>
+                </button>
+                {{end}}
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="muted" style="color:rgba(246,255,253,0.8);">Новый заказ</div>
+              <div class="big" id="renew_total_price">{{formatMoney .DefaultQuote.TotalMinor .DefaultQuote.Currency}}</div>
+              <div id="renew_summary_line">{{.DefaultQuote.DeviceCount}} устройств · {{.DefaultQuote.Months}} мес. · скидка {{.DefaultQuote.DiscountPercent}}%</div>
+            </div>
+
+            <div class="fields" style="margin-top:14px;">
+              <div>
+                <label class="sectionLabel" for="renew_customer_name">Имя</label>
+                <input id="renew_customer_name" name="customer_name" value="{{.CustomerName}}" required>
+              </div>
+              <div>
+                <label class="sectionLabel" for="renew_contact">Контакт</label>
+                <input id="renew_contact" name="contact" value="{{.Contact}}" required>
+              </div>
+              <div>
+                <label class="sectionLabel" for="renew_device_label_input">Подпись для слотов</label>
+                <input id="renew_device_label_input" name="device_label" placeholder="Например, Family / Office">
+              </div>
+              <div>
+                <label class="sectionLabel" for="renew_promo_code">Промокод</label>
+                <input id="renew_promo_code" name="promo_code" value="{{.PromoCode}}" placeholder="Скидка или тестовый код">
+              </div>
+            </div>
+            <div style="margin-top:14px;">
+              <label class="sectionLabel" for="renew_note">Комментарий</label>
+              <textarea id="renew_note" name="note" placeholder="Например, продление текущего доступа или новые устройства"></textarea>
+            </div>
+            <button type="submit" style="margin-top:14px;">Создать заказ на продление</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin:0 0 14px; font-size:24px; letter-spacing:-0.03em;">Активные ключи</h2>
+      <div class="keyGrid">
+        {{range .ActiveKeys}}
+        <div class="card">
+          <strong>{{.Label}}</strong>
+          <div class="muted" style="margin-top:8px;">Заказ: <a href="{{.OrderURL}}">{{.OrderID}}</a></div>
+          <div class="muted" style="margin-top:6px;">ID клиента: {{.ClientID}}</div>
+          {{if .Subscription}}<pre>{{.Subscription}}</pre>{{end}}
+          {{if .VLESS}}<div class="muted" style="margin-top:10px;">Резервный VLESS</div><pre>{{.VLESS}}</pre>{{end}}
+        </div>
+        {{else}}
+        <div class="card">Активных ключей пока нет.</div>
+        {{end}}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin:0 0 14px; font-size:24px; letter-spacing:-0.03em;">История заказов</h2>
+      <div class="orderGrid">
+        {{range .Orders}}
+        <div class="orderCard">
+          <span class="pill {{statusClass .Status}}">{{statusLabel .Status}}</span>
+          <h3 style="margin:12px 0 8px;">{{.PlanName}}</h3>
+          <div class="muted">ID: <a href="/order/{{.ID}}?token={{.AccessToken}}">{{.ID}}</a></div>
+          <div class="muted" style="margin-top:6px;">{{.DeviceCount}} устройств · {{.Months}} мес. · {{formatMoney .PriceMinor .Currency}}</div>
+          <div class="muted" style="margin-top:6px;">Создан: {{formatTime .CreatedAt}}</div>
+          {{if .ActivatedAt}}<div class="muted" style="margin-top:6px;">Активирован: {{formatTimePtr .ActivatedAt}}</div>{{end}}
+          {{if .ProvisionError}}<div class="muted" style="margin-top:10px; color:#b91c1c;">Ошибка: {{.ProvisionError}}</div>{{end}}
+        </div>
+        {{end}}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="grid">
+        <div class="card">
+          <strong>Happ</strong>
+          <div class="muted" style="margin-top:8px;">{{if .HappDownloadURL}}<a href="{{.HappDownloadURL}}" target="_blank" rel="noreferrer">Открыть / скачать</a>{{else}}Ссылка не задана{{end}}</div>
+        </div>
+        <div class="card">
+          <strong>Android APK</strong>
+          <div class="muted" style="margin-top:8px;">{{if .AndroidLauncherURL}}<a href="{{.AndroidLauncherURL}}" target="_blank" rel="noreferrer">Скачать</a>{{else}}Ссылка не задана{{end}}</div>
+        </div>
+        <div class="card">
+          <strong>Поддержка</strong>
+          <div class="muted" style="margin-top:8px;">{{if .SupportLink}}<a href="{{.SupportLink}}" target="_blank" rel="noreferrer">{{.SupportLink}}</a>{{else}}Добавьте ` + "`support_link`" + ` в конфиге pay-service{{end}}</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      const pricing = {
+        baseMonthly: {{.Pricing.BaseMonthlyPriceMinor}},
+        currency: {{printf "%q" .Pricing.Currency}},
+        options: {{toJSON .Pricing.MonthOptions}}
+      };
+      const currency = pricing.currency || "RUB";
+      const range = document.getElementById("renew_range");
+      const devicesInput = document.getElementById("renew_device_count");
+      const monthsInput = document.getElementById("renew_months");
+      const devicesLabel = document.getElementById("renew_device_label");
+      const totalPrice = document.getElementById("renew_total_price");
+      const summaryLine = document.getElementById("renew_summary_line");
+      const buttons = Array.from(document.querySelectorAll("#renew_months_grid .monthBtn"));
+
+      function money(value) {
+        if ((currency || "").toUpperCase() === "RUB") return value + " ₽";
+        return value + " " + currency;
+      }
+
+      function selectedOption() {
+        const months = Number(monthsInput.value || 0);
+        return pricing.options.find(item => item.months === months) || pricing.options[0];
+      }
+
+      function render() {
+        const devices = Number(range.value || 1);
+        const option = selectedOption();
+        const subtotal = pricing.baseMonthly * devices * option.months;
+        const discount = Math.floor(subtotal * option.discount_percent / 100);
+        const total = subtotal - discount;
+        devicesInput.value = String(devices);
+        devicesLabel.textContent = String(devices);
+        totalPrice.textContent = money(total);
+        summaryLine.textContent = devices + " устройств · " + option.months + " мес. · скидка " + option.discount_percent + "%";
+        buttons.forEach(btn => {
+          btn.classList.toggle("active", Number(btn.dataset.months) === option.months);
+        });
+      }
+
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          monthsInput.value = btn.dataset.months;
+          render();
+        });
+      });
+      range.addEventListener("input", render);
+      render();
+    })();
+  </script>
 </body>
 </html>`
 
@@ -472,47 +1009,47 @@ const moderatorLoginTemplate = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Модератор</title>
+  <title>Вход модератора</title>
   <style>
     body {
       margin:0;
       min-height:100vh;
       display:grid;
       place-items:center;
-      background:linear-gradient(180deg, #10151d, #0d1118);
-      color:#f5f7fa;
-      font-family:"Segoe UI Variable","Trebuchet MS","Segoe UI",sans-serif;
+      background:linear-gradient(180deg, #0b1118, #121c27);
+      color:#f4f7fb;
+      font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
     }
     form {
       width:min(420px, calc(100vw - 28px));
       padding:24px;
-      border-radius:24px;
+      border-radius:26px;
       border:1px solid rgba(255,255,255,0.08);
-      background:#171c25;
-      box-shadow:0 18px 50px rgba(0,0,0,0.25);
+      background:#141d28;
+      box-shadow:0 20px 50px rgba(0,0,0,0.30);
     }
     input, button {
       width:100%;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,0.1);
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,0.10);
       padding:13px 14px;
       font:inherit;
       margin-top:12px;
-      background:#0e131a;
-      color:#f5f7fa;
+      background:#0e1620;
+      color:#f4f7fb;
     }
     button {
       border:none;
-      background:linear-gradient(135deg, #2aa7d5, #39bf94);
-      font-weight:800;
+      background:linear-gradient(135deg, #0f766e, #38b2ac);
+      font-weight:900;
       cursor:pointer;
     }
-    .notice { color:#ffb2b2; min-height:20px; }
+    .notice { min-height:20px; color:#ffbcbc; }
   </style>
 </head>
 <body>
   <form method="post" action="/moderator/login">
-    <h1 style="margin:0 0 8px;">Вход модератора</h1>
+    <h1 style="margin:0 0 10px;">Вход модератора</h1>
     <div class="notice">{{.Notice}}</div>
     <input name="token" type="password" placeholder="Токен доступа" autofocus>
     <button type="submit">Войти</button>
@@ -525,96 +1062,173 @@ const moderatorOrdersTemplate = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Заказы</title>
+  <title>{{.BrandName}} · заказы и промокоды</title>
   <style>
     :root {
-      --bg:#0f1218;
-      --panel:#171c25;
+      --bg:#0d131c;
+      --panel:#121b26;
       --line:rgba(255,255,255,0.08);
-      --ink:#eff4fb;
-      --muted:#98a2b3;
-      --green:#8ce9c7;
-      --orange:#ffbd8a;
-      --red:#ffb2b2;
+      --ink:#eef5ff;
+      --muted:#93a0ae;
     }
     * { box-sizing:border-box; }
-    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Segoe UI Variable","Trebuchet MS","Segoe UI",sans-serif; }
-    a { color:#9fe3ff; text-decoration:none; }
-    .shell { max-width:1220px; margin:0 auto; padding:24px 18px 48px; }
-    .card { background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { text-align:left; padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
-    th { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:0.04em; }
-    .pill { display:inline-flex; padding:5px 10px; border-radius:999px; font-size:12px; font-weight:800; text-transform:uppercase; }
-    .pending_review { background:rgba(255,189,138,0.14); color:var(--orange); }
-    .confirmed { background:rgba(140,233,199,0.14); color:var(--green); }
-    .rejected { background:rgba(255,178,178,0.14); color:var(--red); }
-    .actions { display:flex; flex-wrap:wrap; gap:8px; }
+    body {
+      margin:0;
+      background:var(--bg);
+      color:var(--ink);
+      font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
+    }
+    a { color:#98ebe0; text-decoration:none; }
+    .shell { max-width:1260px; margin:0 auto; padding:24px 18px 48px; }
+    .panel {
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:24px;
+      padding:18px;
+    }
+    table { width:100%; border-collapse:collapse; margin-top:16px; }
+    th, td {
+      text-align:left;
+      padding:12px 10px;
+      border-bottom:1px solid var(--line);
+      vertical-align:top;
+    }
+    th {
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+    }
+    .muted { color:var(--muted); }
+    .pill {
+      display:inline-flex;
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      background:rgba(255,255,255,0.08);
+    }
+    .awaiting_payment { color:#ffcf9d; }
+    .provisioning { color:#a9efe7; }
+    .active { color:#9ce7de; }
+    .cancelled { color:#ffbcbc; }
+    .grid {
+      display:grid;
+      gap:16px;
+      grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .formGrid {
+      display:grid;
+      gap:12px;
+      grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+      margin-top:16px;
+    }
+    input, button {
+      width:100%;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.10);
+      padding:12px 13px;
+      font:inherit;
+      background:#0f1722;
+      color:var(--ink);
+    }
     button {
-      padding:9px 12px;
-      border-radius:12px;
       border:none;
       cursor:pointer;
-      font:inherit;
-      font-weight:700;
+      background:linear-gradient(135deg, #0f766e, #38b2ac);
+      color:#042322;
+      font-weight:900;
     }
-    .approve { background:#1d6f57; color:white; }
-    .reject { background:#7f1d1d; color:white; }
-    input[type="text"] {
-      width:100%;
-      padding:10px 12px;
-      border-radius:12px;
+    .promoCard {
       border:1px solid var(--line);
-      background:#10151c;
-      color:var(--ink);
+      border-radius:18px;
+      padding:14px;
+      background:rgba(255,255,255,0.02);
+    }
+    .promoMeta {
+      display:grid;
+      gap:8px;
+      margin-top:12px;
+      color:var(--muted);
+      font-size:14px;
+    }
+    .token {
+      font-family:"Cascadia Code","Consolas",monospace;
+      font-size:13px;
+      word-break:break-all;
     }
   </style>
 </head>
 <body>
   <div class="shell">
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; gap:16px; align-items:center; flex-wrap:wrap;">
+    <div class="panel">
+      <div style="display:flex; justify-content:space-between; gap:14px; align-items:center; flex-wrap:wrap;">
         <div>
-          <h1 style="margin:0;">Очередь заказов</h1>
-          <div class="muted">Клиенты уже получили доступ. Здесь подтверждается или отклоняется оплата.</div>
+          <h1 style="margin:0;">{{.BrandName}} · заказы и промокоды</h1>
+          <div class="muted">Управление скидочными и тестовыми промокодами, плюс просмотр всех заказов и кабинетов.</div>
         </div>
         <a href="/moderator/logout">Выйти</a>
       </div>
-      <table style="margin-top:18px;">
+      <div style="margin-top:18px;">
+        <h2 style="margin:0;">Создать промокод</h2>
+        <div class="muted" style="margin-top:6px;">Промокод со скидкой ` + "`100%`" + ` активирует заказ без СБП и сразу выпускает ключи.</div>
+        <form method="post" action="/moderator/promos">
+          <div class="formGrid">
+            <input name="code" placeholder="Код, например test100" required>
+            <input name="name" placeholder="Название, например Тест без оплаты" required>
+            <input name="discount_percent" type="number" min="0" max="100" placeholder="Скидка, %" required>
+            <input name="max_uses" type="number" min="0" placeholder="Лимит использований, 0 = без лимита">
+            <input name="expires_in_hours" type="number" min="0" placeholder="Срок жизни в часах, 0 = без срока">
+            <button type="submit">Создать промокод</button>
+          </div>
+        </form>
+      </div>
+      <div class="grid" style="margin-top:16px;">
+        {{range .Promos}}
+        <div class="promoCard">
+          <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+            <div>
+              <strong>{{.Name}}</strong>
+              <div class="token" style="margin-top:8px;">{{.Code}}</div>
+            </div>
+            <span class="pill {{if .Active}}active{{else}}cancelled{{end}}">{{if .Active}}активен{{else}}неактивен{{end}}</span>
+          </div>
+          <div class="promoMeta">
+            <div>Скидка: <strong style="color:#eef5ff;">{{.DiscountPercent}}%</strong></div>
+            <div>Использовано: <strong style="color:#eef5ff;">{{.UsedCount}}</strong>{{if gt .MaxUses 0}} / {{.MaxUses}}{{else}} / без лимита{{end}}</div>
+            <div>Создан: <strong style="color:#eef5ff;">{{formatTime .CreatedAt}}</strong></div>
+            <div>Истекает: <strong style="color:#eef5ff;">{{if .ExpiresAt}}{{formatTimePtr .ExpiresAt}}{{else}}без срока{{end}}</strong></div>
+          </div>
+        </div>
+        {{else}}
+        <div class="promoCard">Промокоды пока не созданы.</div>
+        {{end}}
+      </div>
+      <table>
         <thead>
           <tr>
-            <th>ID</th>
+            <th>Заказ</th>
+            <th>Кабинет</th>
+            <th>Клиент</th>
             <th>Тариф</th>
-            <th>Контакт</th>
-            <th>Доступ</th>
             <th>Статус</th>
-            <th>Скрин</th>
-            <th>Действия</th>
+            <th>Итого</th>
           </tr>
         </thead>
         <tbody>
           {{range .Orders}}
           <tr>
             <td><a href="/moderator/orders/{{.ID}}">{{.ID}}</a><div class="muted">{{formatTime .CreatedAt}}</div></td>
-            <td>{{.PlanName}}<div class="muted">{{formatMoney .PriceMinor .Currency}}</div></td>
-            <td>{{.Contact}}<div class="muted">{{.CustomerName}}</div></td>
-            <td>{{if .ClientID}}client {{.ClientID}}{{else}}invite {{.InviteCode}}{{end}}</td>
-            <td><span class="pill {{.Status}}">{{statusLabel .Status}}</span></td>
-            <td>{{if .ScreenshotFile}}<a href="/moderator/orders/{{.ID}}/screenshot" target="_blank" rel="noreferrer">Открыть</a>{{end}}</td>
-            <td>
-              <div class="actions">
-                <form method="post" action="/moderator/orders/{{.ID}}/confirm">
-                  <button class="approve" type="submit">Подтвердить</button>
-                </form>
-              </div>
-              <form method="post" action="/moderator/orders/{{.ID}}/reject" style="margin-top:8px;">
-                <input type="text" name="reason" placeholder="Причина отклонения" value="{{.ReviewReason}}">
-                <button class="reject" type="submit" style="margin-top:8px;">Отклонить и заблокировать</button>
-              </form>
-            </td>
+            <td>{{.AccountID}}<div class="muted">{{.AccountToken}}</div></td>
+            <td>{{.CustomerName}}<div class="muted">{{.Contact}}</div></td>
+            <td>{{.DeviceCount}} устройств · {{.Months}} мес.<div class="muted">{{.PlanName}}</div>{{if .PromoCode}}<div class="muted">Промокод: {{.PromoCode}}{{if .PromoDiscountPercent}} · скидка {{.PromoDiscountPercent}}%{{end}}</div>{{end}}</td>
+            <td><span class="pill {{.Status}}">{{statusLabel .Status}}</span>{{if .ProvisionError}}<div class="muted" style="margin-top:6px;">{{.ProvisionError}}</div>{{end}}</td>
+            <td>{{formatMoney .PriceMinor .Currency}}</td>
           </tr>
           {{else}}
-          <tr><td colspan="7">Заказов пока нет.</td></tr>
+          <tr><td colspan="6">Заказы пока не найдены.</td></tr>
           {{end}}
         </tbody>
       </table>

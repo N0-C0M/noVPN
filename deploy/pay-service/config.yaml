@@ -13,30 +13,36 @@ payment_card_bank: ""
 android_launcher_url: https://xowery.ru/downloads/NoVPN-Android.apk
 windows_launcher_url: https://xowery.ru/downloads/NoVPN-Desktop-Setup-0.1.0.exe
 happ_download_url: https://apps.apple.com/us/app/happ-proxy-utility/id6504287215
-plans:
-  - id: android-month
-    name: Android / 30 дней
-    description: Код активации для Android и Windows лаунчера
-    badge: Android
-    price_minor: 40
-    currency: RUB
-    duration_days: 30
-    delivery_mode: invite_code
-    max_uses: 1
-    features:
-      - 40 ₽ в месяц
-      - код активации сразу после загрузки скрина
-      - ручная модерация оплаты
-  - id: ios-windows-month
-    name: iOS / Windows / 30 дней
-    description: Готовая ссылка для Happ и YAML-профиль для Windows
-    badge: iOS + Windows
-    price_minor: 60
-    currency: RUB
-    duration_days: 30
-    delivery_mode: profile_bundle
-    max_uses: 1
-    features:
-      - 60 ₽ в месяц
-      - ссылка для Happ сразу
-      - YAML-профиль для Windows и ручная модерация оплаты
+
+pricing:
+  plan_id: ios-windows-month
+  product_name: Доступ NoVPN
+  product_tagline: Один кабинет, один ключ кабинета и отдельный ключ для каждого устройства.
+  product_description: Настройте количество устройств и срок подписки, оплатите по СБП или через тестовый промокод и управляйте всеми выданными ключами из одного кабинета.
+  base_monthly_price_minor: 60
+  currency: RUB
+  min_devices: 1
+  max_devices: 10
+  default_devices: 1
+  default_months: 3
+  month_options:
+    - months: 1
+      discount_percent: 0
+      label: 1 месяц
+    - months: 3
+      discount_percent: 7
+      label: 3 месяца
+    - months: 6
+      discount_percent: 15
+      label: 6 месяцев
+    - months: 12
+      discount_percent: 25
+      label: 12 месяцев
+  features:
+    - Отдельный Happ-ключ для каждого оплаченного устройства
+    - Один ключ кабинета для истории заказов, продления и управления доступом
+    - Чем больше срок подписки, тем выше автоматическая скидка
+  sbp_payment_notice: Интеграцию СБП можно подключить позже. Пока оформление заказа работает как заглушка, а тестовый промокод на 100% позволяет выдать ключи без оплаты.
+  sbp_placeholder_label: Заглушка СБП
+  account_portal_headline: Личный кабинет и продление
+  account_portal_subtext: Каждый заказ привязывается к одному ключу кабинета. Через него пользователь открывает кабинет, копирует ключи и оформляет продление или новые устройства.

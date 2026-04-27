@@ -1,0 +1,48 @@
+listen_addr: 0.0.0.0:9120
+storage_path: /var/lib/novpn/payments/orders.json
+admin_token: RcRL_l2WFl7sMJfDLM3Lty0n5vN_7pbq
+public_base_url: https://xowery.ru
+control_plane_base_url: https://xowery.ru/admin
+control_plane_token: GTos5ePkuTs1KIFU4Q_I4J_iVXtMyAwn
+shutdown_timeout: 15s
+brand_name: NoVPN
+support_link: ""
+payment_card_number: "укажите номер карты"
+payment_card_holder: "укажите получателя"
+payment_card_bank: "укажите банк"
+android_launcher_url: https://xowery.ru/downloads/NoVPN-Android.apk
+windows_launcher_url: https://xowery.ru/downloads/NoVPN-Desktop-Setup-0.1.0.exe
+happ_download_url: https://apps.apple.com/us/app/happ-proxy-utility/id6504287215
+
+pricing:
+  plan_id: ios-windows-month
+  product_name: Доступ NoVPN
+  product_tagline: Один кабинет, один ключ кабинета и отдельный ключ для каждого устройства.
+  product_description: Настройте количество устройств и срок подписки, оплатите по СБП или через тестовый промокод и управляйте всеми выданными ключами из одного кабинета.
+  base_monthly_price_minor: 60
+  currency: RUB
+  min_devices: 1
+  max_devices: 10
+  default_devices: 1
+  default_months: 3
+  month_options:
+    - months: 1
+      discount_percent: 0
+      label: 1 месяц
+    - months: 3
+      discount_percent: 7
+      label: 3 месяца
+    - months: 6
+      discount_percent: 15
+      label: 6 месяцев
+    - months: 12
+      discount_percent: 25
+      label: 12 месяцев
+  features:
+    - Отдельный Happ-ключ для каждого оплаченного устройства
+    - Один ключ кабинета для истории заказов, продления и управления доступом
+    - Чем больше срок подписки, тем выше автоматическая скидка
+  sbp_payment_notice: Интеграцию СБП можно подключить позже. Пока оформление заказа работает как заглушка, а тестовый промокод на 100% позволяет выдать ключи без оплаты.
+  sbp_placeholder_label: Заглушка СБП
+  account_portal_headline: Личный кабинет и продление
+  account_portal_subtext: Каждый заказ привязывается к одному ключу кабинета. Через него пользователь открывает кабинет, копирует ключи и оформляет продление или новые устройства.

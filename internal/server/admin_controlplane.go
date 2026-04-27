@@ -244,7 +244,7 @@ func (a *adminApp) handleControlPlaneAPI(w http.ResponseWriter, r *http.Request)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		inviteRequest, err := a.buildInviteRequestFromPlan(request.PlanID, request.Name, request.Note, request.MaxUses)
+		inviteRequest, err := a.buildInviteRequestFromPlan(request.PlanID, request.Name, request.Note, request.MaxUses, request.AccessDurationDays)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -278,13 +278,13 @@ func (a *adminApp) handleControlPlaneAPI(w http.ResponseWriter, r *http.Request)
 				return
 			}
 			a.writeJSONPayload(w, http.StatusOK, map[string]any{
-				"status":               "rejected",
-				"action":               "client_blacklisted",
-				"client":               result.Client,
-				"blocked_devices":      result.BlockedDevices,
-				"config_path":          refreshResult.ConfigPath,
-				"client_profile_path":  refreshResult.ClientProfilePath,
-				"registry_path":        refreshResult.RegistryPath,
+				"status":              "rejected",
+				"action":              "client_blacklisted",
+				"client":              result.Client,
+				"blocked_devices":     result.BlockedDevices,
+				"config_path":         refreshResult.ConfigPath,
+				"client_profile_path": refreshResult.ClientProfilePath,
+				"registry_path":       refreshResult.RegistryPath,
 			})
 			return
 		}
@@ -313,14 +313,14 @@ func (a *adminApp) handleControlPlaneAPI(w http.ResponseWriter, r *http.Request)
 				return
 			}
 			a.writeJSONPayload(w, http.StatusOK, map[string]any{
-				"status":               "rejected",
-				"action":               "client_blacklisted",
-				"invite":               targetInvite,
-				"client":               result.Client,
-				"blocked_devices":      result.BlockedDevices,
-				"config_path":          refreshResult.ConfigPath,
-				"client_profile_path":  refreshResult.ClientProfilePath,
-				"registry_path":        refreshResult.RegistryPath,
+				"status":              "rejected",
+				"action":              "client_blacklisted",
+				"invite":              targetInvite,
+				"client":              result.Client,
+				"blocked_devices":     result.BlockedDevices,
+				"config_path":         refreshResult.ConfigPath,
+				"client_profile_path": refreshResult.ClientProfilePath,
+				"registry_path":       refreshResult.RegistryPath,
 			})
 			return
 		}
@@ -331,12 +331,12 @@ func (a *adminApp) handleControlPlaneAPI(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		a.writeJSONPayload(w, http.StatusOK, map[string]any{
-			"status":               "rejected",
-			"action":               "invite_deactivated",
-			"invite":               invite,
-			"config_path":          refreshResult.ConfigPath,
-			"client_profile_path":  refreshResult.ClientProfilePath,
-			"registry_path":        refreshResult.RegistryPath,
+			"status":              "rejected",
+			"action":              "invite_deactivated",
+			"invite":              invite,
+			"config_path":         refreshResult.ConfigPath,
+			"client_profile_path": refreshResult.ClientProfilePath,
+			"registry_path":       refreshResult.RegistryPath,
 		})
 	default:
 		http.NotFound(w, r)
@@ -364,14 +364,21 @@ func (a *adminApp) expandInvitePlan(req reality.InviteCreateRequest) (reality.In
 	return req, nil
 }
 
-func (a *adminApp) buildInviteRequestFromPlan(planID string, name string, note string, maxUses int) (reality.InviteCreateRequest, error) {
+func (a *adminApp) buildInviteRequestFromPlan(planID string, name string, note string, maxUses int, accessDurationDays int) (reality.InviteCreateRequest, error) {
 	req := reality.InviteCreateRequest{
 		Name:    strings.TrimSpace(name),
 		Note:    strings.TrimSpace(note),
 		PlanID:  strings.TrimSpace(planID),
 		MaxUses: maxUses,
 	}
-	return a.expandInvitePlan(req)
+	expanded, err := a.expandInvitePlan(req)
+	if err != nil {
+		return reality.InviteCreateRequest{}, err
+	}
+	if accessDurationDays > 0 {
+		expanded.AccessDurationDays = accessDurationDays
+	}
+	return expanded, nil
 }
 
 func (a *adminApp) buildClientProfiles(state reality.State, client reality.ClientRecord) []reality.ClientProfile {
@@ -550,10 +557,11 @@ type controlPlaneTrafficRequest struct {
 }
 
 type paymentActivationRequest struct {
-	PlanID  string `json:"plan_id"`
-	Name    string `json:"name"`
-	Note    string `json:"note"`
-	MaxUses int    `json:"max_uses"`
+	PlanID             string `json:"plan_id"`
+	Name               string `json:"name"`
+	Note               string `json:"note"`
+	MaxUses            int    `json:"max_uses"`
+	AccessDurationDays int    `json:"access_duration_days"`
 }
 
 type paymentRejectRequest struct {
@@ -701,11 +709,13 @@ func decodePaymentActivationRequest(r *http.Request) (paymentActivationRequest, 
 		return paymentActivationRequest{}, err
 	}
 	maxUses, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("max_uses")))
+	accessDurationDays, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("access_duration_days")))
 	return paymentActivationRequest{
-		PlanID:  r.FormValue("plan_id"),
-		Name:    r.FormValue("name"),
-		Note:    r.FormValue("note"),
-		MaxUses: maxUses,
+		PlanID:             r.FormValue("plan_id"),
+		Name:               r.FormValue("name"),
+		Note:               r.FormValue("note"),
+		MaxUses:            maxUses,
+		AccessDurationDays: accessDurationDays,
 	}, nil
 }
 

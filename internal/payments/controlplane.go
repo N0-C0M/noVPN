@@ -17,6 +17,14 @@ type ControlPlaneClient struct {
 	client  *http.Client
 }
 
+type ActivationRequest struct {
+	PlanID             string
+	Name               string
+	Note               string
+	MaxUses            int
+	AccessDurationDays int
+}
+
 type ActivateResponse struct {
 	Invite struct {
 		Code string `json:"code"`
@@ -49,12 +57,13 @@ func NewControlPlaneClient(baseURL string, token string) *ControlPlaneClient {
 	}
 }
 
-func (c *ControlPlaneClient) Activate(planID string, name string, note string, maxUses int) (ActivateResponse, error) {
+func (c *ControlPlaneClient) Activate(input ActivationRequest) (ActivateResponse, error) {
 	payload := map[string]any{
-		"plan_id":  strings.TrimSpace(planID),
-		"name":     strings.TrimSpace(name),
-		"note":     strings.TrimSpace(note),
-		"max_uses": maxUses,
+		"plan_id":              strings.TrimSpace(input.PlanID),
+		"name":                 strings.TrimSpace(input.Name),
+		"note":                 strings.TrimSpace(input.Note),
+		"max_uses":             input.MaxUses,
+		"access_duration_days": input.AccessDurationDays,
 	}
 	var response ActivateResponse
 	err := c.postJSON(c.baseURL+"/control-plane/payments/activate", payload, true, &response)
